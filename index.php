@@ -1,4 +1,12 @@
 <?php
+/**
+ * This is a self contained file for view our U.S. Debt from the U.S. Department of Treasury
+ * I stopped working on this because I was having issues with Access-Control... So, first step is getting the
+ *      php version to work.
+ *
+ * @author: Robert Guida
+ * @date: June 7th, 2017
+ */
 header('Access-Control-Allow-Origin: https://www.treasurydirect.gov');
 $jquery_file = "bin/jquery.js?r=" . filemtime('bin/jquery.js');
 $jquery_ui_file = "bin/jquery-ui/jquery-ui.min.js?r=" . filemtime('bin/jquery-ui/jquery-ui.min.js');
