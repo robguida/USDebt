@@ -1,187 +1,75 @@
 <?php
 /**
  * This is a self contained file for view our U.S. Debt from the U.S. Department of Treasury
+ * I stopped working on this because I was having issues with Access-Control... So, first step is getting the
+ *      php version to work.
  *
  * @author: Robert Guida
  * @date: June 7th, 2017
  */
-
-/* build the head links */
-$js_files = array(
-    "bin/jquery.js?r=" . filemtime('bin/jquery.js'),
-    "bin/jquery-ui/jquery-ui.min.js?r=" . filemtime('bin/jquery-ui/jquery-ui.min.js'),
-    "bin/Chart.bundle.min.js?r=" . filemtime('bin/Chart.bundle.min.js'),
-);
-$css_files = array(
-    "bin/jquery-ui/jquery-ui.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.min.css'),
-    "bin/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.structure.min.css'),
-    "bin/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.theme.min.css')
-);
-$head = '';
-foreach ($js_files as $file) {
-    $head .= "<script src=\"{$file}\" type=\"text/javascript\"></script>\n";
-}
-foreach ($css_files as $file) {
-    $head .= "<link rel=\"stylesheet\" href=\"{$file}\" />\n";
-}
-
-/* presidential array so we can link the candidate to the debt */
-$pres_array = array (
-    727506000 => array(
-        'pres' => 'Bill Clinton',
-        'start' => 'January 20, 1993',
-        'end' => 'January 20, 2001',
-        'img' => 'Bill_Clinton.jpg'
-    ),
-    979966800 => array(
-        'pres' => 'George W. Bush',
-        'start' => 'January 20, 2001',
-        'end' => 'January 20, 2009',
-        'img' => 'George-W-Bush.jpg'
-    ),
-    1232427600 => array(
-        'pres' => 'Barack Obama',
-        'start' => 'January 20, 2009',
-        'end' => 'January 20, 2017',
-        'img' => 'Barack_Obama.jpg'
-    ),
-    1484888400 => array(
-        'pres' => 'Donald Trump',
-        'start' => 'January 20, 2017',
-        'end' => '',
-        'img' => 'Donald_Trump.jpg'
-    ),
-);
-$pres_nav = '';
-foreach ($pres_array as $pres) {
-    $pres_start = new DateTime($pres['start']);
-    $pres_end = new DateTime($pres['end']);
-    $pres_nav .= "<a href=\"?start_date={$pres_start->format('Y-m-d')}&end_date={$pres_end->format('Y-m-d')}\">" .
-                    "<img src=\"images/{$pres['img']}\" title=\"{$pres['pres']}\"></a>";
-}
-
-/* get the chart data */
-$startDt = new DateTime();
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : $startDt->modify('-1 month')->format('Y-m-d');
-$end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
-$dot_url = "https://www.treasurydirect.gov/NP_WS/debt/search?startdate={$start_date}&enddate={$end_date}&format=json";
-
-/* if we have data, build the output */
-if ($data = current(json_decode(file_get_contents($dot_url)))) {
-    /* start the tabs and contents for each */
-    $output = '<div id="tabs">' .
-                    '<ul>' .
-                    '<li><a href="#t1">Graph</a></li>' .
-                    '<li><a href="#t2">Data</a></li>' .
-                    '</ul>' .
-                '<div id="t1"><div class="chart-container"><canvas id="myChart"></canvas></div></div>' .
-                '<div id="t2"><table class="output"><thead><tr><th>Date</th><th>Total Debt</th></tr></thead><tbody>';
-    $graph_labels = '[]';
-    $graph_labels_arr = array();
-    $graph_values = '[]';
-    $graph_values_arr = array();
-    $graph_colors = '[]';
-    $graph_colors_arr = array();
-    $graph_colors_toggle = false;
-    foreach ($data as $d) {
-        $dateDt = new DateTime($d->effectiveDate);
-        $debt_amount = '$' . number_format($d->totalDebt, 2);
-
-        /* add a record to the data table */
-        $output .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .
-                    "<td class=\"currency\">{$debt_amount}</td></tr>";
-
-        /* is this a day when a president took office? if so switch the color. */
-        if (array_key_exists($dateDt->getTimestamp(), $pres_array)) {
-            $graph_colors_toggle = !$graph_colors_toggle;
-            $graph_colors_arr[] = 'rgba(54, 162, 235, 0.2)';
-        } elseif (!$graph_colors_toggle) {
-            $graph_colors_arr[] = 'rgba(255, 99, 132, 0.2)';
-        } else {
-            /* get the last color and add it to the array */
-            $graph_colors_arr[] = end($graph_colors_arr);
-        }
-
-        /* use the date for the labels on the graph */
-        $graph_labels_arr[] = $dateDt->format('n/j/y');
-
-        /* use the debt for the points on the graph */
-        $graph_values_arr[] = round($d->totalDebt/1000000000000, 2);
-    }
-    if (!empty($graph_labels_arr)) {
-        $graph_labels = '["' . implode('", "', $graph_labels_arr) . '"]';
-    }
-    if (!empty($graph_values_arr)) {
-        $graph_values = '["' . implode('", "', $graph_values_arr) . '"]';
-    }
-    if (!empty($graph_colors_arr)) {
-        $graph_colors = '["' . implode('", "', $graph_colors_arr) . '"]';
-    }
-    $output .= '</tbody><tfoot></tfoot></table></div></div>';
-} else {
-    $output = "<h3>No data found for {$start_date} through {$end_date}.";
-}
-
-
+header('Access-Control-Allow-Origin: https://www.treasurydirect.gov');
+$jquery_file = "bin/jquery.js?r=" . filemtime('bin/jquery.js');
+$jquery_ui_file = "bin/jquery-ui/jquery-ui.min.js?r=" . filemtime('bin/jquery-ui/jquery-ui.min.js');
+$jquery_css_file = "bin/jquery-ui/jquery-ui.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.min.css');
+$str_css_file = "bin/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.structure.min.css');
+$theme_css_file = "bin/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.theme.min.css');
+$dot_url = 'https://www.treasurydirect.gov/NP_WS/debt/search';
 ?>
 <html>
 <head>
-    <?php echo $head; ?>
-    <style>
-        body {
-            padding: 16px;
+    <script src="<?php echo $jquery_file; ?>" type="text/javascript"></script>
+    <script src="<?php echo $jquery_ui_file; ?>" type="text/javascript"></script>
+    <link rel="stylesheet" href="<?php echo $jquery_css_file; ?>">
+    <link rel="stylesheet" href="<?php echo $str_css_file; ?>">
+    <link rel="stylesheet" href="<?php echo $theme_css_file; ?>">
+    <script type="text/javascript">
+        var usDebt = {
+            url: "",
+            url_params: [],
+            setUrl: function(val) {
+                this.url = val;
+            },
+            addUrlParam: function(val) {
+                this.url_params[val] = "";
+            },
+            setParam: function(key, val) {
+                this.url_params[key] = val;
+                console.log('url_params');
+                console.log(this.url_params);
+            },
+            getFormattedUrl: function() {
+                var params = [];
+                for (var key in this.url_params) {
+                    if (this.url_params.hasOwnProperty(key)) {
+                        params.push(key + "=" + this.url_params[key]);
+                    }
+                }
+                var output = this.url + '?' + params.join('&');
+                console.log('url ' + output);
+                return output;
+            },
+            fetch: function () {
+                var t = this.getFormattedUrl();
+                $(document).ready(function() {
+                    $.ajaxSetup({xhrFields: { withCredentials: true } });
+                    $.get({
+                        url: t,
+                        jsonp: "callback",
+                        success: function(result){
+                            alert(result);
+                        }
+                    });
+                });
+            }
         }
-        div.pres_nav {
-            display: inline;
-        }
-        div.pres_nav img{
-            width: 50px;
-            height: 60px;
-            border: 1px solid black;
-            margin: 0px 10px 0px 0px;
-        }
-        form.search {
-            display: inline;
-        }
-        .chart-container {
-            position: relative;
-            margin: auto;
-            height: 60vh;
-            width: 80vw;
-        }
-        canvas {
-            /*border: 1px dotted red;*/
-        }
-        table.output {
-            width: 500px;s
-            /*border: 1px solid silver;*/
-        }
-        table.output thead th {
-            border-bottom: 1px solid silver;
-        }
-        table.output tbody td {
-            padding: 3px 10px;
-        }
-        table.output tbody td.date {
-            text-align: center;
-        }
-        table.output tbody td.currency {
-            text-align: right;
-        }
-        table.output tr:nth-child(even){background-color: #f2f2f2}
-    </style>
+    </script>
 </head>
 <body>
-<h1>Our U.S. Debt</h1>
-<form id="search" class="search">
-    <label for="start_date">Start Date:</label>
-    <input type="text" id="start_date" name="start_date" value="<?php echo $start_date; ?>" />
-    <label for="end_date">End Date:</label>
-    <input type="text" id="end_date" name="end_date" value="<?php echo $end_date; ?>" />
-    <input type="submit" id="submit" name="submit" value="Fetch" />
+<form id="search">
+    <label for="start_date">Start Date:</label><input type="text" id="start_date" name="start_date" value="" />
+    <label for="end_date">End Date:</label><input type="text" id="end_date" name="end_date" value="" />
+    <input type="button" id="fetch" name="fetch" value="Fetch" />
 </form>
-<div class="pres_nav"><?php echo $pres_nav; ?></div>
-<?php echo $output; ?>
 </body>
 <footer>
 
@@ -189,55 +77,39 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
 <script type="text/javascript">
     $(document).ready(function() {
         console.log('jquery loaded');
-        $('#tabs').tabs();
+        /* this is the url parameter name which DOT is expecting */
+        var $start_date = 'startdate';
+        /* this is the url parameter name which DOT is expecting */
+        var $end_date = 'enddate';
+
         /* bindings */
-        $('#start_date').datepicker({
+        $('#start_date').bind('change', function(){
+            usDebt.setParam($start_date, $(this).val());
+        }).datepicker({
             showOtherMonths: true,
             selectOtherMonths: true,
             changeMonth: true,
             changeYear: true,
-            dateFormat: 'yy-mm-dd',
-            minDate: new Date(1993, 0, 4),
+            dateFormat: 'yy-mm-dd'
         });
-        $('#end_date').datepicker({
+        $('#end_date').bind('change', function(){
+            usDebt.setParam($end_date, $(this).val());
+        }).datepicker({
             showOtherMonths: true,
             selectOtherMonths: true,
             changeMonth: true,
             changeYear: true,
-            dateFormat: 'yy-mm-dd',
-            minDate: new Date(1993, 1, 4),
+            dateFormat: 'yy-mm-dd'
         });
-        var ctx = $("#myChart");
-        var myChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: <?php echo $graph_labels; ?>,
-                datasets: [{
-                    label: 'Our U.S. Debt (trillions)',
-                    data: <?php echo $graph_values; ?>,
-                    backgroundColor: <?php echo $graph_colors; ?>,
-                    borderColor: ['rgba(255,99,132,1)'],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                maintainAspectRatio: false,
-//                scales: {
-//                    yAxes: [{
-//                        stacked: true,
-//                        gridLines: {
-//                            display: true,
-//                            color: "rgba(255,99,132,0.2)"
-//                        }
-//                    }],
-//                    xAxes: [{
-//                        gridLines: {
-//                            display: false
-//                        }
-//                    }]
-//                }
-            }
+        $('#fetch').bind('click', function(){
+            usDebt.fetch();
         });
+
+        /* init usDebt */
+        usDebt.setUrl('<?php echo $dot_url; ?>');
+        usDebt.addUrlParam($start_date);
+        usDebt.addUrlParam($end_date);
+        console.log(usDebt);
     })
 </script>
 </html>
