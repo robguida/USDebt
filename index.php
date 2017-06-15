@@ -173,18 +173,30 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
             text-align: right;
         }
         table.output tr:nth-child(even){background-color: #f2f2f2}
+        h4 {
+            margin-top: -20px;
+        }
     </style>
 </head>
 <body>
 <h1>Our U.S. Debt</h1>
-<form id="search" class="search">
-    <label for="start_date">Start Date:</label>
-    <input type="text" id="start_date" name="start_date" value="<?php echo $start_date; ?>" />
-    <label for="end_date">End Date:</label>
-    <input type="text" id="end_date" name="end_date" value="<?php echo $end_date; ?>" />
-    <input type="submit" id="submit" name="submit" value="Fetch" />
-</form>
-<div class="pres_nav"><?php echo $pres_nav; ?></div>
+<h4>Data is from treasurydirect.gov</h4>
+<table>
+    <tr>
+        <td>
+            <h3>Select a date range, or a President</h3>
+            <form id="search" class="search">
+                <label for="start_date">Start Date:</label>
+                <input type="text" id="start_date" name="start_date" value="<?php echo $start_date; ?>" />
+                <label for="end_date">End Date:</label>
+                <input type="text" id="end_date" name="end_date" value="<?php echo $end_date; ?>" />
+                <input type="submit" id="submit" name="submit" value="Fetch" />
+            </form>
+        </td>
+        <td>&nbsp;</td>
+        <td><div class="pres_nav"><?php echo $pres_nav; ?></div></td>
+    </tr>
+</table>
 <div id="tabs">
     <ul>
         <li><a href="#graph_tab">Graph</a></li>
@@ -194,7 +206,7 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         <h3>Increased Debt: $<?php echo number_format($delta, 2); ?></h3>
         <div class="chart-container"><canvas id="debt_graph"></canvas></div></div>
     <div id="data_tab">
-        <h3>Increase Debt: $<?php echo number_format($delta, 2); ?></h3>
+        <h3>Increased Debt: $<?php echo number_format($delta, 2); ?></h3>
         <table class="output">
             <thead><tr><th>Date</th><th>Total Debt</th></tr></thead>
             <tbody><?php echo $output; ?></tbody>
