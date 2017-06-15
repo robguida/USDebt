@@ -5,6 +5,10 @@
  * @author: Robert Guida
  * @date: June 7th, 2017
  */
+$debug = false;
+if (isset($_GET['debug'])) {
+    $debug = ('547875' == $_GET['debug']);
+}
 
 /* build the head links */
 $js_files = array(
@@ -67,16 +71,11 @@ $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : $startDt->modif
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
 $dot_url = "https://www.treasurydirect.gov/NP_WS/debt/search?startdate={$start_date}&enddate={$end_date}&format=json";
 
+$delta = 0;
 /* if we have data, build the output */
 if ($data = current(json_decode(file_get_contents($dot_url)))) {
     /* start the tabs and contents for each */
-    $output = '<div id="tabs">' .
-        '<ul>' .
-        '<li><a href="#t1">Graph</a></li>' .
-        '<li><a href="#t2">Data</a></li>' .
-        '</ul>' .
-        '<div id="t1"><div class="chart-container"><canvas id="debt_graph"></canvas></div></div>' .
-        '<div id="t2"><table class="output"><thead><tr><th>Date</th><th>Total Debt</th></tr></thead><tbody>';
+    $output = '';
     $graph_labels = '[]';
     $graph_labels_arr = array();
     $graph_values = '[]';
@@ -84,6 +83,11 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     $graph_colors = '[]';
     $graph_colors_arr = array();
     $graph_colors_toggle = false;
+
+    /* we need the first and last debt */
+    $first_debt = current($data);
+    $last_debt = end($data);
+    $delta = $first_debt->totalDebt - $last_debt->totalDebt;
     foreach ($data as $d) {
         $dateDt = new DateTime($d->effectiveDate);
         $debt_amount = '$' . number_format($d->totalDebt, 2);
@@ -107,7 +111,7 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         $graph_labels_arr[] = $dateDt->format('n/j/y');
 
         /* use the debt for the points on the graph */
-        $graph_values_arr[] = round($d->totalDebt/1000000000000, 2);
+        $graph_values_arr[] = round($d->totalDebt/1000000000000, 10);
     }
     if (!empty($graph_labels_arr)) {
         $graph_labels = '["' . implode('", "', $graph_labels_arr) . '"]';
@@ -118,7 +122,6 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     if (!empty($graph_colors_arr)) {
         $graph_colors = '["' . implode('", "', $graph_colors_arr) . '"]';
     }
-    $output .= '</tbody><tfoot></tfoot></table></div></div>';
 } else {
     $output = "<h3>No data found for {$start_date} through {$end_date}.";
 }
@@ -182,7 +185,23 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     <input type="submit" id="submit" name="submit" value="Fetch" />
 </form>
 <div class="pres_nav"><?php echo $pres_nav; ?></div>
-<?php echo $output; ?>
+<div id="tabs">
+    <ul>
+        <li><a href="#graph_tab">Graph</a></li>
+        <li><a href="#data_tab">Data</a></li>
+    </ul>
+    <div id="graph_tab">
+        <h3>Increased Debt: $<?php echo number_format($delta, 2); ?></h3>
+        <div class="chart-container"><canvas id="debt_graph"></canvas></div></div>
+    <div id="data_tab">
+        <h3>Increase Debt: $<?php echo number_format($delta, 2); ?></h3>
+        <table class="output">
+            <thead><tr><th>Date</th><th>Total Debt</th></tr></thead>
+            <tbody><?php echo $output; ?></tbody>
+            <tfoot></tfoot>
+        </table>
+    </div>
+</div>
 </body>
 <footer>
 
