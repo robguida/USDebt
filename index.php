@@ -71,6 +71,17 @@ $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : $startDt->modif
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
 $dot_url = "https://www.treasurydirect.gov/NP_WS/debt/search?startdate={$start_date}&enddate={$end_date}&format=json";
 
+/* init statistics data */
+$first_debt = null;
+$last_debt = null;
+$delta_str = null;
+$average_per_day_str = null;
+$days = null;
+$days_greater_than_start_debt_count = null;
+$days_greater_than_start_debt_percentage = null;
+$days_less_than_start_debt_count = null;
+$days_less_than_start_debt_percentage = null;
+
 $delta = 0;
 /* if we have data, build the output */
 if ($data = current(json_decode(file_get_contents($dot_url)))) {
@@ -124,24 +135,30 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         /* is this a day when a president took office? if so switch the color. */
         if (array_key_exists($dateDt->getTimestamp(), $pres_array)) {
             $graph_colors_toggle = !$graph_colors_toggle;
-            $graph_colors_arr[] = 'rgba(54, 162, 235, 0.2)';
+            array_unshift($graph_colors_arr, 'rgba(54, 162, 235, 0.2)');
         } elseif (!$graph_colors_toggle) {
-            $graph_colors_arr[] = 'rgba(255, 99, 132, 0.2)';
+            array_unshift($graph_colors_arr, 'rgba(255, 99, 132, 0.2)');
         } else {
             /* get the last color and add it to the array */
-            $graph_colors_arr[] = end($graph_colors_arr);
+            array_unshift($graph_colors_arr, end($graph_colors_arr));
         }
 
         /* use the date for the labels on the graph */
-        $graph_labels_arr[] = $dateDt->format('n/j/y');
+        array_unshift($graph_labels_arr, $dateDt->format('n/j/y'));
 
         /* use the debt for the points on the graph */
-        $graph_values_arr[] = round($d->totalDebt/1000000000000, 10);
+        array_unshift($graph_values_arr, round($d->totalDebt/1000000000000, 10));
     }
+
+    /* calculate greater than debt */
     $days_greater_than_start_debt_count = count($days_greater_than_start_debt);
     $days_greater_than_start_debt_percentage = round(($days_greater_than_start_debt_count/$days) * 100, 2);
+
+    /* calculate greater than debt */
     $days_less_than_start_debt_count = count($days_less_than_start_debt);
     $days_less_than_start_debt_percentage = round(($days_less_than_start_debt_count/$days) * 100, 2);
+
+    /* set up graph data */
     if (!empty($graph_labels_arr)) {
         $graph_labels = '["' . implode('", "', $graph_labels_arr) . '"]';
     }
