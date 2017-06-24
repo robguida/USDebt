@@ -84,15 +84,40 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     $graph_colors_arr = array();
     $graph_colors_toggle = false;
 
-    /* we need the first and last debt */
-    $first_debt = current($data);
-    $last_debt = end($data);
-    $delta = $first_debt->totalDebt - $last_debt->totalDebt;
+    /* we need the first and last debt to get the delta, and to compute the debt per day for the date range */
+    $last_debt = current($data);
+    $first_debt = end($data);
+    $firstDate = new DateTime($last_debt->effectiveDate);
+    $lastDate = new DateTime($first_debt->effectiveDate);
+    $days = $firstDate->diff($lastDate)->days;
+    $delta = $last_debt->totalDebt - $first_debt->totalDebt;
+    $average_per_day = round($delta/$days, 2);
+    if (0 > $delta) {
+        $delta_str = '-$' . number_format(abs($delta), 2) . '';
+    } else {
+        $delta_str = '$' . number_format($delta, 2);
+    }
+    if (0 > $average_per_day) {
+        $average_per_day_str = '-$' . number_format(abs($average_per_day), 2) . '';
+    } else {
+        $average_per_day_str = '$' . number_format($average_per_day, 2);
+    }
+    $days_less_than_start_debt = [];
+    $days_greater_than_start_debt = [];
+    /* put the data into graph format */
     foreach ($data as $d) {
-        $dateDt = new DateTime($d->effectiveDate);
-        $debt_amount = '$' . number_format($d->totalDebt, 2);
+        /* if the amount is greather than the starting date amount, then add it to the array of days */
+        if ($first_debt->totalDebt < $d->totalDebt) {
+            $days_greater_than_start_debt[] = $d;
+        }
+        /* if the amount is less than the starting date amount, then add it to the array of days */
+        if ($first_debt->totalDebt > $d->totalDebt) {
+            $days_less_than_start_debt[] = $d;
+        }
 
         /* add a record to the data table */
+        $dateDt = new DateTime($d->effectiveDate);
+        $debt_amount = '$' . number_format($d->totalDebt, 2);
         $output .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .
             "<td class=\"currency\">{$debt_amount}</td></tr>";
 
@@ -113,6 +138,10 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         /* use the debt for the points on the graph */
         $graph_values_arr[] = round($d->totalDebt/1000000000000, 10);
     }
+    $days_greater_than_start_debt_count = count($days_greater_than_start_debt);
+    $days_greater_than_start_debt_percentage = round(($days_greater_than_start_debt_count/$days) * 100, 2);
+    $days_less_than_start_debt_count = count($days_less_than_start_debt);
+    $days_less_than_start_debt_percentage = round(($days_less_than_start_debt_count/$days) * 100, 2);
     if (!empty($graph_labels_arr)) {
         $graph_labels = '["' . implode('", "', $graph_labels_arr) . '"]';
     }
@@ -201,17 +230,36 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     <ul>
         <li><a href="#graph_tab">Graph</a></li>
         <li><a href="#data_tab">Data</a></li>
+        <li><a href="#stats_tab">Stats</a></li>
     </ul>
     <div id="graph_tab">
-        <h3>Increased Debt: $<?php echo number_format($delta, 2); ?></h3>
         <div class="chart-container"><canvas id="debt_graph"></canvas></div></div>
     <div id="data_tab">
-        <h3>Increased Debt: $<?php echo number_format($delta, 2); ?></h3>
         <table class="output">
             <thead><tr><th>Date</th><th>Total Debt</th></tr></thead>
             <tbody><?php echo $output; ?></tbody>
             <tfoot></tfoot>
         </table>
+    </div>
+    <div id="stats_tab">
+        <h3>Starting debt amount</h3>
+        <p>$<?php echo number_format($first_debt->totalDebt, 2); ?></p>
+        <h3>Last debt amount of date range</h3>
+        <p>$<?php echo number_format($last_debt->totalDebt, 2); ?></p>
+        <h3>During the given time span, the debt increased</h3>
+        <p><?php echo $delta_str; ?></p>
+        <h3>This works out to be</h3>
+        <p><?php echo $average_per_day_str; ?> per day</p>
+        <h3>Days in the date range</h3>
+        <p><?php echo $days; ?></p>
+        <h3>How many days during the given time span, was the debt greater than the starting amount</h3>
+        <p><?php echo $days_greater_than_start_debt_count; ?> days</p>
+        <h3>Percentage of days debt was greater than the start date range</h3>
+        <p><?php echo $days_greater_than_start_debt_percentage; ?>%</p>
+        <h3>How many days during the given time span, was the debt lower than the starting amount</h3>
+        <p><?php echo $days_less_than_start_debt_count; ?> days</p>
+        <h3>Percentage of days debt was lower than the start date range</h3>
+        <p><?php echo $days_less_than_start_debt_percentage; ?>%</p>
     </div>
 </div>
 </body>
