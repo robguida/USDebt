@@ -36,25 +36,29 @@ $pres_array = array (
         'pres' => 'Bill Clinton',
         'start' => 'January 20, 1993',
         'end' => 'January 20, 2001',
-        'img' => 'Bill_Clinton.jpg'
+        'img' => 'Bill_Clinton.jpg',
+        'grfcolor' => 'rgba(54, 162, 235, 0.2)',
     ),
     979966800 => array(
         'pres' => 'George W. Bush',
         'start' => 'January 20, 2001',
         'end' => 'January 20, 2009',
-        'img' => 'George-W-Bush.jpg'
+        'img' => 'George-W-Bush.jpg',
+        'grfcolor' => 'rgba(255, 99, 132, 0.2)',
     ),
     1232427600 => array(
         'pres' => 'Barack Obama',
         'start' => 'January 20, 2009',
         'end' => 'January 20, 2017',
-        'img' => 'Barack_Obama.jpg'
+        'img' => 'Barack_Obama.jpg',
+        'grfcolor' => 'rgba(54, 162, 235, 0.2)',
     ),
     1484888400 => array(
         'pres' => 'Donald Trump',
         'start' => 'January 20, 2017',
         'end' => '',
-        'img' => 'Donald_Trump.jpg'
+        'img' => 'Donald_Trump.jpg',
+        'grfcolor' => 'rgba(255, 99, 132, 0.2)',
     ),
 );
 $pres_nav = '';
@@ -115,6 +119,7 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     }
     $days_less_than_start_debt = [];
     $days_greater_than_start_debt = [];
+    $average_per_time_span = 0;
     /* put the data into graph format */
     foreach ($data as $d) {
         /* if the amount is greather than the starting date amount, then add it to the array of days */
@@ -125,6 +130,8 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         if ($first_debt->totalDebt > $d->totalDebt) {
             $days_less_than_start_debt[] = $d;
         }
+        /* enter the debt values into an array to get the average */
+        $average_per_time_span += $d->totalDebt;
 
         /* add a record to the data table */
         $dateDt = new DateTime($d->effectiveDate);
@@ -134,10 +141,7 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
 
         /* is this a day when a president took office? if so switch the color. */
         if (array_key_exists($dateDt->getTimestamp(), $pres_array)) {
-            $graph_colors_toggle = !$graph_colors_toggle;
-            array_unshift($graph_colors_arr, 'rgba(54, 162, 235, 0.2)');
-        } elseif (!$graph_colors_toggle) {
-            array_unshift($graph_colors_arr, 'rgba(255, 99, 132, 0.2)');
+            array_unshift($graph_colors_arr, $pres_array[$dateDt->getTimestamp()]['grfcolor']);
         } else {
             /* get the last color and add it to the array */
             array_unshift($graph_colors_arr, end($graph_colors_arr));
@@ -157,6 +161,9 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
     /* calculate greater than debt */
     $days_less_than_start_debt_count = count($days_less_than_start_debt);
     $days_less_than_start_debt_percentage = round(($days_less_than_start_debt_count/$days) * 100, 2);
+
+    /* calucate the average for the time span */
+    $average_per_time_span /= count($data);
 
     /* set up graph data */
     if (!empty($graph_labels_arr)) {
@@ -188,6 +195,12 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
             width: 50px;
             height: 60px;
             border: 1px solid black;
+            margin: 0px 10px 0px 0px;
+        }
+        div.pres_nav img.home{
+            width: 50px;
+            height: 60px;
+            border: 0px;
             margin: 0px 10px 0px 0px;
         }
         form.search {
@@ -240,7 +253,13 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
             </form>
         </td>
         <td>&nbsp;</td>
-        <td><div class="pres_nav"><?php echo $pres_nav; ?></div></td>
+        <td><div class="pres_nav">
+                <?php echo $pres_nav; ?>
+                 <a href="index.php">
+                    <img class="home" src="images/home.png" />
+                </a>
+            </div>
+        </td>
     </tr>
 </table>
 <div id="tabs">
@@ -312,14 +331,14 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
                 datasets: [{
                     label: 'Our U.S. Debt (trillions)',
                     data: <?php echo $graph_values; ?>,
-                    backgroundColor: <?php echo $graph_colors; ?>,
-                    borderColor: <?php echo $graph_colors; ?>,
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderColor: 'rgba(255, 99, 132, 0.2)',
                     borderWidth: 1
                 }]
             },
             options: {
                 maintainAspectRatio: false,
-            }
+            },
         });
     })
 </script>
