@@ -287,13 +287,13 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         <h3>This works out to be</h3>
         <p><?php echo $average_per_day_str; ?> per day</p>
         <h3>Days in the date range</h3>
-        <p><?php echo $days; ?></p>
+        <p><?php echo $days; ?> (includes weekends)</p>
         <h3>How many days during the given time span, was the debt greater than the starting amount</h3>
-        <p><?php echo $days_greater_than_start_debt_count; ?> days</p>
+        <p><?php echo $days_greater_than_start_debt_count; ?> days (does not include weekends)</p>
         <h3>Percentage of days debt was greater than the start date range</h3>
         <p><?php echo $days_greater_than_start_debt_percentage; ?>%</p>
         <h3>How many days during the given time span, was the debt lower than the starting amount</h3>
-        <p><?php echo $days_less_than_start_debt_count; ?> days</p>
+        <p><?php echo $days_less_than_start_debt_count; ?> days (does not include weekends)</p>
         <h3>Percentage of days debt was lower than the start date range</h3>
         <p><?php echo $days_less_than_start_debt_percentage; ?>%</p>
     </div>
