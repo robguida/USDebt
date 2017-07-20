@@ -10,6 +10,12 @@ if (isset($_GET['debug'])) {
     $debug = ('547875' == $_GET['debug']);
 }
 
+if ("usdebt.robguida.com" == $_SERVER['SERVER_NAME'] && !$debug) {
+    error_reporting(0);
+} else {
+    error_reporting(E_ALL & ~E_NOTICE);
+}
+
 /* build the head links */
 $js_files = array(
     "bin/jquery.js?r=" . filemtime('bin/jquery.js'),
@@ -80,106 +86,285 @@ $first_debt = null;
 $last_debt = null;
 $delta_str = null;
 $average_per_day_str = null;
-$days = null;
-$days_greater_than_start_debt_count = null;
-$days_greater_than_start_debt_percentage = null;
-$days_less_than_start_debt_count = null;
-$days_less_than_start_debt_percentage = null;
+$working_days = null;
+$days_gt_start_debt_count = null;
+$days_gt_start_debt_percentage = null;
+$days_lt_start_debt_count = null;
+$days_lt_start_debt_percentage = null;
 
 $delta = 0;
 /* if we have data, build the output */
-if ($data = current(json_decode(file_get_contents($dot_url)))) {
-    /* start the tabs and contents for each */
-    $output = '';
-    $graph_labels = '[]';
-    $graph_labels_arr = array();
-    $graph_values = '[]';
-    $graph_values_arr = array();
-    $graph_colors = '[]';
-    $graph_colors_arr = array();
-    $graph_colors_toggle = false;
+$output = "<h3>No data for {$start_date} to {$end_date}.<br />https://www.treasurydirect.gov/NP_WS/ is down.</h3>";
+$response = file_get_contents($dot_url);
+$graph_values_arr = [];
 
-    /* we need the first and last debt to get the delta, and to compute the debt per day for the date range */
-    $last_debt = current($data);
-    $first_debt = end($data);
-    $firstDate = new DateTime($last_debt->effectiveDate);
-    $lastDate = new DateTime($first_debt->effectiveDate);
-    $days = $firstDate->diff($lastDate)->days;
-    $delta = $last_debt->totalDebt - $first_debt->totalDebt;
-    $average_per_day = round($delta/$days, 2);
-    if (0 > $delta) {
-        $delta_str = '-$' . number_format(abs($delta), 2) . '';
-    } else {
-        $delta_str = '$' . number_format($delta, 2);
-    }
-    if (0 > $average_per_day) {
-        $average_per_day_str = '-$' . number_format(abs($average_per_day), 2) . '';
-    } else {
-        $average_per_day_str = '$' . number_format($average_per_day, 2);
-    }
-    $days_less_than_start_debt = [];
-    $days_greater_than_start_debt = [];
-    $average_per_time_span = 0;
-    /* put the data into graph format */
-    foreach ($data as $d) {
-        /* if the amount is greather than the starting date amount, then add it to the array of days */
-        if ($first_debt->totalDebt < $d->totalDebt) {
-            $days_greater_than_start_debt[] = $d;
+if ($response) {
+    $datas = json_decode($response);
+    if (!empty($datas)) {
+        if ($data = current($datas)) {
+            /* start the tabs and contents for each */
+            $output = '';
+            $graph_labels = '[]';
+            $graph_labels_arr = array();
+            $graph_values = '[]';
+            $graph_values_arr = array();
+            $graph_colors = '[]';
+            $graph_colors_arr = array();
+            $graph_colors_toggle = false;
+
+            /* we need the first and last debt to get the delta, and to compute the debt per day for the date range */
+            $last_debt = current($data);
+            $first_debt = end($data);
+            $firstDate = new DateTime($last_debt->effectiveDate);
+            $lastDate = new DateTime($first_debt->effectiveDate);
+            $working_days = count($data);
+            $days = $firstDate->diff($lastDate)->days;
+            $delta = $last_debt->totalDebt - $first_debt->totalDebt;
+            $average_per_day = round($delta / $working_days, 2);
+            if (0 > $delta) {
+                $delta_str = '-$' . number_format(abs($delta), 2) . '';
+            } else {
+                $delta_str = '$' . number_format($delta, 2);
+            }
+            if (0 > $average_per_day) {
+                $average_per_day_str = '-$' . number_format(abs($average_per_day), 2) . '';
+            } else {
+                $average_per_day_str = '$' . number_format($average_per_day, 2);
+            }
+            $days_lt_start_debt = [];
+            $days_gt_start_debt = [];
+            $average_per_time_span = 0;
+            /* put the data into graph format */
+            foreach ($data as $d) {
+                /* if the amount is greather than the starting date amount, then add it to the array of days */
+                if ($first_debt->totalDebt < $d->totalDebt) {
+                    $days_gt_start_debt[] = $d;
+                }
+                /* if the amount is less than the starting date amount, then add it to the array of days */
+                if ($first_debt->totalDebt > $d->totalDebt) {
+                    $days_lt_start_debt[] = $d;
+                }
+                /* enter the debt values into an array to get the average */
+                $average_per_time_span += $d->totalDebt;
+
+                /* add a record to the data table */
+                $dateDt = new DateTime($d->effectiveDate);
+                $debt_amount = '$' . number_format($d->totalDebt, 2);
+                $output .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .
+                    "<td class=\"currency\">{$debt_amount}</td></tr>";
+
+                /* is this a day when a president took office? if so switch the color. */
+                if (array_key_exists($dateDt->getTimestamp(), $pres_array)) {
+                    array_unshift($graph_colors_arr, $pres_array[$dateDt->getTimestamp()]['grfcolor']);
+                } else {
+                    /* get the last color and add it to the array */
+                    array_unshift($graph_colors_arr, end($graph_colors_arr));
+                }
+
+                /* use the date for the labels on the graph */
+                array_unshift($graph_labels_arr, $dateDt->format('n/j/y'));
+
+                /* use the debt for the points on the graph */
+                array_unshift($graph_values_arr, round($d->totalDebt / 1000000000000, 10));
+            }
+
+            /* calculate greater than debt */
+            $days_gt_start_debt_count = count($days_gt_start_debt);
+            $days_gt_start_debt_percentage = round(($days_gt_start_debt_count / $working_days) * 100, 2);
+
+            /* calculate greater than debt */
+            $days_lt_start_debt_count = count($days_lt_start_debt);
+            $days_lt_start_debt_percentage = round(($days_lt_start_debt_count / $working_days) * 100, 2);
+
+            /* calucate the average for the time span */
+            $average_per_time_span /= count($data);
+
+            /* set up graph data */
+            if (!empty($graph_labels_arr)) {
+                $graph_labels = '["' . implode('", "', $graph_labels_arr) . '"]';
+            }
+            if (!empty($graph_values_arr)) {
+                $graph_values = '["' . implode('", "', $graph_values_arr) . '"]';
+            }
+            if (!empty($graph_colors_arr)) {
+                $graph_colors = '["' . implode('", "', $graph_colors_arr) . '"]';
+            }
         }
-        /* if the amount is less than the starting date amount, then add it to the array of days */
-        if ($first_debt->totalDebt > $d->totalDebt) {
-            $days_less_than_start_debt[] = $d;
-        }
-        /* enter the debt values into an array to get the average */
-        $average_per_time_span += $d->totalDebt;
-
-        /* add a record to the data table */
-        $dateDt = new DateTime($d->effectiveDate);
-        $debt_amount = '$' . number_format($d->totalDebt, 2);
-        $output .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .
-            "<td class=\"currency\">{$debt_amount}</td></tr>";
-
-        /* is this a day when a president took office? if so switch the color. */
-        if (array_key_exists($dateDt->getTimestamp(), $pres_array)) {
-            array_unshift($graph_colors_arr, $pres_array[$dateDt->getTimestamp()]['grfcolor']);
-        } else {
-            /* get the last color and add it to the array */
-            array_unshift($graph_colors_arr, end($graph_colors_arr));
-        }
-
-        /* use the date for the labels on the graph */
-        array_unshift($graph_labels_arr, $dateDt->format('n/j/y'));
-
-        /* use the debt for the points on the graph */
-        array_unshift($graph_values_arr, round($d->totalDebt/1000000000000, 10));
-    }
-
-    /* calculate greater than debt */
-    $days_greater_than_start_debt_count = count($days_greater_than_start_debt);
-    $days_greater_than_start_debt_percentage = round(($days_greater_than_start_debt_count/$days) * 100, 2);
-
-    /* calculate greater than debt */
-    $days_less_than_start_debt_count = count($days_less_than_start_debt);
-    $days_less_than_start_debt_percentage = round(($days_less_than_start_debt_count/$days) * 100, 2);
-
-    /* calucate the average for the time span */
-    $average_per_time_span /= count($data);
-
-    /* set up graph data */
-    if (!empty($graph_labels_arr)) {
-        $graph_labels = '["' . implode('", "', $graph_labels_arr) . '"]';
-    }
-    if (!empty($graph_values_arr)) {
-        $graph_values = '["' . implode('", "', $graph_values_arr) . '"]';
-    }
-    if (!empty($graph_colors_arr)) {
-        $graph_colors = '["' . implode('", "', $graph_colors_arr) . '"]';
     }
 } else {
-    $output = "<h3>No data found for {$start_date} through {$end_date}.";
+    echo(__FILE__ . ' ' . __LINE__ . ' $response:<pre>' . print_r($response, true) . '</pre>');
 }
 
+/**
+ * @param DateTime $firstDate
+ * @param DateTime $lastDate
+ * @return array
+ */
+function getDaysDebtIsReportedInRange(DateTime $firstDate, DateTime $lastDate)
+{
+    $holidays = getHolidaysForDateRange($firstDate, $lastDate);
+    echo(__FILE__ . ' ' . __LINE__ . ' $holidays:<pre>' . print_r($holidays, true) . '</pre>');
 
+    $working_days = $days = $firstDate->diff($lastDate)->days;
+    echo(__FILE__ . ' ' . __LINE__ . ' $days: ' . $days . '<br />');
+    echo(__FILE__ . ' ' . __LINE__ . ' $working_days: ' . $working_days . '<br />');
+
+    $working_days -= count($holidays);
+    echo(__FILE__ . ' ' . __LINE__ . ' $days: ' . $days . '<br />');
+    echo(__FILE__ . ' ' . __LINE__ . ' $working_days: ' . $working_days . '<br />');
+    $weeks = floor(round($days/7, 10));
+    echo(__FILE__ . ' ' . __LINE__ . ' $weeks: ' . $weeks . '<br />');
+    $working_days -= $weeks * 2;
+    echo(__FILE__ . ' ' . __LINE__ . ' $days: ' . $days . '<br />');
+    echo(__FILE__ . ' ' . __LINE__ . ' $working_days: ' . $working_days . '<br />');
+    return ['working_days' => (int)$working_days, 'days' => $days];
+}
+
+/**
+ * @param DateTime $firstDate
+ * @param DateTime $lastDate
+ * @return array
+ */
+function getHolidaysForDateRange(DateTime $firstDate, DateTime $lastDate)
+{
+    $output = [];
+    while ($firstDate >= $lastDate) {
+        $year = $lastDate->format('Y');
+
+        /* New Year's Day (January 1) */
+        $date_to_compare = strtotime("{$year}-01-01");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["nyr_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Birthday of Martin Luther King, Jr. (Third Monday in January). */
+        $date_to_compare = strtotime("January {$year} third Monday");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["mlk_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Washington's Birthday (Third Monday in February). */
+        $date_to_compare = strtotime("February {$year} third Monday");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["was_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Memorial Day (Last Monday in May). */
+        $date_to_compare = strtotime("last Monday of May {$year}");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["mem_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Independence Day (July 4). */
+        $date_to_compare = strtotime("{$year}-07-04");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["ind_{$year}"] = (new DateTime("{$year}-07-04"))->format('Y-m-d');
+        }
+
+        /* Labor Day (First Monday in September). */
+        $date_to_compare = strtotime("September {$year} first Monday");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["lab_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Columbus Day (Second Monday in October). */
+        $date_to_compare = strtotime("October {$year} second Monday");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["col_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Veterans Day (November 11). */
+        $date_to_compare = strtotime("{$year}-11-11");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["vet_{$year}"] = (new DateTime("{$year}-11-11"))->format('Y-m-d');
+        }
+
+        /* Thanksgiving Day (Fourth Thursday in November). */
+        $date_to_compare = strtotime("November {$year} fourth Thursday");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["thk_{$year}"] = date('Y-m-d', $date_to_compare);
+        }
+
+        /* Christmas Day (December 25). */
+        $date_to_compare = strtotime("{$year}-12-25");
+        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
+            $output["chr_{$year}"] = (new DateTime("{$year}-12-25"))->format('Y-m-d');
+        }
+
+        /* set the next lastDate to the 1st of the following year */
+        $lastDate->add(new DateInterval('P1Y'));
+        $lastDate->setDate($lastDate->format('Y'), '01', '01');
+
+        /* if the last date is finally > firstDate, then use the firstDate for the final comparison, and now
+            all the dates need to be less than the lastDate */
+        if ($lastDate->format('Y') == $firstDate->format('Y')) {
+            $lastDate = $firstDate;
+            $year = $lastDate->format('Y');
+
+            /* New Year's Day (January 1) */
+            $date_to_compare = strtotime("{$year}-01-01");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["nyr_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Birthday of Martin Luther King, Jr. (Third Monday in January). */
+            $date_to_compare = strtotime("January {$year} third Monday");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["mlk_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Washington's Birthday (Third Monday in February). */
+            $date_to_compare = strtotime("February {$year} third Monday");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["was_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Memorial Day (Last Monday in May). */
+            $date_to_compare = strtotime("last Monday of May {$year}");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["mem_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Independence Day (July 4). */
+            $date_to_compare = strtotime("{$year}-07-04");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["ind_{$year}"] =  date('Y-m-d', $date_to_compare);
+            }
+
+            /* Labor Day (First Monday in September). */
+            $date_to_compare = strtotime("September {$year} first Monday");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["lab_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Columbus Day (Second Monday in October). */
+            $date_to_compare = strtotime("October {$year} second Monday");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["col_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Veterans Day (November 11). */
+            $date_to_compare = strtotime("{$year}-11-11");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["vet_{$year}"] =  date('Y-m-d', $date_to_compare);
+            }
+
+            /* Thanksgiving Day (Fourth Thursday in November). */
+            $date_to_compare = strtotime("November {$year} fourth Thursday");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["thk_{$year}"] = date('Y-m-d', $date_to_compare);
+            }
+
+            /* Christmas Day (December 25). */
+            $date_to_compare = strtotime("{$year}-12-25");
+            if ($lastDate->getTimestamp() >=  $date_to_compare) {
+                $output["chr_{$year}"] =  date('Y-m-d', $date_to_compare);
+            }
+            break;
+        }
+    }
+    return $output;
+}
 ?>
 <html>
 <head>
@@ -235,6 +420,14 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         h4 {
             margin-top: -20px;
         }
+        h3 {
+            margin-top: 20px;
+            color: darkred;
+        }
+        p.stats_footer {
+            border-top: 1px solid silver;
+            font-size: x-small;
+        }
     </style>
 </head>
 <body>
@@ -243,7 +436,7 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
 <table>
     <tr>
         <td>
-            <h3>Select a date range, or a President</h3>
+            <h2>Select a date range, or a President</h2>
             <form id="search" class="search">
                 <label for="start_date">Start Date:</label>
                 <input type="text" id="start_date" name="start_date" value="<?php echo $start_date; ?>" />
@@ -255,49 +448,57 @@ if ($data = current(json_decode(file_get_contents($dot_url)))) {
         <td>&nbsp;</td>
         <td><div class="pres_nav">
                 <?php echo $pres_nav; ?>
-                 <a href="index.php">
+                <a href="index.php">
                     <img class="home" src="images/home.png" />
                 </a>
             </div>
         </td>
     </tr>
 </table>
-<div id="tabs">
-    <ul>
-        <li><a href="#graph_tab">Graph</a></li>
-        <li><a href="#data_tab">Data</a></li>
-        <li><a href="#stats_tab">Stats</a></li>
-    </ul>
-    <div id="graph_tab">
-        <div class="chart-container"><canvas id="debt_graph"></canvas></div></div>
-    <div id="data_tab">
-        <table class="output">
-            <thead><tr><th>Date</th><th>Total Debt</th></tr></thead>
-            <tbody><?php echo $output; ?></tbody>
-            <tfoot></tfoot>
-        </table>
+<?php
+/* only display the tabs if we have data */
+if (!empty($graph_values_arr)) {
+    ?>
+    <div id="tabs">
+        <ul>
+            <li><a href="#graph_tab">Graph</a></li>
+            <li><a href="#stats_tab">Stats</a></li>
+            <li><a href="#data_tab">Data</a></li>
+        </ul>
+        <div id="graph_tab">
+            <div class="chart-container"><canvas id="debt_graph"></canvas></div></div>
+        <div id="data_tab">
+            <table class="output">
+                <thead><tr><th>Date</th><th>Total Debt</th></tr></thead>
+                <tbody><?php echo $output; ?></tbody>
+                <tfoot></tfoot>
+            </table>
+        </div>
+        <div id="stats_tab">
+            <h3>Starting debt amount</h3>
+            <p>$<?php echo number_format($first_debt->totalDebt, 2); ?></p>
+            <h3>Last debt amount of date range</h3>
+            <p>$<?php echo number_format($last_debt->totalDebt, 2); ?></p>
+            <h3>During the given time span, the debt increased</h3>
+            <p><?php echo $delta_str; ?></p>
+            <h3>This works out to be</h3>
+            <p><?php echo $average_per_day_str; ?> per day</p>
+            <h3>Days in the date range</h3>
+            <p><?php echo $working_days; ?> days<sup>*</sup> / <?php echo $days; ?> total days in range</p>
+            <h3>How many days during the given time span, was the debt greater than the starting amount</h3>
+            <p><?php echo $days_gt_start_debt_count; ?> days<sup>*</sup></p>
+            <h3>Percentage of days debt was greater than the start date range</h3>
+            <p><?php echo $days_gt_start_debt_percentage; ?>%</p>
+            <h3>How many days during the given time span, was the debt lower than the starting amount</h3>
+            <p><?php echo $days_lt_start_debt_count; ?> days<sup>*</sup></p>
+            <h3>Percentage of days debt was lower than the start date range</h3>
+            <p><?php echo $days_lt_start_debt_percentage; ?>%</p>
+            <p class="stats_footer"><sup>*</sup> Includes only days when data is reported.</p>
+        </div>
     </div>
-    <div id="stats_tab">
-        <h3>Starting debt amount</h3>
-        <p>$<?php echo number_format($first_debt->totalDebt, 2); ?></p>
-        <h3>Last debt amount of date range</h3>
-        <p>$<?php echo number_format($last_debt->totalDebt, 2); ?></p>
-        <h3>During the given time span, the debt increased</h3>
-        <p><?php echo $delta_str; ?></p>
-        <h3>This works out to be</h3>
-        <p><?php echo $average_per_day_str; ?> per day</p>
-        <h3>Days in the date range</h3>
-        <p><?php echo $days; ?> (includes weekends)</p>
-        <h3>How many days during the given time span, was the debt greater than the starting amount</h3>
-        <p><?php echo $days_greater_than_start_debt_count; ?> days (does not include weekends)</p>
-        <h3>Percentage of days debt was greater than the start date range</h3>
-        <p><?php echo $days_greater_than_start_debt_percentage; ?>%</p>
-        <h3>How many days during the given time span, was the debt lower than the starting amount</h3>
-        <p><?php echo $days_less_than_start_debt_count; ?> days (does not include weekends)</p>
-        <h3>Percentage of days debt was lower than the start date range</h3>
-        <p><?php echo $days_less_than_start_debt_percentage; ?>%</p>
-    </div>
-</div>
+<?php } else {
+    echo $output;
+} ?>
 </body>
 <footer>
 
