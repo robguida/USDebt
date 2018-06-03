@@ -80,6 +80,7 @@ $startDt = new DateTime();
 $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : $startDt->modify('-1 month')->format('Y-m-d');
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
 $dot_url = "https://www.treasurydirect.gov/NP_WS/debt/search?startdate={$start_date}&enddate={$end_date}&format=json";
+$cache_key = md5($dot_url);
 
 /* init statistics data */
 $first_debt = null;
@@ -95,7 +96,12 @@ $days_lt_start_debt_percentage = null;
 $delta = 0;
 /* if we have data, build the output */
 $output = "<h3>No data for {$start_date} to {$end_date}.<br />https://www.treasurydirect.gov/NP_WS/ is down.</h3>";
-$response = file_get_contents($dot_url);
+if (!apc_exists($cache_key)) {
+    $response = file_get_contents($dot_url);
+    apc_add($cache_key, $response);
+} else {
+    $response = apc_fetch($cache_key);
+}
 $graph_values_arr = [];
 
 if ($response) {
@@ -191,8 +197,6 @@ if ($response) {
             }
         }
     }
-} else {
-    echo(__FILE__ . ' ' . __LINE__ . ' $response:<pre>' . print_r($response, true) . '</pre>');
 }
 
 /**
