@@ -9,7 +9,7 @@
 namespace USDebt\Model;
 
 use DateTime;
-use USDebt\Lib\ValidateDateTime;
+use USDebt\Service\ValidateDateTime;
 
 class RequestModel
 {

@@ -10,9 +10,15 @@ namespace USDebt\Controller;
 
 use DateTime;
 use USDebt\Model\RequestModel;
+use USDebt\Service\PresidentService;
+use USDebt\Service\TreasuryDirect;
 
 class USDebtController
 {
+    /**
+     * @param RequestModel $requestModel
+     * @return string
+     */
     public function defaultView(RequestModel $requestModel)
     {
         $now = new DateTime();
@@ -22,33 +28,37 @@ class USDebtController
         if (is_null($requestModel->getEndDate())) {
             $requestModel->setEndDate($now);
         }
-        $datas = $this->httpRequest(
+        $datas = TreasuryDirect::httpRequest(
             $requestModel->getStartDate(true)->format('Y-m-d'),
             $requestModel->getEndDate(true)->format('Y-m-d')
         );
-        echo(__FILE__ . ' ' . __LINE__ . ' $datas:<pre>' . print_r($datas, true) . '</pre>');
+        $view_data = [
+            'main_content' => '',
+            'pres_array' => (new PresidentService())->getPresidentConfig(),
+        ];
+        return $this->loadFile('master.php', $view_data);
     }
 
     /**
-     * @param string $start_date
-     * @param string $end_date
-     * @return mixed|string
+     * @param string $file
+     * @param array $datas
+     * @return string
      */
-    private function httpRequest($start_date, $end_date)
+    private function loadFile($file, array $datas = null)
     {
-        $dot_url = 'https://www.treasurydirect.gov/NP_WS/debt/search?' .
-            "startdate={$start_date}&enddate={$end_date}&format=json";
-        $cache_key = md5($dot_url);
-        echo(__FILE__ . ' ' . __LINE__ . ' $cache_key: ' . $cache_key . '<br />');
-        if (!apc_exists($cache_key)) {
-            $response = file_get_contents($dot_url);
-            apc_add($cache_key, $response);
-        } else {
-            $response = apc_fetch($cache_key);
+        ob_start();
+        $full_path = "View/{$file}";
+        if (!is_null($datas) && 0 < count($datas)) {
+            $i = 0;
+            foreach ($datas as $variable => $param) {
+                unset($datas[$i++]);
+                $$variable = $param; // create the new variable using the class name
+            }
+            unset($datas);// no longer needed
         }
-        if ($response) {
-            $response = json_decode($response);
-        }
-        return $response;
+        include($full_path);
+        $output = ob_get_contents();
+        ob_clean();
+        return $output;
     }
 }

@@ -5,7 +5,6 @@
  * Date: 6/3/18
  * Time: 6:06 PM
  */
-
 error_reporting(E_ALL);
 session_start([
     'use_strict_mode' => true,
@@ -17,6 +16,7 @@ session_start([
 session_regenerate_id(true);
 date_default_timezone_set('America/New_York');
 spl_autoload_register('autoLoader');
+ini_set('include_path', __DIR__);
 
 function autoLoader($class)
 {

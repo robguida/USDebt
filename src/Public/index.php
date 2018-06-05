@@ -436,6 +436,12 @@ function getHolidaysForDateRange(DateTime $firstDate, DateTime $lastDate)
 </head>
 <body>
 <h1>Our U.S. Debt</h1>
+<div id="about_usdebt" style="display: none;">
+    <p>The data is pulled from <a href="https://www.treasurydirect.gov/" target="_blank">treasurydirect.gov</a>,
+        which publishes the data daily. Unfortunately, since May 31, 2018 this site is no longer publishing
+        current data.
+    </p>
+</div>
 <h4>Data is from treasurydirect.gov</h4>
 <table>
     <tr>
@@ -510,6 +516,10 @@ if (!empty($graph_values_arr)) {
 <script type="text/javascript">
     $(document).ready(function() {
         console.log('jquery loaded');
+        $('about_usdebt').dialog(
+            autoOpen: false,
+            modal: true
+        );
         $('#tabs').tabs();
         /* bindings */
         $('#start_date').datepicker({

@@ -6,7 +6,7 @@
  * Time: 7:39 PM
  */
 
-namespace USDebt\Lib;
+namespace USDebt\Service;
 
 use DateTime;
 use InvalidArgumentException;
