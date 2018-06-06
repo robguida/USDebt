@@ -32,11 +32,28 @@ class USDebtController
             $requestModel->getStartDate(true)->format('Y-m-d'),
             $requestModel->getEndDate(true)->format('Y-m-d')
         );
+        /* get the search form */
+        $main_content['search_form'] = $this->getSearchForm($requestModel);
+
+        /* Load up the master template */
         $view_data = [
-            'main_content' => '',
-            'pres_array' => (new PresidentService())->getPresidentConfig(),
+            'main_content' => $main_content,
         ];
         return $this->loadFile('master.php', $view_data);
+    }
+
+    /**
+     * @param RequestModel $requestModel
+     * @return string
+     */
+    private function getSearchForm(RequestModel $requestModel)
+    {
+        $view_data = [
+            'pres_array' => (new PresidentService())->getPresidentConfig(),
+            'start_date' => $requestModel->getStartDate()->format('Y-m-d'),
+            'end_date' => $requestModel->getEndDate()->format('Y-m-d'),
+        ];
+        return $this->loadFile('search_form.php', $view_data);
     }
 
     /**

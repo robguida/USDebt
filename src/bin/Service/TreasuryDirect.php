@@ -13,9 +13,10 @@ class TreasuryDirect
     /**
      * @param string $start_date
      * @param string $end_date
+     * @param bool $raw  return raw data from the request
      * @return mixed|string
      */
-    public static function httpRequest($start_date, $end_date)
+    public static function httpRequest($start_date, $end_date, $raw = false)
     {
         $dot_url = 'https://www.treasurydirect.gov/NP_WS/debt/search?' .
             "startdate={$start_date}&enddate={$end_date}&format=json";
@@ -26,7 +27,7 @@ class TreasuryDirect
         } else {
             $response = apc_fetch($cache_key);
         }
-        if ($response) {
+        if ($response && !$raw) {
             $response = json_decode($response);
         }
         return $response;
