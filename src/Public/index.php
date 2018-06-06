@@ -16,25 +16,6 @@ if ("usdebt.robguida.com" == $_SERVER['SERVER_NAME'] && !$debug) {
     error_reporting(E_ALL & ~E_NOTICE);
 }
 
-/* build the head links */
-$js_files = array(
-    "bin/jquery.js?r=" . filemtime('bin/jquery.js'),
-    "bin/jquery-ui/jquery-ui.min.js?r=" . filemtime('bin/jquery-ui/jquery-ui.min.js'),
-    "bin/Chart.bundle.min.js?r=" . filemtime('bin/Chart.bundle.min.js'),
-);
-$css_files = array(
-    "bin/jquery-ui/jquery-ui.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.min.css'),
-    "bin/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.structure.min.css'),
-    "bin/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.theme.min.css')
-);
-$head = '';
-foreach ($js_files as $file) {
-    $head .= "<script src=\"{$file}\" type=\"text/javascript\"></script>\n";
-}
-foreach ($css_files as $file) {
-    $head .= "<link rel=\"stylesheet\" href=\"{$file}\" />\n";
-}
-
 /* presidential array so we can link the candidate to the debt
     The key for each president is the timestamp of the start values */
 $pres_array = array (
@@ -197,6 +178,25 @@ if ($response) {
             }
         }
     }
+}
+
+/* build the head links */
+$js_files = array(
+    "bin/jquery.js?r=" . filemtime('bin/jquery.js'),
+    "bin/jquery-ui/jquery-ui.min.js?r=" . filemtime('bin/jquery-ui/jquery-ui.min.js'),
+    "bin/Chart.bundle.min.js?r=" . filemtime('bin/Chart.bundle.min.js'),
+);
+$css_files = array(
+    "bin/jquery-ui/jquery-ui.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.min.css'),
+    "bin/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.structure.min.css'),
+    "bin/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.theme.min.css')
+);
+$head = '';
+foreach ($js_files as $file) {
+    $head .= "<script src=\"{$file}\" type=\"text/javascript\"></script>\n";
+}
+foreach ($css_files as $file) {
+    $head .= "<link rel=\"stylesheet\" href=\"{$file}\" />\n";
 }
 
 /**
@@ -432,17 +432,26 @@ function getHolidaysForDateRange(DateTime $firstDate, DateTime $lastDate)
             border-top: 1px solid silver;
             font-size: x-small;
         }
+        img.small_icon {
+            width: 22px;
+            height: 22px;
+        }
     </style>
 </head>
 <body>
 <h1>Our U.S. Debt</h1>
 <div id="about_usdebt" style="display: none;">
-    <p>The data is pulled from <a href="https://www.treasurydirect.gov/" target="_blank">treasurydirect.gov</a>,
-        which publishes the data daily. Unfortunately, since May 31, 2018 this site is no longer publishing
-        current data.
+    <p>The data used for this site is freely accessible from
+        <a href="https://www.treasurydirect.gov/" target="_blank">treasurydirect.gov</a>,
+        who publishes the national debt daily. Because the data is updated daily, it is different than the
+        <a href="http://www.usdebtclock.org/" target="_blank">National Debt Clock</a>. According to
+        <a href="http://zfacts.com/node/245" target="_blank">zFacts</a>, the Debt Clock gets its data from
+        treasurydirect.com on a daily basis, but then uses an algorithm to show the real-time, estimated, changes
+        in the debt.
     </p>
 </div>
-<h4>Data is from treasurydirect.gov</h4>
+<h4>Data is from <a href="treasurydirect.gov" target="_blank">treasurydirect.gov</a>
+    <img src="images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" /></h4>
 <table>
     <tr>
         <td>
@@ -516,10 +525,14 @@ if (!empty($graph_values_arr)) {
 <script type="text/javascript">
     $(document).ready(function() {
         console.log('jquery loaded');
-        $('about_usdebt').dialog(
+        $('#about_usdebt').dialog({
             autoOpen: false,
-            modal: true
-        );
+            modal: true,
+            closeOnEscape: true
+        });
+        $('#about_usdebt_btn').on('click', function() {
+            $('#about_usdebt').dialog('open');
+        });
         $('#tabs').tabs();
         /* bindings */
         $('#start_date').datepicker({
