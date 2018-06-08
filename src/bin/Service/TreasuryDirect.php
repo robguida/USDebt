@@ -8,13 +8,15 @@
 
 namespace USDebt\Service;
 
+use stdClass;
+
 class TreasuryDirect
 {
     /**
      * @param string $start_date
      * @param string $end_date
      * @param bool $raw  return raw data from the request
-     * @return mixed|string
+     * @return stdClass|string
      */
     public static function httpRequest($start_date, $end_date, $raw = false)
     {

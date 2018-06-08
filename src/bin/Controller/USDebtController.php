@@ -9,6 +9,7 @@
 namespace USDebt\Controller;
 
 use DateTime;
+use stdClass;
 use USDebt\Model\RequestModel;
 use USDebt\Service\PresidentService;
 use USDebt\Service\TreasuryDirect;
@@ -28,18 +29,36 @@ class USDebtController
         if (is_null($requestModel->getEndDate())) {
             $requestModel->setEndDate($now);
         }
+
+        /** @var stdClass $datas */
         $datas = TreasuryDirect::httpRequest(
             $requestModel->getStartDate(true)->format('Y-m-d'),
             $requestModel->getEndDate(true)->format('Y-m-d')
         );
+
         /* get the search form */
         $main_content['search_form'] = $this->getSearchForm($requestModel);
+        $main_content['tab_data'] = $this->getTabData($datas);
 
         /* Load up the master template */
         $view_data = [
             'main_content' => $main_content,
         ];
         return $this->loadFile('master.php', $view_data);
+    }
+
+    /**
+     * @param stdClass $datas
+     * @return string
+     */
+    private function getTabData(stdClass $datas)
+    {
+        $tab_sections = [
+            'data' => $this->loadFile('tab_data.php', ['tab_data' => $datas]),
+            'graph' => $this->loadFile('tab_graph_Chart.php', ['datas' => $datas]),
+            //'stats' => $this->loadFile('tab_stats.php', ['datas' => $datas]),
+        ];
+        return $this->loadFile('tabs.php', $tab_sections);
     }
 
     /**

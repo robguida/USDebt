@@ -523,7 +523,7 @@ if (!empty($graph_values_arr)) {
 
 </footer>
 <script type="text/javascript">
-    $(document).ready(function() {
+    $(function() {
         console.log('jquery loaded');
         $('#about_usdebt').dialog({
             autoOpen: false,
