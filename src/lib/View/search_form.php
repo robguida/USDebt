@@ -29,10 +29,31 @@ foreach ($pres_array as $pres) {
         <td>&nbsp;</td>
         <td><div class="pres_nav">
                 <?php echo $pres_nav; ?>
-<a href="index.php">
-    <img class="home" src="images/home.png" />
-</a>
-</div>
-</td>
-</tr>
+                <a href="index.php">
+                    <img class="home" src="images/home.png" />
+                </a>
+            </div>
+        </td>
+    </tr>
 </table>
+<script type="text/javascript">
+    $(function(){
+        /* bindings */
+        $('#start_date').datepicker({
+            showOtherMonths: true,
+            selectOtherMonths: true,
+            changeMonth: true,
+            changeYear: true,
+            dateFormat: 'yy-mm-dd',
+            minDate: new Date(1993, 0, 4),
+        });
+        $('#end_date').datepicker({
+            showOtherMonths: true,
+            selectOtherMonths: true,
+            changeMonth: true,
+            changeYear: true,
+            dateFormat: 'yy-mm-dd',
+            minDate: new Date(1993, 1, 4),
+        });
+    });
+</script>

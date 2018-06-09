@@ -64,23 +64,6 @@ foreach ($css_files as $file) {
         $('#about_usdebt_btn').on('click', function() {
             $('#about_usdebt').dialog('open');
         });
-        /* bindings */
-        $('#start_date').datepicker({
-            showOtherMonths: true,
-            selectOtherMonths: true,
-            changeMonth: true,
-            changeYear: true,
-            dateFormat: 'yy-mm-dd',
-            minDate: new Date(1993, 0, 4),
-        });
-        $('#end_date').datepicker({
-            showOtherMonths: true,
-            selectOtherMonths: true,
-            changeMonth: true,
-            changeYear: true,
-            dateFormat: 'yy-mm-dd',
-            minDate: new Date(1993, 1, 4),
-        });
     });
 </script>
 </html>
