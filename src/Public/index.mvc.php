@@ -2,7 +2,7 @@
 
 $starttime = microtime(true);
 $version = round(filemtime(__FILE__)/100000000, 3);
-require_once('../bin/bootstrap.php');
+require_once('../lib/bootstrap.php');
 
 use USDebt\Controller\USDebtController;
 use USDebt\Model\RequestModel;

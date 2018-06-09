@@ -6,7 +6,7 @@
  * Time: 7:21 PM
  */
 
-require_once '../../../src/bin/bootstrap.php';
+require_once '../../../src/lib/bootstrap.php';
 
 use USDebt\Model\RequestModel;
 

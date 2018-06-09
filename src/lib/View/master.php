@@ -8,14 +8,14 @@
 
 /* build the head links */
 $js_files = array(
-    "bin/jquery.js?r=" . filemtime('bin/jquery.js'),
-    "bin/jquery-ui/jquery-ui.min.js?r=" . filemtime('bin/jquery-ui/jquery-ui.min.js'),
-    "bin/Chart.bundle.min.js?r=" . filemtime('bin/Chart.bundle.min.js'),
+    "lib/jquery.js?r=" . filemtime('lib/jquery.js'),
+    "lib/jquery-ui/jquery-ui.min.js?r=" . filemtime('lib/jquery-ui/jquery-ui.min.js'),
+    "lib/Chart.bundle.min.js?r=" . filemtime('lib/Chart.bundle.min.js'),
 );
 $css_files = array(
-    "bin/jquery-ui/jquery-ui.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.min.css'),
-    "bin/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.structure.min.css'),
-    "bin/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('bin/jquery-ui/jquery-ui.theme.min.css'),
+    "lib/jquery-ui/jquery-ui.min.css?r=" . filemtime('lib/jquery-ui/jquery-ui.min.css'),
+    "lib/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('lib/jquery-ui/jquery-ui.structure.min.css'),
+    "lib/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('lib/jquery-ui/jquery-ui.theme.min.css'),
     "css/usdebt.css?r=" . filemtime('css/usdebt.css')
 );
 $head = '';
