@@ -55,13 +55,15 @@ class USDebtController
     {
         if (isset($datas->entries)) {
             $datas = $datas->entries;
+            $graph = 'tab_graph_Chart.php';
         } else {
-            //
+            $datas = $datas->entries;
+            $graph = 'tab_graph_Flot.php';
         }
         $tab_sections = [
             'data' => $this->loadFile('tab_data.php', ['datas' => $datas]),
             'graph' => $this->loadFile(
-                'tab_graph_Chart.php',
+                $graph,
                 ['datas' => $datas, 'pres_array' => PresidentService::getPresidentConfig()]
             ),
             'stats' => $output = $this->loadFile('tab_stats.php', ['datas' => $datas]),

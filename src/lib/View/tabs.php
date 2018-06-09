@@ -23,5 +23,7 @@
     </div>
 </div>
 <script type="text/javascript">
-    $('#tabs').tabs();
+    $(function() {
+        $('#tabs').tabs();
+    });
 </script>
