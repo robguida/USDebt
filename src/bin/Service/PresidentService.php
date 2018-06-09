@@ -14,7 +14,7 @@ class PresidentService
     /**
      * @return array
      */
-    public function getPresidentConfig()
+    public static function getPresidentConfig()
     {
         return [
             727506000 => [

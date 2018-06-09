@@ -54,8 +54,11 @@ class USDebtController
     private function getTabData(stdClass $datas)
     {
         $tab_sections = [
-            'data' => $this->loadFile('tab_data.php', ['tab_data' => $datas]),
-            'graph' => $this->loadFile('tab_graph_Chart.php', ['datas' => $datas]),
+            'data' => $this->loadFile('tab_data.php', ['datas' => $datas]),
+            'graph' => $this->loadFile(
+                'tab_graph_Chart.php',
+                ['datas' => $datas->entries, 'pres_array' => PresidentService::getPresidentConfig()]
+            ),
             //'stats' => $this->loadFile('tab_stats.php', ['datas' => $datas]),
         ];
         return $this->loadFile('tabs.php', $tab_sections);
@@ -68,7 +71,7 @@ class USDebtController
     private function getSearchForm(RequestModel $requestModel)
     {
         $view_data = [
-            'pres_array' => (new PresidentService())->getPresidentConfig(),
+            'pres_array' => PresidentService::getPresidentConfig(),
             'start_date' => $requestModel->getStartDate()->format('Y-m-d'),
             'end_date' => $requestModel->getEndDate()->format('Y-m-d'),
         ];
@@ -76,23 +79,23 @@ class USDebtController
     }
 
     /**
-     * @param string $file
-     * @param array $datas
+     * @param string $loadFile_file
+     * @param array $loadFile_data
      * @return string
      */
-    private function loadFile($file, array $datas = null)
+    private function loadFile($loadFile_file, array $loadFile_data = null)
     {
         ob_start();
-        $full_path = "View/{$file}";
-        if (!is_null($datas) && 0 < count($datas)) {
+        $loadFile_file = "View/{$loadFile_file}";
+        if (!is_null($loadFile_data) && 0 < count($loadFile_data)) {
             $i = 0;
-            foreach ($datas as $variable => $param) {
-                unset($datas[$i++]);
-                $$variable = $param; // create the new variable using the class name
+            foreach ($loadFile_data as $loadFile_variable => $loadFile_value) {
+                unset($loadFile_data[$i++]);
+                $$loadFile_variable = $loadFile_value; // create the new variable using the class name
             }
-            unset($datas);// no longer needed
+            unset($loadFile_data);// no longer needed
         }
-        include($full_path);
+        include($loadFile_file);
         $output = ob_get_contents();
         ob_clean();
         return $output;

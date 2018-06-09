@@ -3,14 +3,15 @@
  * Created by PhpStorm.
  * User: robert
  * Date: 6/5/18
- * Time: 10:13 PM
+ * Time: 10:13 PMload
  */
 $graph_labels = '[]';
 $graph_labels_arr = array();
 $graph_values = '[]';
 $graph_values_arr = array();
 
-foreach ($datas->entries as $d) {
+foreach ($datas as $d) {
+    /* add a record to the data table */
     $dateDt = new DateTime($d->effectiveDate);
     /* use the date for the labels on the graph */
     array_unshift($graph_labels_arr, $dateDt->format('n/j/y'));

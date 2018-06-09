@@ -7,7 +7,7 @@
  */
 $data = '';
 
-foreach ($tab_data->entries as $d) {
+foreach ($datas->entries as $d) {
     $dateDt = new DateTime($d->effectiveDate);
     $debt_amount = '$' . number_format($d->totalDebt, 2);
     $data .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .
@@ -19,3 +19,4 @@ foreach ($tab_data->entries as $d) {
     <tbody><?php echo $data; ?></tbody>
     <tfoot></tfoot>
 </table>
+load
