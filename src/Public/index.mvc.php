@@ -1,6 +1,7 @@
 <?php
 
 $starttime = microtime(true);
+$version = round(filemtime(__FILE__)/100000000, 3);
 require_once('../bin/bootstrap.php');
 
 use USDebt\Controller\USDebtController;
@@ -20,4 +21,5 @@ try {
     echo(__FILE__ . ' ' . __LINE__ . ' $e:<pre>' . print_r($e, true) . '</pre>');
 }
 $endtime = microtime(true);
-printf("Page loaded in %f seconds", $endtime - $starttime );
+echo "<span style=\"font-size: xx-small; display: inline; margin-right:.5em;\">v.{$version}</span>";
+printf('<span style="font-size: xx-small; display: inline;">TM%f</span>', $endtime - $starttime);

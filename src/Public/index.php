@@ -1,5 +1,6 @@
 <?php
 $starttime = microtime(true);
+$version = round(filemtime(__FILE__)/100000000, 3);
 
 /**
  * This is a self contained file for view our U.S. Debt from the U.S. Department of Treasury
@@ -199,177 +200,6 @@ foreach ($js_files as $file) {
 }
 foreach ($css_files as $file) {
     $head .= "<link rel=\"stylesheet\" href=\"{$file}\" />\n";
-}
-
-/**
- * @param DateTime $firstDate
- * @param DateTime $lastDate
- * @return array
- */
-function getDaysDebtIsReportedInRange(DateTime $firstDate, DateTime $lastDate)
-{
-    $holidays = getHolidaysForDateRange($firstDate, $lastDate);
-    echo(__FILE__ . ' ' . __LINE__ . ' $holidays:<pre>' . print_r($holidays, true) . '</pre>');
-
-    $working_days = $days = $firstDate->diff($lastDate)->days;
-    echo(__FILE__ . ' ' . __LINE__ . ' $days: ' . $days . '<br />');
-    echo(__FILE__ . ' ' . __LINE__ . ' $working_days: ' . $working_days . '<br />');
-
-    $working_days -= count($holidays);
-    echo(__FILE__ . ' ' . __LINE__ . ' $days: ' . $days . '<br />');
-    echo(__FILE__ . ' ' . __LINE__ . ' $working_days: ' . $working_days . '<br />');
-    $weeks = floor(round($days/7, 10));
-    echo(__FILE__ . ' ' . __LINE__ . ' $weeks: ' . $weeks . '<br />');
-    $working_days -= $weeks * 2;
-    echo(__FILE__ . ' ' . __LINE__ . ' $days: ' . $days . '<br />');
-    echo(__FILE__ . ' ' . __LINE__ . ' $working_days: ' . $working_days . '<br />');
-    return ['working_days' => (int)$working_days, 'days' => $days];
-}
-
-/**
- * @param DateTime $firstDate
- * @param DateTime $lastDate
- * @return array
- */
-function getHolidaysForDateRange(DateTime $firstDate, DateTime $lastDate)
-{
-    $output = [];
-    while ($firstDate >= $lastDate) {
-        $year = $lastDate->format('Y');
-
-        /* New Year's Day (January 1) */
-        $date_to_compare = strtotime("{$year}-01-01");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["nyr_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Birthday of Martin Luther King, Jr. (Third Monday in January). */
-        $date_to_compare = strtotime("January {$year} third Monday");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["mlk_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Washington's Birthday (Third Monday in February). */
-        $date_to_compare = strtotime("February {$year} third Monday");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["was_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Memorial Day (Last Monday in May). */
-        $date_to_compare = strtotime("last Monday of May {$year}");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["mem_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Independence Day (July 4). */
-        $date_to_compare = strtotime("{$year}-07-04");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["ind_{$year}"] = (new DateTime("{$year}-07-04"))->format('Y-m-d');
-        }
-
-        /* Labor Day (First Monday in September). */
-        $date_to_compare = strtotime("September {$year} first Monday");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["lab_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Columbus Day (Second Monday in October). */
-        $date_to_compare = strtotime("October {$year} second Monday");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["col_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Veterans Day (November 11). */
-        $date_to_compare = strtotime("{$year}-11-11");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["vet_{$year}"] = (new DateTime("{$year}-11-11"))->format('Y-m-d');
-        }
-
-        /* Thanksgiving Day (Fourth Thursday in November). */
-        $date_to_compare = strtotime("November {$year} fourth Thursday");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["thk_{$year}"] = date('Y-m-d', $date_to_compare);
-        }
-
-        /* Christmas Day (December 25). */
-        $date_to_compare = strtotime("{$year}-12-25");
-        if ($lastDate->getTimestamp() <= $date_to_compare && $firstDate->getTimestamp() >= $date_to_compare) {
-            $output["chr_{$year}"] = (new DateTime("{$year}-12-25"))->format('Y-m-d');
-        }
-
-        /* set the next lastDate to the 1st of the following year */
-        $lastDate->add(new DateInterval('P1Y'));
-        $lastDate->setDate($lastDate->format('Y'), '01', '01');
-
-        /* if the last date is finally > firstDate, then use the firstDate for the final comparison, and now
-            all the dates need to be less than the lastDate */
-        if ($lastDate->format('Y') == $firstDate->format('Y')) {
-            $lastDate = $firstDate;
-            $year = $lastDate->format('Y');
-
-            /* New Year's Day (January 1) */
-            $date_to_compare = strtotime("{$year}-01-01");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["nyr_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Birthday of Martin Luther King, Jr. (Third Monday in January). */
-            $date_to_compare = strtotime("January {$year} third Monday");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["mlk_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Washington's Birthday (Third Monday in February). */
-            $date_to_compare = strtotime("February {$year} third Monday");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["was_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Memorial Day (Last Monday in May). */
-            $date_to_compare = strtotime("last Monday of May {$year}");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["mem_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Independence Day (July 4). */
-            $date_to_compare = strtotime("{$year}-07-04");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["ind_{$year}"] =  date('Y-m-d', $date_to_compare);
-            }
-
-            /* Labor Day (First Monday in September). */
-            $date_to_compare = strtotime("September {$year} first Monday");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["lab_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Columbus Day (Second Monday in October). */
-            $date_to_compare = strtotime("October {$year} second Monday");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["col_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Veterans Day (November 11). */
-            $date_to_compare = strtotime("{$year}-11-11");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["vet_{$year}"] =  date('Y-m-d', $date_to_compare);
-            }
-
-            /* Thanksgiving Day (Fourth Thursday in November). */
-            $date_to_compare = strtotime("November {$year} fourth Thursday");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["thk_{$year}"] = date('Y-m-d', $date_to_compare);
-            }
-
-            /* Christmas Day (December 25). */
-            $date_to_compare = strtotime("{$year}-12-25");
-            if ($lastDate->getTimestamp() >=  $date_to_compare) {
-                $output["chr_{$year}"] =  date('Y-m-d', $date_to_compare);
-            }
-            break;
-        }
-    }
-    return $output;
 }
 ?>
 <html>
@@ -575,4 +405,5 @@ if (!empty($graph_values_arr)) {
 </html>
 <?php
 $endtime = microtime(true);
-printf("Page loaded in %f seconds", $endtime - $starttime );
+echo "<span style=\"font-size: xx-small; display: inline; margin-right:.5em;\">v.{$version}</span>";
+printf('<span style="font-size: xx-small; display: inline;">TM%f</span>', $endtime - $starttime);
