@@ -42,7 +42,7 @@ foreach ($css_files as $file) {
         in the debt.
     </p>
 </div>
-<h4>Data is from <a href="treasurydirect.gov" target="_blank">treasurydirect.gov</a>
+<h4>Data is from <a href="http://www.treasurydirect.gov" target="_blank">treasurydirect.gov</a>
     <img src="images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" /></h4>
 <div id="main_content">
     <?php
