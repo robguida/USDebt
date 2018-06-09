@@ -1,4 +1,6 @@
 <?php
+$starttime = microtime(true);
+
 /**
  * This is a self contained file for view our U.S. Debt from the U.S. Department of Treasury
  *
@@ -571,3 +573,6 @@ if (!empty($graph_values_arr)) {
     })
 </script>
 </html>
+<?php
+$endtime = microtime(true);
+printf("Page loaded in %f seconds", $endtime - $starttime );

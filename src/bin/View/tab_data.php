@@ -7,7 +7,7 @@
  */
 $data = '';
 
-foreach ($datas->entries as $d) {
+foreach ($datas as $d) {
     $dateDt = new DateTime($d->effectiveDate);
     $debt_amount = '$' . number_format($d->totalDebt, 2);
     $data .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .

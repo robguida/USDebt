@@ -19,7 +19,7 @@
         <?php echo $data; ?>
     </div>
     <div id="stats_tab">
-
+        <?php echo $stats; ?>
     </div>
 </div>
 <script type="text/javascript">
