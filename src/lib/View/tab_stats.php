@@ -55,8 +55,11 @@ $average_per_time_span /= $working_days;
 $firstDate = new DateTime($lastDebt->effectiveDate);
 $lastDate = new DateTime($firstDebt->effectiveDate);
 
+$first_debt = round($firstDebt->totalDebt/1000000000000, 2);
+
 ?>
 <h3>Starting debt amount</h3>
+<!--<p>$--><?php //echo number_format($firstDebt->totalDebt, 2) . ' ($' . number_format($first_debt, 2) . 'T)'; ?><!--</p>-->
 <p>$<?php echo number_format($firstDebt->totalDebt, 2); ?></p>
 <h3>Last debt amount of date range</h3>
 <p>$<?php echo number_format($lastDebt->totalDebt, 2); ?></p>

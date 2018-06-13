@@ -16,6 +16,11 @@ div.pres_nav img.home{
     border: 0px;
     margin: 0px 10px 0px 0px;
 }
+div.pres_nav .pres {
+    display: inline;
+    margin-right: .25em;
+    width: 50px;
+}
 form.search {
     display: inline;
 }
@@ -31,8 +36,8 @@ canvas {
 
 .flot_containter {
     box-sizing: border-box;
-    width: 850px;
-    height: 450px;
+    width: 90%;
+    height: 90%;
     padding: 20px 15px 15px 15px;
     margin: 15px auto 30px auto;
     border: 1px solid #ddd;

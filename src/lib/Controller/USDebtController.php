@@ -9,6 +9,7 @@
 namespace USDebt\Controller;
 
 use DateTime;
+use InvalidArgumentException;
 use stdClass;
 use USDebt\Model\RequestModel;
 use USDebt\Service\PresidentService;
@@ -36,36 +37,92 @@ class USDebtController
             $requestModel->getEndDate(true)->format('Y-m-d')
         );
 
-        /* get the search form */
+        /* Set up the tab array */
+        $tab_sections = [
+            'data' => $this->loadFile('tab_data.php', ['datas' => $datas]),
+            'graph' => $this->loadFile(
+                'tab_graph_Chart.php',
+                ['datas' => $datas, 'pres_array' => PresidentService::getPresidentConfig()]
+            ),
+            'stats' => $output = $this->loadFile('tab_stats.php', ['datas' => $datas]),
+        ];
+
+        /* Set up the data for the main template */
+        $main_content = [];
         $main_content['search_form'] = $this->getSearchForm($requestModel);
-        $main_content['tab_data'] = $this->getTabData($datas);
+        $main_content['tab_data'] = $this->loadFile('tabs.php', $tab_sections);
 
         /* Load up the master template */
-        $view_data = [
-            'main_content' => $main_content,
-        ];
-        return $this->loadFile('master.php', $view_data);
+        return $this->loadFile('master.php', ['main_content' => $main_content ]);
+    }
+
+    /**
+     * @param RequestModel $requestModel
+     * @return string
+     */
+    public function compareView(RequestModel $requestModel)
+    {
+        $main_content = [];
+        /* get the search form */
+        $main_content['search_form'] = $this->getSearchForm($requestModel);
+        /* get the presidents to compare and then find the start and end dates */
+        if ($compares = $requestModel->getComparePres()) {
+            $selected_pres = [];
+            foreach ($compares as $c) {
+                $pres_config = PresidentService::getPresident($c);
+                $startDate = new DateTime($pres_config['start']);
+                $endDate = new DateTime($pres_config['end']);
+
+                $selected_pres[$c] = [
+                    'config' => $pres_config,
+                    'datas' => TreasuryDirect::httpRequest($startDate->format('Y-m-d'), $endDate->format('Y-m-d'))
+                ];
+            }
+
+            $main_content['tab_data'] = $this->loadFile('tab_graph_Flot.php', ['datas' => $selected_pres]);
+
+        } else {
+            $main_content['tab_data'] ='Nothing to compare';
+        }
+
+        /* Load up the master template */
+        return $this->loadFile('master.php', ['main_content' => $main_content ]);
+    }
+
+    /**
+     * @param string $error
+     * @param RequestModel $requestModel
+     * @return string
+     */
+    public function getErrorView($error, RequestModel $requestModel)
+    {
+        /* get the search form */
+        $main_content = [];
+        $main_content['search_form'] = $this->getSearchForm($requestModel);
+        $main_content['tab_data'] = $error;
+
+        /* Load up the master template */
+        return $this->loadFile('master.php', ['main_content' => $main_content ]);
     }
 
     /**
      * @param stdClass $datas
+     * @param bool $compare
+     * @param array $selected_pres
      * @return string
      */
-    private function getTabData(stdClass $datas)
+    private function getTabData(stdClass $datas, $compare = false, array $selected_pres = null)
     {
-        if (isset($datas->entries)) {
-            $datas = $datas->entries;
-            $graph = 'tab_graph_Chart.php';
-        } else {
-            $datas = $datas->entries;
+        $datas = $datas->entries;
+        if ($compare) {
             $graph = 'tab_graph_Flot.php';
+        } else {
+            $graph = 'tab_graph_Chart.php';
+            $selected_pres = PresidentService::getPresidentConfig();
         }
         $tab_sections = [
             'data' => $this->loadFile('tab_data.php', ['datas' => $datas]),
-            'graph' => $this->loadFile(
-                $graph,
-                ['datas' => $datas, 'pres_array' => PresidentService::getPresidentConfig()]
-            ),
+            'graph' => $this->loadFile($graph, ['datas' => $datas, 'pres_array' => $selected_pres]),
             'stats' => $output = $this->loadFile('tab_stats.php', ['datas' => $datas]),
         ];
         return $this->loadFile('tabs.php', $tab_sections);
@@ -77,11 +134,13 @@ class USDebtController
      */
     private function getSearchForm(RequestModel $requestModel)
     {
-        $view_data = [
-            'pres_array' => PresidentService::getPresidentConfig(),
-            'start_date' => $requestModel->getStartDate()->format('Y-m-d'),
-            'end_date' => $requestModel->getEndDate()->format('Y-m-d'),
-        ];
+        $view_data = ['pres_array' => PresidentService::getPresidentConfig(), 'start_date' => '', 'end_date' => ''];
+        if ($requestModel->getStartDate(true) instanceof DateTime) {
+            $view_data['start_date'] = $requestModel->getStartDate()->format('Y-m-d');
+        }
+        if ($requestModel->getEndDate(true) instanceof DateTime) {
+             $view_data['end_date'] = $requestModel->getEndDate()->format('Y-m-d');
+        }
         return $this->loadFile('search_form.php', $view_data);
     }
 

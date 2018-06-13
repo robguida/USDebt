@@ -12,6 +12,21 @@ namespace USDebt\Service;
 class PresidentService
 {
     /**
+     * @param $timestamp
+     * @return mixed|null
+     */
+    public static function getPresident($timestamp)
+    {
+        $output = null;
+        $ps = new PresidentService();
+        $pres = $ps->getPresidentConfig();
+        if (array_key_exists($timestamp, $pres)) {
+            $output = $pres[$timestamp];
+        }
+        return $output;
+    }
+
+    /**
      * @return array
      */
     public static function getPresidentConfig()

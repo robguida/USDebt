@@ -9,6 +9,7 @@
 namespace USDebt\Model;
 
 use DateTime;
+use InvalidArgumentException;
 use USDebt\Service\ValidateDateTime;
 
 class RequestModel
@@ -18,6 +19,39 @@ class RequestModel
 
     /** @var DateTime */
     private $endDate;
+
+    /** @var array */
+    private $compare_pres;
+
+    /**
+     * @param int $input
+     */
+    public function addComparePres($input)
+    {
+        if (false === filter_var($input, FILTER_VALIDATE_INT)) {
+            throw new InvalidArgumentException("{$input} is not a valid integer");
+        }
+        $this->compare_pres[] = $input;
+    }
+
+    /**
+     * @param array $input
+     */
+    public function setComparePres(array $input)
+    {
+        if (1 >= count($input)) {
+            throw new InvalidArgumentException("You must select at least 2 presidents");
+        }
+        $this->compare_pres = $input;
+    }
+
+    /**
+     * @return array
+     */
+    public function getComparePres()
+    {
+        return $this->compare_pres;
+    }
 
     /**
      * @param bool $ref

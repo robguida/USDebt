@@ -19,4 +19,3 @@ foreach ($datas as $d) {
     <tbody><?php echo $data; ?></tbody>
     <tfoot></tfoot>
 </table>
-load

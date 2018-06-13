@@ -31,6 +31,7 @@ class TreasuryDirect
         }
         if ($response && !$raw) {
             $response = json_decode($response);
+            $response = $response->entries;
         }
         return $response;
     }
