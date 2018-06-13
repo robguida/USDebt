@@ -1,29 +1,90 @@
 body {
     padding: 16px;
+    font-family: Arial, Helvetica, sans-serif;
 }
+
+div.header {
+    border: 0px solid red;
+
+}
+
+div.search_form {
+    width: 600px;
+    border: 0px solid red;
+    box-shadow: 3px 3px #000;
+    border-radius: 10px;
+    text-align: justify;
+    display: inline-table;
+    float: left;
+    margin-right: 1em;
+}
+
+div.search_form_top {
+    background-color: #8999ef;
+    border-top: 3px solid #000080;
+    border-right: 3px solid #000080;
+    border-left: 3px solid #000080;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    width: auto;
+    height: 45px;
+}
+
+div.search_form_top h2 {
+    color: white;
+    text-align: center;
+    margin-top: 5px;
+}
+
+div.search_form_bottom {
+    border-bottom: 3px solid #000080;
+    border-right: 3px solid #000080;
+    border-left: 3px solid #000080;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    width: auto;
+    height: 35px;
+    padding: .2em;
+    text-align: center;
+}
+
+div.search_form_bottom input[type=text] {
+    font-size: larger;
+    width: 135px;
+    padding: 0em .2em;
+}
+
+div.header input[type=submit] {
+    font-size: larger;
+    border-radius: 10px;
+}
+
+div.header input[type=checkbox] {
+    width: 20px;
+    height: 20px;
+}
+
 div.pres_nav {
-    display: inline;
+    display: inline-table;
+    width: 400px;
+    border: 3px solid #000080;
+    padding: 15px 0px -5px 5px;
+    border-radius: 10px;
 }
-div.pres_nav img{
+
+div.pres_nav .pres {
+    display: inline-block;
+    margin-right: .5em;
+    width: 50px;
+    text-align: center;
+}
+
+div.pres_nav .pres img{
     width: 50px;
     height: 60px;
     border: 1px solid black;
-    margin: 0px 10px 0px 0px;
 }
-div.pres_nav img.home{
-    width: 50px;
-    height: 60px;
-    border: 0px;
-    margin: 0px 10px 0px 0px;
-}
-div.pres_nav .pres {
-    display: inline;
-    margin-right: .25em;
-    width: 50px;
-}
-form.search {
-    display: inline;
-}
+
 .chart-container {
     position: relative;
     margin: auto;

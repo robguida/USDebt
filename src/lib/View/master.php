@@ -32,7 +32,7 @@ foreach ($css_files as $file) {
     <?php echo $head; ?>
 </head>
 <body>
-<h1>Our U.S. Debt (IN DEVELOPMENT)</h1>
+<h1>Our U.S. Debt</h1>
 <div id="about_usdebt" style="display: none;">
     <p>The data used for this site is freely accessible from
         <a href="https://www.treasurydirect.gov/" target="_blank">treasurydirect.gov</a>,

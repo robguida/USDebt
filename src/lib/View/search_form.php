@@ -15,34 +15,32 @@ foreach ($pres_array as $key => $pres) {
                             "&end_date={$pres_end->format('Y-m-d')}\">" .
                             "<img src=\"images/{$pres['img']}\" title=\"{$pres['pres']}\" " .
                                 "id=\"{$pres['pres']}\"></a></div>" .
-                    "<div><input type=\"checkbox\" name=\"compare_pres[]\" value=\"{$key}\" /></div></div>";
+                    "<div><input type=\"checkbox\" name=\"compare_pres[]\" value=\"{$key}\" /></div>" .
+                "</div>";
 }
 ?>
-    <table>
-        <tr>
-            <td>
-                <h2>Select a date range, or a President</h2>
-                <form id="search" class="search">
-                    <label for="start_date">Start Date:</label>
-                    <input type="text" id="start_date" name="start_date" value="<?php echo $start_date; ?>" />
-                    <label for="end_date">End Date:</label>
-                    <input type="text" id="end_date" name="end_date" value="<?php echo $end_date; ?>" />
-                    <input type="submit" id="submit" name="submit" value="Fetch" />
-                </form>
-            </td>
-            <td>&nbsp;</td>
-            <td><div class="pres_nav">
-                    <form id="compare" method="post">
-                        <?php echo $pres_nav; ?>
-                        <input type="submit" value="Compare" id="submit" name="submit" />
-                    </form>
-                    <a href="index.php">
-                        <img class="home" src="images/home.png" />
-                    </a>
-                </div>
-            </td>
-        </tr>
-    </table>
+<div class="header">
+    <div class="search_form">
+        <div class="search_form_top">
+            <h2>Select a date range</h2>
+        </div>
+        <div class="search_form_bottom">
+            <form id="search" class="search">
+                <label for="start_date">Start Date:</label>
+                <input type="text" id="start_date" name="start_date" value="<?php echo $start_date; ?>" />
+                <label for="end_date">End Date:</label>
+                <input type="text" id="end_date" name="end_date" value="<?php echo $end_date; ?>" />
+                <input type="submit" id="submit" name="submit" value="Fetch" />
+            </form>
+        </div>
+    </div>
+    <div class="pres_nav">
+        <form id="compare" method="post">
+            <?php echo $pres_nav; ?>
+            <input type="submit" value="Compare" id="submit" name="submit" />
+        </form>
+    </div>
+</div>
 <script type="text/javascript">
     $(function(){
         /* bindings */
