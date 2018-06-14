@@ -5,7 +5,7 @@ $version = round(filemtime(__FILE__)/100000000, 3);
 require_once('../lib/bootstrap.php');
 
 use USDebt\Controller\USDebtController;
-use USDebt\Model\RequestModel;
+use test\USDebt\Model\RequestModel;
 
 try {
     $action = isset($_REQUEST['submit']) ? $_REQUEST['submit'] : '';
