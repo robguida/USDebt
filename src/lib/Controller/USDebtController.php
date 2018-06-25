@@ -106,29 +106,6 @@ class USDebtController
     }
 
     /**
-     * @param stdClass $datas
-     * @param bool $compare
-     * @param array $selected_pres
-     * @return string
-     */
-    private function getTabData(stdClass $datas, $compare = false, array $selected_pres = null)
-    {
-        $datas = $datas->entries;
-        if ($compare) {
-            $graph = 'tab_graph_Flot.php';
-        } else {
-            $graph = 'tab_graph_Chart.php';
-            $selected_pres = PresidentService::getPresidentConfig();
-        }
-        $tab_sections = [
-            'data' => $this->loadFile('tab_data.php', ['datas' => $datas]),
-            'graph' => $this->loadFile($graph, ['datas' => $datas, 'pres_array' => $selected_pres]),
-            'stats' => $output = $this->loadFile('tab_stats.php', ['datas' => $datas]),
-        ];
-        return $this->loadFile('tabs.php', $tab_sections);
-    }
-
-    /**
      * @param RequestModel $requestModel
      * @return string
      */
@@ -140,6 +117,9 @@ class USDebtController
         }
         if ($requestModel->getEndDate(true) instanceof DateTime) {
              $view_data['end_date'] = $requestModel->getEndDate()->format('Y-m-d');
+        }
+        if ($compare_pres = $requestModel->getComparePres()) {
+            $view_data['compare_pres'] = $compare_pres;
         }
         return $this->loadFile('search_form.php', $view_data);
     }

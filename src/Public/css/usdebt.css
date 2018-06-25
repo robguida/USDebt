@@ -57,32 +57,63 @@ div.search_form_bottom input[type=text] {
 div.header input[type=submit] {
     font-size: larger;
     border-radius: 10px;
+    cursor: pointer;
 }
 
 div.header input[type=checkbox] {
-    width: 20px;
-    height: 20px;
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
 }
 
 div.pres_nav {
     display: inline-table;
-    width: 400px;
+    width: 475px;
+    height: 50px;
     border: 3px solid #000080;
-    padding: 15px 0px -5px 5px;
     border-radius: 10px;
+    box-shadow: 3px 3px #000;
 }
 
 div.pres_nav .pres {
     display: inline-block;
     margin-right: .5em;
-    width: 50px;
+    width: 42px;
     text-align: center;
+    border: 0px solid darkgreen;
+    margin-top: 5px;
+    position: relative;
 }
 
 div.pres_nav .pres img{
-    width: 50px;
-    height: 60px;
+    width: 40px;
+    height: 50px;
     border: 1px solid black;
+}
+
+div.pres_nav .pres_header {
+    width: 250px;
+    float: left;
+    margin-right: .5em;
+}
+
+div.pres_nav .pres_header .top {
+    border-top-left-radius: 6px;
+    background-color: #8999ef;
+    top: -5px;
+    position: relative;
+    height: 45px;
+    border: 0px solid red;
+}
+
+div.pres_nav .pres_header .top h2 {
+    color: white;
+    text-align: center;
+    margin-top: 5px;
+}
+
+div.pres_nav .pres_header .bottom {
+    text-align: right;
 }
 
 .chart-container {
@@ -91,6 +122,7 @@ div.pres_nav .pres img{
     height: 60vh;
     width: 80vw;
 }
+
 canvas {
     /*border: 1px dotted red;*/
 }

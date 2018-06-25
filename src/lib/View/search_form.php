@@ -7,15 +7,19 @@
  */
 
 $pres_nav = '';
+if (!isset($compare_pres)) {
+    $compare_pres = [];
+}
 foreach ($pres_array as $key => $pres) {
     $pres_start = new DateTime($pres['start']);
     $pres_end = new DateTime($pres['end']);
+    $checked = in_array($key, $compare_pres) ? ' checked="checked"' : '';
     $pres_nav .= "<div class=\"pres\">
                     <div><a href=\"?start_date={$pres_start->format('Y-m-d')}" .
                             "&end_date={$pres_end->format('Y-m-d')}\">" .
                             "<img src=\"images/{$pres['img']}\" title=\"{$pres['pres']}\" " .
                                 "id=\"{$pres['pres']}\"></a></div>" .
-                    "<div><input type=\"checkbox\" name=\"compare_pres[]\" value=\"{$key}\" /></div>" .
+                    "<div><input type=\"checkbox\" name=\"compare_pres[]\" value=\"{$key}\"{$checked} /></div>" .
                 "</div>";
 }
 ?>
@@ -36,14 +40,23 @@ foreach ($pres_array as $key => $pres) {
     </div>
     <div class="pres_nav">
         <form id="compare" method="post">
+            <div class="pres_header">
+                <div class="top"><h2>Choose a pres</h2></div>
+                <div class="bottom"><input type="submit" value="Compare" id="submit" name="submit" /></div>
+            </div>
             <?php echo $pres_nav; ?>
-            <input type="submit" value="Compare" id="submit" name="submit" />
         </form>
     </div>
 </div>
 <script type="text/javascript">
     $(function(){
         /* bindings */
+        $('#compare').on('submit', function() {
+            var compare_pres = $("input[value='compare_pres']").val();
+            //alert(('' == $("input[value='compare_pres']").val()));
+            //return ('' == $("input[value='compare_pres']").val());
+            $('#compare').submit();
+        });
         $('#start_date').datepicker({
             showOtherMonths: true,
             selectOtherMonths: true,

@@ -11,10 +11,13 @@ try {
     $action = isset($_REQUEST['submit']) ? $_REQUEST['submit'] : '';
     $controller = new USDebtController();
     $request = new RequestModel();
+
     try {
         switch (strtolower($action)) {
             case 'compare':
-                $request->setComparePres($_REQUEST['compare_pres']);
+                $compare_pres = (isset($_REQUEST['compare_pres']) && !empty($_REQUEST['compare_pres']))
+                    ? $_REQUEST['compare_pres'] : [];
+                $request->setComparePres($compare_pres);
                 $output = $controller->compareView($request);
                 break;
             case 'fetch':
