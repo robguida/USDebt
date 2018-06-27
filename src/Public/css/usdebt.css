@@ -5,7 +5,7 @@ body {
 
 div.header {
     border: 0px solid red;
-
+    margin-bottom: 15px;
 }
 
 div.search_form {
@@ -17,6 +17,7 @@ div.search_form {
     display: inline-table;
     float: left;
     margin-right: 1em;
+    height: 100px;
 }
 
 div.search_form_top {
@@ -27,13 +28,13 @@ div.search_form_top {
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
     width: auto;
-    height: 45px;
+    height: 58px;
 }
 
 div.search_form_top h2 {
     color: white;
     text-align: center;
-    margin-top: 5px;
+    margin-top: 10px;
 }
 
 div.search_form_bottom {
@@ -69,10 +70,38 @@ div.header input[type=checkbox] {
 div.pres_nav {
     display: inline-table;
     width: 475px;
-    height: 50px;
+    height: 100px;
     border: 3px solid #000080;
     border-radius: 10px;
     box-shadow: 3px 3px #000;
+}
+
+div.pres_nav .pres_header {
+    width: 250px;
+    float: left;
+    margin-right: .5em;
+    border: 0px solid purple;
+}
+
+div.pres_nav .pres_header .top {
+    border-top-left-radius: 3px;
+    background-color: #8999ef;
+    top: 0px;
+    position: relative;
+    height: 58px;
+    border: 1px solid transparent;
+    margin-bottom: 3px;
+}
+
+div.pres_nav .pres_header .top h2 {
+    color: white;
+    text-align: center;
+    margin-top: 10px;
+    border: 0px solid green;
+}
+
+div.pres_nav .pres_header .bottom {
+    text-align: right;
 }
 
 div.pres_nav .pres {
@@ -89,31 +118,6 @@ div.pres_nav .pres img{
     width: 40px;
     height: 50px;
     border: 1px solid black;
-}
-
-div.pres_nav .pres_header {
-    width: 250px;
-    float: left;
-    margin-right: .5em;
-}
-
-div.pres_nav .pres_header .top {
-    border-top-left-radius: 6px;
-    background-color: #8999ef;
-    top: -5px;
-    position: relative;
-    height: 45px;
-    border: 0px solid red;
-}
-
-div.pres_nav .pres_header .top h2 {
-    color: white;
-    text-align: center;
-    margin-top: 5px;
-}
-
-div.pres_nav .pres_header .bottom {
-    text-align: right;
 }
 
 .chart-container {
@@ -194,6 +198,7 @@ h3 {
 p.stats_footer {
     border-top: 1px solid silver;
     font-size: x-small;
+    cursor: pointer;
 }
 img.small_icon {
     width: 22px;
