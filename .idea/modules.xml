@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="ProjectModuleManager">
-    <modules>
-      <module fileurl="file://$PROJECT_DIR$/../RgSecureForm/.idea/SecureForm.iml" filepath="$PROJECT_DIR$/../RgSecureForm/.idea/SecureForm.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/USDebt.iml" filepath="$PROJECT_DIR$/.idea/USDebt.iml" />
-    </modules>
-  </component>
-</project>
