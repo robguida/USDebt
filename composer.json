@@ -1,6 +1,6 @@
 {
-  "name": "RobGuida/SecureForm",
-  "description": "Simple token system to protect against CSRF",
+  "name": "RobGuida/USDebt",
+  "description": "Graphical interface for our National Debt",
   "minimum-stability": "stable",
   "license": "proprietary",
   "authors": [
