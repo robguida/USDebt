@@ -23,11 +23,15 @@ class TreasuryDirect
         $dot_url = 'https://www.treasurydirect.gov/NP_WS/debt/search?' .
             "startdate={$start_date}&enddate={$end_date}&format=json";
         $cache_key = md5(__METHOD__ . "_{$dot_url}");
-        if (!apc_exists($cache_key)) {
-            $response = file_get_contents($dot_url);
-            apc_add($cache_key, $response);
+        if (function_exists('acp_exists')) {
+            if (!apc_exists($cache_key)) {
+                $response = file_get_contents($dot_url);
+                apc_add($cache_key, $response);
+            } else {
+                $response = apc_fetch($cache_key);
+            }
         } else {
-            $response = apc_fetch($cache_key);
+            $response = file_get_contents($dot_url);
         }
         if ($response && !$raw) {
             $response = json_decode($response);
