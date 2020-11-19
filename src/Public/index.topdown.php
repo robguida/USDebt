@@ -284,6 +284,7 @@ foreach ($css_files as $file) {
 </div>
 <h4>Data is from <a href="treasurydirect.gov" target="_blank">treasurydirect.gov</a>
     <img src="images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" /></h4>
+<h4>Code is opensource and can be found <a href="https://github.com/robguida/USDebt" target="usdebt_code">here</a>.</h4>
 <table>
     <tr>
         <td>
