@@ -41,7 +41,7 @@ foreach ($pres_array as $key => $pres) {
     <div class="pres_nav">
         <form id="compare" method="post">
             <div class="pres_header">
-                <div class="top"><h2>Press a Prez!</h2></div>
+                <div class="top"><h2>Press a Prez!<p class="stats_footer">Click a picture to see data for a president.</p> </h2></div>
                 <div class="bottom"><input type="submit" value="Compare" id="submit" name="submit" /></div>
             </div>
             <?php echo $pres_nav; ?>
