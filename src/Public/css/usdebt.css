@@ -15,7 +15,6 @@ div.search_form {
     border-radius: 10px;
     text-align: justify;
     display: inline-table;
-    float: left;
     margin-right: 1em;
     height: 100px;
 }
@@ -70,18 +69,17 @@ div.header input[type=checkbox] {
 div.pres_nav {
     display: inline-table;
     width: auto;
-    min-width: 600px;
+    min-width: 500px;
     height: 100px;
-    border: 3px solid #000080;
+    border: 1px solid #000080;
     border-radius: 10px;
     box-shadow: 3px 3px #000;
 }
 
 div.pres_nav .pres_header {
     width: 250px;
-    float: left;
     margin-right: .5em;
-    border: 0px solid purple;
+    border: 1px solid purple;
 }
 
 div.pres_nav .pres_header .top {
@@ -90,7 +88,7 @@ div.pres_nav .pres_header .top {
     top: 0px;
     position: relative;
     height: 58px;
-    border: 1px solid transparent;
+    border: 1px solid red;
     margin-bottom: 3px;
 }
 
@@ -98,7 +96,7 @@ div.pres_nav .pres_header .top h2 {
     color: white;
     text-align: center;
     margin-top: 10px;
-    border: 0px solid green;
+    border: 1px solid green;
 }
 
 div.pres_nav .pres_header .bottom {
