@@ -64,7 +64,7 @@ class PresidentService
                 'pres' => 'Joseph Biden',
                 'start' => 'January 20, 2021',
                 'end' => '',
-                'img' => 'Donald_Trump.jpg',
+                'img' => 'Joe_Biden.jpg',
                 'grfcolor' => 'rgba(247, 10, 0, 0.2)',
             ],
         ];

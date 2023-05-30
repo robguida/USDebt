@@ -4,6 +4,11 @@
  * User: robert
  * Date: 6/5/18
  * Time: 8:29 PM
+ *
+ * @var string $pres_nav
+ * @var array $pres_array
+ * @var string $start_date
+ * @var string $end_date
  */
 
 $pres_nav = '';
@@ -24,6 +29,15 @@ foreach ($pres_array as $key => $pres) {
 }
 ?>
 <div class="header">
+    <div class="pres_nav">
+        <form id="compare" method="post">
+            <div class="pres_header">
+                <div class="top"><h2>Press a Prez</h2>Click a picture to show data for a president</div>
+                <div class="bottom"><input type="submit" value="Compare" id="submit" name="submit" /></div>
+            </div>
+            <?php echo $pres_nav; ?>
+        </form>
+    </div>
     <div class="search_form">
         <div class="search_form_top">
             <h2>Select a date range</h2>
@@ -37,15 +51,6 @@ foreach ($pres_array as $key => $pres) {
                 <input type="submit" id="submit" name="submit" value="Fetch" />
             </form>
         </div>
-    </div>
-    <div class="pres_nav">
-        <form id="compare" method="post">
-            <div class="pres_header">
-                <div class="top"><h2>Choose a pres</h2></div>
-                <div class="bottom"><input type="submit" value="Compare" id="submit" name="submit" /></div>
-            </div>
-            <?php echo $pres_nav; ?>
-        </form>
     </div>
 </div>
 <script type="text/javascript">
