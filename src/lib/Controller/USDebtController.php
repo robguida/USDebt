@@ -81,7 +81,7 @@ class USDebtController
                     'config' => $pres_config,
                     'datas' => TreasuryDirect::httpRequest($startDate->format('Y-m-d'), $endDate->format('Y-m-d'))
                 ];
-                error_log(__METHOD__ . ' $selected_pres[$c][data]<pre>' . print_r(current($selected_pres[$c]['data']), true) . '</pre>');
+                error_log(__METHOD__ . ' $selected_pres[$c][datas]<pre>' . print_r(current($selected_pres[$c]['datas']), true) . '</pre>');
             }
             $main_content['tab_data'] = $this->loadFile('tab_graph_Flot.php', ['datas' => $selected_pres]);
         } else {
