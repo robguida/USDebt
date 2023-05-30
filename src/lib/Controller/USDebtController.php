@@ -9,7 +9,7 @@
 namespace USDebt\Controller;
 
 use DateTime;
-use InvalidArgumentException;
+use Exception;
 use stdClass;
 use USDebt\Model\RequestModel;
 use USDebt\Service\PresidentService;
@@ -59,6 +59,7 @@ class USDebtController
     /**
      * @param RequestModel $requestModel
      * @return string
+     * @throws Exception
      */
     public function compareView(RequestModel $requestModel)
     {

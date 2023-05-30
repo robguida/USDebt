@@ -60,6 +60,13 @@ class PresidentService
                 'img' => 'Donald_Trump.jpg',
                 'grfcolor' => 'rgba(255, 99, 132, 0.2)',
             ],
+            1611100800 => [
+                'pres' => 'Joseph Biden',
+                'start' => 'January 20, 2021',
+                'end' => '',
+                'img' => 'Donald_Trump.jpg',
+                'grfcolor' => 'rgba(247, 10, 0, 0.2)',
+            ],
         ];
     }
 }
