@@ -56,7 +56,7 @@ class PresidentService
             1484888400 => [
                 'pres' => 'Donald Trump',
                 'start' => 'January 20, 2017',
-                'end' => '',
+                'end' => 'January 19, 2021',
                 'img' => 'Donald_Trump.jpg',
                 'grfcolor' => 'rgba(255, 99, 132, 0.2)',
             ],
