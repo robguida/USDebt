@@ -66,27 +66,28 @@ class USDebtController
         $main_content = [];
         /* get the search form */
         $main_content['search_form'] = $this->getSearchForm($requestModel);
+        error_log(__METHOD__ . ' $main_content<pre>' . print_r($main_content, true) . '</pre>');
         /* get the presidents to compare and then find the start and end dates */
         if ($compares = $requestModel->getComparePres()) {
+            error_log(__METHOD__ . ' $compares<pre>' . print_r($compares, true) . '</pre>');
             $selected_pres = [];
             foreach ($compares as $c) {
                 $pres_config = PresidentService::getPresident($c);
+                error_log(__METHOD__ . ' $pres_config<pre>' . print_r($pres_config, true) . '</pre>');
                 $startDate = new DateTime($pres_config['start']);
                 $endDate = new DateTime($pres_config['end']);
-
                 $selected_pres[$c] = [
                     'config' => $pres_config,
                     'datas' => TreasuryDirect::httpRequest($startDate->format('Y-m-d'), $endDate->format('Y-m-d'))
                 ];
             }
-
+            error_log(__METHOD__ . ' $selected_pres<pre>' . print_r($selected_pres, true) . '</pre>');
             $main_content['tab_data'] = $this->loadFile('tab_graph_Flot.php', ['datas' => $selected_pres]);
-
         } else {
             $main_content['tab_data'] ='Nothing to compare';
         }
-
         /* Load up the master template */
+        error_log(__METHOD__ . ' $main_content<pre>' . print_r($main_content, true) . '</pre>');
         return $this->loadFile('master.php', ['main_content' => $main_content ]);
     }
 
