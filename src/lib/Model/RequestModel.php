@@ -9,46 +9,51 @@
 namespace USDebt\Model;
 
 use DateTime;
+use Exception;
 use InvalidArgumentException;
 use USDebt\Service\ValidateDateTime;
 
+/**
+ * This is basically a Data Transfer Object
+ */
 class RequestModel
 {
     /** @var DateTime */
-    private $startDate;
+    private DateTime $startDate;
 
     /** @var DateTime */
-    private $endDate;
+    private DateTime $endDate;
 
     /** @var array */
-    private $compare_pres;
+    private array $compare_pres;
 
     /**
      * @param int $input
+     * @return RequestModel
      */
-    public function addComparePres($input)
+    public function addComparePres(int $input): static
     {
-        if (false === filter_var($input, FILTER_VALIDATE_INT)) {
-            throw new InvalidArgumentException("{$input} is not a valid integer");
-        }
         $this->compare_pres[] = $input;
+        return $this;
     }
 
     /**
      * @param array $input
+     * @return RequestModel
      */
-    public function setComparePres(array $input)
+    public function setComparePres(array $input): static
     {
         if (1 >= count($input)) {
             throw new InvalidArgumentException("You must select at least 2 presidents");
         }
         $this->compare_pres = $input;
+        return $this;
     }
 
     /**
      * @return array
      */
-    public function getComparePres()
+    public function getComparePres(): array
     {
         return $this->compare_pres;
     }
@@ -57,47 +62,46 @@ class RequestModel
      * @param bool $ref
      * @return DateTime
      */
-    public function getStartDate($ref = false)
+    public function getStartDate(bool $ref = false): DateTime
     {
         return ($ref) ? $this->startDate : clone $this->startDate;
     }
 
     /**
-     * @param string|DateTime $start_date
+     * @param DateTime|string $start_date
+     * @return RequestModel
+     * @throws Exception
      */
-    public function setStartDate($start_date)
+    public function setStartDate(DateTime|string $start_date): static
     {
         if ($start_date instanceof  DateTime) {
             $this->startDate = $start_date;
         } elseif (ValidateDateTime::validate($start_date)) {
-            if (!$start_date instanceof DateTime) {
-                $start_date = new DateTime($start_date);
-            }
             $this->startDate = $start_date;
         }
+        return $this;
     }
 
     /**
      * @param bool $ref
      * @return DateTime
      */
-    public function getEndDate($ref = false)
+    public function getEndDate(bool $ref = false): DateTime
     {
         return ($ref) ? $this->endDate : clone $this->endDate;
     }
 
     /**
-     * @param string|DateTime $end_date
+     * @param DateTime|string $end_date
+     * @return RequestModel
      */
-    public function setEndDate($end_date)
+    public function setEndDate(DateTime|string $end_date): static
     {
         if ($end_date instanceof  DateTime) {
             $this->endDate = $end_date;
         } elseif (ValidateDateTime::validate($end_date)) {
-            if (!$end_date instanceof DateTime) {
-                $end_date = new DateTime($end_date);
-            }
             $this->endDate = $end_date;
         }
+        return $this;
     }
 }

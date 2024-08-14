@@ -18,7 +18,7 @@ class ValidateDateTime
      * @param bool $suppress
      * @return bool
      */
-    public static function validate($input, $suppress = false)
+    public static function validate($input, bool $suppress = false): bool
     {
         DateTime::createFromFormat('Y-m-d', $input);
         if ($date_errors = DateTime::getLastErrors()) {

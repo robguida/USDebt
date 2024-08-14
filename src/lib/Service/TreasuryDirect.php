@@ -9,19 +9,30 @@
 namespace USDebt\Service;
 
 use stdClass;
+use USDebt\Model\EnvModel;
 
 class TreasuryDirect
 {
+    private EnvModel $envModel;
+
+    private function __construct(EnvModel $envModel)
+    {
+        $this->envModel = $envModel;
+    }
+    public static function init(EnvModel $envModel): TreasuryDirect
+    {
+        return new TreasuryDirect($envModel);
+    }
+
     /**
      * @param string $start_date
      * @param string $end_date
      * @param bool $raw  return raw data from the request
      * @return stdClass|string
      */
-    public static function httpRequest($start_date, $end_date, $raw = false)
+    public function httpRequest(string $start_date, string $end_date, bool $raw = false): string|stdClass
     {
-        $dot_url = 'https://www.treasurydirect.gov/NP_WS/debt/search?' .
-            "startdate={$start_date}&enddate={$end_date}&format=json";
+        $dot_url = "{$this->envModel->dot_url}startdate={$start_date}&enddate={$end_date}&format=json";
         $cache_key = md5(__METHOD__ . "_{$dot_url}");
         if (function_exists('acp_exists')) {
             if (!apc_exists($cache_key)) {

@@ -11,17 +11,25 @@ namespace USDebt\Controller;
 use DateTime;
 use Exception;
 use stdClass;
+use USDebt\Model\EnvModel;
 use USDebt\Model\RequestModel;
 use USDebt\Service\PresidentService;
 use USDebt\Service\TreasuryDirect;
 
 class USDebtController
 {
+    private EnvModel $envModel;
+
+    public function __construct(EnvModel $envModel)
+    {
+        $this->envModel = $envModel;
+    }
     /**
      * @param RequestModel $requestModel
      * @return string
+     * @throws Exception
      */
-    public function defaultView(RequestModel $requestModel)
+    public function defaultView(RequestModel $requestModel): string
     {
         $now = new DateTime();
         if (is_null($requestModel->getStartDate())) {
@@ -32,7 +40,7 @@ class USDebtController
         }
 
         /** @var stdClass $datas */
-        $datas = TreasuryDirect::httpRequest(
+        $datas = TreasuryDirect::init($this->envModel)->httpRequest(
             $requestModel->getStartDate(true)->format('Y-m-d'),
             $requestModel->getEndDate(true)->format('Y-m-d')
         );
@@ -61,27 +69,23 @@ class USDebtController
      * @return string
      * @throws Exception
      */
-    public function compareView(RequestModel $requestModel)
+    public function compareView(RequestModel $requestModel): string
     {
         $main_content = [];
         /* get the search form */
         $main_content['search_form'] = $this->getSearchForm($requestModel);
         /* get the presidents to compare and then find the start and end dates */
         if ($compares = $requestModel->getComparePres()) {
-            error_log(__METHOD__ . ' $compares<pre>' . print_r($compares, true) . '</pre>');
             $selected_pres = [];
             foreach ($compares as $c) {
                 $pres_config = PresidentService::getPresident($c);
-                error_log(__METHOD__ . ' $pres_config<pre>' . print_r($pres_config, true) . '</pre>');
                 $startDate = new DateTime($pres_config['start']);
                 $endDate = new DateTime($pres_config['end']);
-                error_log(__METHOD__ . ' $startDate<pre>' . print_r($startDate, true) . '</pre>');
-                error_log(__METHOD__ . ' $endDate<pre>' . print_r($endDate, true) . '</pre>');
                 $selected_pres[$c] = [
                     'config' => $pres_config,
-                    'datas' => TreasuryDirect::httpRequest($startDate->format('Y-m-d'), $endDate->format('Y-m-d'))
+                    'datas' => TreasuryDirect::init($this->envModel)
+                        ->httpRequest($startDate->format('Y-m-d'), $endDate->format('Y-m-d'))
                 ];
-                error_log(__METHOD__ . ' $selected_pres[$c][datas]<pre>' . print_r(current($selected_pres[$c]['datas']), true) . '</pre>');
             }
             $main_content['tab_data'] = $this->loadFile('tab_graph_Flot.php', ['datas' => $selected_pres]);
         } else {
@@ -96,7 +100,7 @@ class USDebtController
      * @param RequestModel $requestModel
      * @return string
      */
-    public function getErrorView($error, RequestModel $requestModel)
+    public function getErrorView(string $error, RequestModel $requestModel): string
     {
         /* get the search form */
         $main_content = [];
@@ -111,7 +115,7 @@ class USDebtController
      * @param RequestModel $requestModel
      * @return string
      */
-    private function getSearchForm(RequestModel $requestModel)
+    private function getSearchForm(RequestModel $requestModel): string
     {
         $view_data = ['pres_array' => PresidentService::getPresidentConfig(), 'start_date' => '', 'end_date' => ''];
         if ($requestModel->getStartDate(true) instanceof DateTime) {
@@ -128,10 +132,10 @@ class USDebtController
 
     /**
      * @param string $loadFile_file
-     * @param array $loadFile_data
+     * @param array|null $loadFile_data
      * @return string
      */
-    private function loadFile($loadFile_file, array $loadFile_data = null)
+    private function loadFile(string $loadFile_file, array $loadFile_data = null): string
     {
         ob_start();
         $loadFile_file = "View/{$loadFile_file}";

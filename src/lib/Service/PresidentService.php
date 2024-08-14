@@ -13,9 +13,9 @@ class PresidentService
 {
     /**
      * @param $timestamp
-     * @return mixed|null
+     * @return array|null
      */
-    public static function getPresident($timestamp)
+    public static function getPresident($timestamp): ?array
     {
         $output = null;
         $ps = new PresidentService();
@@ -29,7 +29,7 @@ class PresidentService
     /**
      * @return array
      */
-    public static function getPresidentConfig()
+    public static function getPresidentConfig(): array
     {
         return [
             727506000 => [

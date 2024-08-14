@@ -30,8 +30,8 @@ if (!empty($graph_values_arr)) {
 <div class="chart-container"><canvas id="debt_graph"></canvas></div>
 <script type="text/javascript">
     $(function() {
-        var ctx = $("#debt_graph");
-        var debt_graph = new Chart(ctx, {
+        const ctx = $("#debt_graph");
+        new Chart(ctx, {
             type: 'line',
             data: {
                 labels: <?php echo $graph_labels; ?>,
