@@ -52,7 +52,7 @@ class USDebtController
                 'tab_graph_Chart.php',
                 ['datas' => $datas, 'pres_array' => PresidentService::getPresidentConfig()]
             ),
-            'stats' => $output = $this->loadFile('tab_stats.php', ['datas' => $datas]),
+            'stats' => $this->loadFile('tab_stats.php', ['datas' => $datas]),
         ];
 
         /* Set up the data for the main template */
@@ -119,10 +119,10 @@ class USDebtController
     {
         $view_data = ['pres_array' => PresidentService::getPresidentConfig(), 'start_date' => '', 'end_date' => ''];
         if ($requestModel->getStartDate(true) instanceof DateTime) {
-            $view_data['start_date'] = $requestModel->getStartDate()->format('Y-m-d');
+            $view_data['start_date'] = $requestModel->getStartDate(true)->format('Y-m-d');
         }
         if ($requestModel->getEndDate(true) instanceof DateTime) {
-             $view_data['end_date'] = $requestModel->getEndDate()->format('Y-m-d');
+             $view_data['end_date'] = $requestModel->getEndDate(true)->format('Y-m-d');
         }
         if ($compare_pres = $requestModel->getComparePres()) {
             $view_data['compare_pres'] = $compare_pres;

@@ -4,6 +4,10 @@
  * User: robert
  * Date: 6/5/18
  * Time: 9:31 PM
+ *
+ * @var string $graph
+ * @var string $data
+ * @var string $stats
  */
 ?>
 <div id="tabs">

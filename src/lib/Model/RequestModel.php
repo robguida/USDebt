@@ -18,14 +18,21 @@ use USDebt\Service\ValidateDateTime;
  */
 class RequestModel
 {
-    /** @var DateTime */
-    private DateTime $startDate;
+    /** @var string */
+    private string $startDate;
 
-    /** @var DateTime */
-    private DateTime $endDate;
+    /** @var string */
+    private string $endDate;
 
     /** @var array */
     private array $compare_pres;
+
+    public function __construct()
+    {
+        $this->startDate = '';
+        $this->endDate = '';
+        $this->compare_pres = [];
+    }
 
     /**
      * @param int $input
@@ -59,12 +66,17 @@ class RequestModel
     }
 
     /**
-     * @param bool $ref
-     * @return DateTime
+     * @param bool $return_datetime
+     * @return DateTime|string
      */
-    public function getStartDate(bool $ref = false): DateTime
+    public function getStartDate(bool $return_datetime = false): DateTime|string
     {
-        return ($ref) ? $this->startDate : clone $this->startDate;
+        try {
+            $output = ($return_datetime) ? new DateTime($this->startDate) : $this->startDate;
+        } catch (Exception $e) {
+            $output = $this->startDate;
+        }
+        return $output;
     }
 
     /**
@@ -75,7 +87,7 @@ class RequestModel
     public function setStartDate(DateTime|string $start_date): static
     {
         if ($start_date instanceof  DateTime) {
-            $this->startDate = $start_date;
+            $this->startDate = $start_date->format('Y-m-d');
         } elseif (ValidateDateTime::validate($start_date)) {
             $this->startDate = $start_date;
         }
@@ -83,12 +95,17 @@ class RequestModel
     }
 
     /**
-     * @param bool $ref
-     * @return DateTime
+     * @param bool $return_datetime
+     * @return DateTime|string
      */
-    public function getEndDate(bool $ref = false): DateTime
+    public function getEndDate(bool $return_datetime = false): DateTime|string
     {
-        return ($ref) ? $this->endDate : clone $this->endDate;
+        try {
+            $output = ($return_datetime) ? new DateTime($this->endDate) : $this->endDate;
+        } catch (Exception $e) {
+            $output = $this->endDate;
+        }
+        return $output;
     }
 
     /**
@@ -98,7 +115,7 @@ class RequestModel
     public function setEndDate(DateTime|string $end_date): static
     {
         if ($end_date instanceof  DateTime) {
-            $this->endDate = $end_date;
+            $this->endDate = $end_date->format('Y-m-d');
         } elseif (ValidateDateTime::validate($end_date)) {
             $this->endDate = $end_date;
         }

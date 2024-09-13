@@ -3,7 +3,13 @@
 namespace USDebt\Model;
 
 use Exception;
+use USDebt\Service\Cache\CacheInterface;
 
+/**
+ * @property string $cache_dir
+ * @property CacheInterface $cache_machine
+ * @property string $time_zone
+ */
 class EnvModel
 {
     public function __construct($env)
@@ -19,7 +25,7 @@ class EnvModel
     public function __get(string $name)
     {
         if (!isset($this->$name)) {
-            throw new Exception("Property $name does not exist");
+            throw new Exception("The Environment Variable, \"$name\", does not exist.");
         }
         return $this->$name;;
     }

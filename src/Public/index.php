@@ -34,5 +34,5 @@ try {
 }
 echo $output;
 $end_time = microtime(true);
-echo "<span style=\"font-size: xx-small; display: inline; margin-right:.5em;\">v.{$version}</span>";
+echo "<span style=\"font-size: xx-small; display: inline; margin-right:.5em;\">Test v.{$version}</span>";
 printf('<span style="font-size: xx-small; display: inline;">TM%f</span>', $end_time - $start_time);

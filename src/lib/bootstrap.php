@@ -10,7 +10,6 @@ session_start([
     'use_strict_mode' => true,
     'use_only_cookies' => true,
     'cookie_httponly' => true,
-    'session_switch' => true,
     'cookie_lifetime' => 54000, // 15 minutes
 ]);
 session_regenerate_id(true);
@@ -18,11 +17,7 @@ spl_autoload_register('autoLoader');
 ini_set('include_path', __DIR__);
 
 $envModel = new USDebt\Model\EnvModel(parse_ini_file('../lib/.env'));
-if (!empty($envModel->time_zone)) {
-    date_default_timezone_set($envModel->time_zone);
-} else {
-    date_default_timezone_set($envModel->time_zone);
-}
+date_default_timezone_set($envModel->time_zone);
 
 function autoLoader($class): void
 {

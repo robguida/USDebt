@@ -27,10 +27,9 @@ class TreasuryDirect
     /**
      * @param string $start_date
      * @param string $end_date
-     * @param bool $raw  return raw data from the request
-     * @return stdClass|string
+     * @return array
      */
-    public function httpRequest(string $start_date, string $end_date, bool $raw = false): string|stdClass
+    public function httpRequest(string $start_date, string $end_date): array
     {
         $dot_url = "{$this->envModel->dot_url}startdate={$start_date}&enddate={$end_date}&format=json";
         $cache_key = md5(__METHOD__ . "_{$dot_url}");
@@ -44,7 +43,7 @@ class TreasuryDirect
         } else {
             $response = file_get_contents($dot_url);
         }
-        if ($response && !$raw) {
+        if ($response) {
             $response = json_decode($response);
             $response = $response->entries;
         }

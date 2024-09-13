@@ -4,6 +4,8 @@
  * User: robert
  * Date: 6/5/18
  * Time: 9:43 PM
+ *
+ * @var array $datas
  */
 /* we need the first and last debt to get the delta,
             current($data)and to compute the debt per day for the date range */

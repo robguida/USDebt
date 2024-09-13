@@ -4,6 +4,8 @@
  * User: robert
  * Date: 6/5/18
  * Time: 10:13 PMload
+ *
+ * @var array $datas
  */
 $graph_labels = '[]';
 $graph_labels_arr = array();

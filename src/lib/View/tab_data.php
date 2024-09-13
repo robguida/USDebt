@@ -4,6 +4,8 @@
  * User: robert
  * Date: 6/5/18
  * Time: 10:17 PM
+ *
+ * @var array $datas
  */
 $data = '';
 
