@@ -49,7 +49,7 @@ foreach ($css_files as $file) {
     </p>
 </div>
 <h4>Data is from <a href="http://www.treasurydirect.gov" target="_blank">treasurydirect.gov</a>
-    <img src="/images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" alt="About the data" /></h4>
+    <img src="images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" alt="About the data" /></h4>
 <div id="main_content">
     <?php
         echo $main_content['search_form'];
