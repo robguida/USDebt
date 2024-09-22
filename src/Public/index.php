@@ -1,6 +1,5 @@
 <?php
 /** @var USDebt\Model\EnvModel $envModel */
-
 $start_time = microtime(true);
 $version = round(filemtime(__FILE__)/100000000, 3);
 

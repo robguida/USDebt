@@ -10,28 +10,31 @@
 
 /* build the head links */
 $js_files = array(
-    "lib/jquery.js?r=" . filemtime('lib/jquery.js'),
-    "lib/jquery-ui/jquery-ui.min.js?r=" . filemtime('lib/jquery-ui/jquery-ui.min.js'),
-    "lib/Chart.bundle.min.js?r=" . filemtime('lib/Chart.bundle.min.js'),
-    "lib/flot-master/jquery.flot.js?r=" . filemtime('lib/flot-master/jquery.flot.js'),
+    "lib/jquery.js" ,
+    "lib/jquery-ui/jquery-ui.min.js",
+    "lib/Chart.bundle.min.js",
+    "lib/flot-master/jquery.flot.js",
 );
 $css_files = array(
-    "lib/jquery-ui/jquery-ui.min.css?r=" . filemtime('lib/jquery-ui/jquery-ui.min.css'),
-    "lib/jquery-ui/jquery-ui.structure.min.css?r=" . filemtime('lib/jquery-ui/jquery-ui.structure.min.css'),
-    "lib/jquery-ui/jquery-ui.theme.min.css?r=" . filemtime('lib/jquery-ui/jquery-ui.theme.min.css'),
-    "css/usdebt.css?r=" . filemtime('css/usdebt.css')
+    "lib/jquery-ui/jquery-ui.min.css",
+    "lib/jquery-ui/jquery-ui.structure.min.css",
+    "lib/jquery-ui/jquery-ui.theme.min.css",
+    "css/usdebt.css"
 );
 $head = '';
 foreach ($js_files as $file) {
-    $head .= "<script src=\"{$file}\" type=\"text/javascript\"></script>\n";
+    $filetime = filemtime($file);
+    $head .= "<script src=\"{$file}?r={$filetime}\" type=\"text/javascript\"></script>\n";
 }
 foreach ($css_files as $file) {
-    $head .= "<link rel=\"stylesheet\" href=\"{$file}\" />\n";
+    $filetime = filemtime($file);
+    $head .= "<link rel=\"stylesheet\" href=\"{$file}?r={$filetime}\" />\n";
 }
 ?>
-<html>
+<html lang="en">
 <head>
     <?php echo $head; ?>
+    <title>U.S. Debt</title>
 </head>
 <body>
 <h1>Our U.S. Debt</h1>
@@ -46,7 +49,7 @@ foreach ($css_files as $file) {
     </p>
 </div>
 <h4>Data is from <a href="http://www.treasurydirect.gov" target="_blank">treasurydirect.gov</a>
-    <img src="images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" /></h4>
+    <img src="/images/about_usdebt.png" id="about_usdebt_btn" class="small_icon" alt="About the data" /></h4>
 <div id="main_content">
     <?php
         echo $main_content['search_form'];

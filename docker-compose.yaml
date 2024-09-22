@@ -10,7 +10,5 @@ services:
     image: php:8.1.29-fpm-alpine
     volumes:
       - ./src:/src
-#    build:
-#      dockerfile: ./php/Dockerfile
   # php
   # mysql
