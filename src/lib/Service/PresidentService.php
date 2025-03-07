@@ -63,9 +63,16 @@ class PresidentService
             1611100800 => [
                 'pres' => 'Joseph Biden',
                 'start' => 'January 20, 2021',
-                'end' => '',
+                'end' => 'January 19, 2025',
                 'img' => 'Joe_Biden.jpg',
                 'grfcolor' => 'rgba(247, 10, 0, 0.2)',
+            ],
+            1863561600 => [
+                'pres' => 'Donald Trump',
+                'start' => 'January 20, 2025',
+                'end' => 'January 19, 2029',
+                'img' => 'Donald_Trump.jpg',
+                'grfcolor' => 'rgba(255, 99, 132, 0.2)',
             ],
         ];
     }
