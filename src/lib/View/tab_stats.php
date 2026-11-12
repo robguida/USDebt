@@ -5,7 +5,7 @@
  * Date: 6/5/18
  * Time: 9:43 PM
  *
- * @var array<string, int|float>|null $stats  From StatsCalculator::summarize(); null when there is no data.
+ * @var array<string, int|float|null>|null $stats  From StatsCalculator::summarize(); null when there is no data.
  */
 
 use USDebt\Service\Html;
@@ -25,6 +25,10 @@ $rows = [
     ['Days the debt was above the start*', number_format((int) $stats['days_above_start']) . ' (' . $stats['pct_above_start'] . '%)'],
     ['Days the debt was below the start*', number_format((int) $stats['days_below_start']) . ' (' . $stats['pct_below_start'] . '%)'],
 ];
+if ($stats['trend_per_day'] !== null) {
+    // Slope of the straight trend line on the chart, in dollars per calendar day.
+    $rows[] = ['Trend (straight line)', 'About ' . Html::compactMoney((float) $stats['trend_per_day'], true) . ' per day'];
+}
 ?>
 <dl class="stats-grid">
     <?php foreach ($rows as [$label, $value]) { ?>

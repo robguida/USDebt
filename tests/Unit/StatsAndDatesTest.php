@@ -30,6 +30,19 @@ final class StatsAndDatesTest extends TestCase
         self::assertSame(0.0, $stats['average_per_day']);
         self::assertSame(1, $stats['working_days']);
         self::assertSame(0, $stats['total_days']);
+        self::assertNull($stats['trend_per_day'], 'one day: no trend line');
+    }
+
+    public function testStatsTrendIsTheStraightLineSlopeInDollarsPerDay(): void
+    {
+        // +6.04 billion every calendar day, with a weekend gap.
+        $stats = StatsCalculator::summarize([
+            new DebtEntry('2026-11-06', 38_000_000_000_000.0),
+            new DebtEntry('2026-11-09', 38_018_120_000_000.0),
+            new DebtEntry('2026-11-10', 38_024_160_000_000.0),
+        ]);
+
+        self::assertEqualsWithDelta(6_040_000_000.0, $stats['trend_per_day'], 0.01);
     }
 
     public function testStatsOverARange(): void
