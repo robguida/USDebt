@@ -48,14 +48,40 @@
         }
     }
 
-    var money = new Intl.NumberFormat('en-US', {
-        style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2
-    });
+    /*
+     * A chart value as money, in the chart's unit ("unit" in the chart data):
+     * - "trillion_usd" (the total): 38.123 -> "$38.12T", on the axis too.
+     * - "usd" (per person, per household): 118670.554 -> "$118,670.55";
+     *   on the axis (compact) 120000 -> "$120K", 2500 -> "$2.5K", 1.2e6 -> "$1.2M".
+     * signed adds "+" for a rise. Any other unit is read as trillions.
+     */
+    function formatAmount(value, unit, compact, signed) {
+        var f = formatAmount.cache || (formatAmount.cache = {
+            cents: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            short: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 })
+        });
+        var n = Number(value);
+        if (n === 0) {
+            n = 0; /* -0 becomes 0: no "-$0.00" */
+        }
+        var text;
+        if (unit === 'usd') {
+            text = compact ? f.short.format(n) : f.cents.format(n);
+        } else {
+            text = f.cents.format(n) + 'T';
+        }
+        return signed && n > 0 ? '+' + text : text;
+    }
 
-    /* 38.123 -> "$38.12T"; signed adds "+" for a rise */
-    function trillions(value, signed) {
-        var text = money.format(value) + 'T';
-        return signed && value > 0 ? '+' + text : text;
+    /* The chart's unit from its data: "usd" or "trillion_usd" (the default, as before "Your Share"). */
+    function chartUnit(data) {
+        return data && data.unit === 'usd' ? 'usd' : 'trillion_usd';
+    }
+
+    /* Y axis title from the chart data (the server's words), or none. */
+    function yTitle(data, color) {
+        var text = data && typeof data.y_title === 'string' ? data.y_title : '';
+        return { display: text !== '', text: text, color: color };
     }
 
     function isoToMs(iso) {
@@ -300,9 +326,10 @@
             });
             return labels;
         };
+        var unit = chartUnit(data);
         opts.plugins.tooltip.callbacks = {
             title: function (items) { return items.length ? fullDate.format(items[0].parsed.x) : ''; },
-            label: function (item) { return ' ' + item.dataset.label.replace(/ \(trillions USD\)$/, '') + ': ' + trillions(item.parsed.y); }
+            label: function (item) { return ' ' + item.dataset.label.replace(/ \((?:trillions USD|USD)\)$/, '') + ': ' + formatAmount(item.parsed.y, unit, false); }
         };
         opts.scales = {
             x: {
@@ -334,8 +361,9 @@
                 }
             },
             y: {
+                title: yTitle(data, base.text),
                 grid: { color: base.grid },
-                ticks: { color: base.text, callback: function (value) { return trillions(value); } }
+                ticks: { color: base.text, callback: function (value) { return formatAmount(value, unit, true); } }
             }
         };
         return { type: 'line', data: { datasets: datasets }, options: opts };
@@ -417,13 +445,18 @@
             }
             return labels;
         };
+        var unit = chartUnit(data);
         opts.plugins.tooltip.callbacks = {
             title: function (items) { return items.length ? 'Month ' + items[0].parsed.x + ' in office' : ''; },
             label: function (item) {
                 var note = item.dataset.termStarts.indexOf(item.parsed.x) !== -1 ? ' (second term begins)' : '';
-                return ' ' + item.dataset.label + ': ' + trillions(item.parsed.y, true) + note;
+                return ' ' + item.dataset.label + ': ' + formatAmount(item.parsed.y, unit, false, true) + note;
             }
         };
+        var title = yTitle(data, base.text);
+        if (!title.display) {
+            title = { display: true, text: 'Change since taking office', color: base.text };
+        }
         opts.scales = {
             x: {
                 type: 'linear',
@@ -433,11 +466,11 @@
                 ticks: { color: base.text, stepSize: 12, precision: 0 }
             },
             y: {
-                title: { display: true, text: 'Change since taking office', color: base.text },
+                title: title,
                 grid: {
                     color: function (ctx) { return ctx.tick && ctx.tick.value === 0 ? base.zero : base.grid; }
                 },
-                ticks: { color: base.text, callback: function (value) { return trillions(value, true); } }
+                ticks: { color: base.text, callback: function (value) { return formatAmount(value, unit, true, true); } }
             }
         };
         return { type: 'line', data: { datasets: datasets }, options: opts };

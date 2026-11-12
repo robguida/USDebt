@@ -267,15 +267,34 @@ final class YourShareTest extends TestCase
             if ($link === './#results') {
                 continue; // the date form (GET): per rides in its hidden field, checked above
             }
-            if (str_contains($link, 'per=household') || $link === './?start_date=2009-01-20&end_date=2017-01-19&trend=0#results') {
+            if (str_contains($link, 'per=household') || $link === './?start_date=2009-01-20&end_date=2017-01-19&trend=0') {
                 continue; // the switch's other choices: household, and the total (no per)
             }
             self::assertStringContainsString('per=person', $link, $link);
         }
-        // The switch: the same view three ways, the current one marked.
-        self::assertStringContainsString('href="./?start_date=2009-01-20&amp;end_date=2017-01-19&amp;trend=0#results"', $html);
-        self::assertStringContainsString('href="./?start_date=2009-01-20&amp;end_date=2017-01-19&amp;per=household&amp;trend=0#results"', $html);
-        self::assertMatchesRegularExpression('#href="\./\?start_date=2009-01-20&amp;end_date=2017-01-19&amp;per=person&amp;trend=0\#results" data-trend-link aria-current="true">Per person<#', $html);
+        // The switch: the same view three ways (dates and trend kept), the current one marked.
+        self::assertSame([
+            ['./?start_date=2009-01-20&end_date=2017-01-19&trend=0', 'Total', false],
+            ['./?start_date=2009-01-20&end_date=2017-01-19&per=person&trend=0', 'Per person', true],
+            ['./?start_date=2009-01-20&end_date=2017-01-19&per=household&trend=0', 'Per household', false],
+        ], self::switchOptions($html));
+    }
+
+    /**
+     * The "Show numbers as" switch: [href, label, picked] for each option, in order.
+     *
+     * @return list<array{0: string, 1: string, 2: bool}>
+     */
+    public static function switchOptions(string $html): array
+    {
+        preg_match('#<nav class="per-switch" aria-labelledby="per_label">(.*?)</nav>#s', $html, $nav);
+        self::assertNotEmpty($nav, 'the switch is on the page');
+        preg_match_all('#<a class="per-option" href="([^"]*)" data-trend-link data-per="(total|person|household)"( aria-current="true")?>([^<]*)</a>#', $nav[1], $m, PREG_SET_ORDER);
+        $out = [];
+        foreach ($m as $a) {
+            $out[] = [html_entity_decode($a[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'), $a[4], $a[3] !== ''];
+        }
+        return $out;
     }
 
     public function testTotalPageLinksHaveNoPerExceptTheSwitch(): void
@@ -283,8 +302,8 @@ final class YourShareTest extends TestCase
         $html = FrontControllerTest::app(FrontControllerTest::source())->handle(['start_date' => '2009-01-20', 'end_date' => '2017-01-19'], [])->body;
         $withPer = array_values(array_filter(self::pageLinks($html), static fn (string $l): bool => str_contains($l, 'per=')));
         self::assertSame([
-            './?start_date=2009-01-20&end_date=2017-01-19&per=person#results',
-            './?start_date=2009-01-20&end_date=2017-01-19&per=household#results',
+            './?start_date=2009-01-20&end_date=2017-01-19&per=person',
+            './?start_date=2009-01-20&end_date=2017-01-19&per=household',
         ], $withPer);
         self::assertStringNotContainsString('per=', self::meta($html)['og:url']);
         self::assertStringNotContainsString('name="per"', $html);
@@ -329,11 +348,11 @@ final class YourShareTest extends TestCase
         $html = FrontControllerTest::app($source)->handle(['start_date' => '2000-01-04', 'end_date' => '2026-11-09', 'per' => 'person'], [])->body;
 
         $perPerson = $latest->totalDebt / $pop->population($latest->effectiveDate);
-        self::assertStringContainsString('<p class="stat-label">Debt today, per person</p>', $html);
+        self::assertStringContainsString('<p class="stat-label">Debt per person today</p>', $html);
         self::assertStringContainsString('<p class="stat-value num">' . \USDebt\Service\Html::compactMoney($perPerson) . '</p>', $html);
         self::assertStringContainsString('341.8 million people on Nov 9, 2026 (latest Census figure, 2025)', $html);
         self::assertStringContainsString('Change per person in this range', $html);
-        self::assertStringContainsString('Per person, per day', $html);
+        self::assertStringContainsString('<p class="stat-label">Per person per day</p>', $html);
         self::assertStringContainsString('Days after Jul 1, 2025 use the 2025 figure.', html_entity_decode($html, ENT_QUOTES | ENT_HTML5));
 
         $chart = FrontControllerTest::chartJson($html);
@@ -345,6 +364,159 @@ final class YourShareTest extends TestCase
         $total = FrontControllerTest::chartJson(FrontControllerTest::app($source)->handle(['start_date' => '2000-01-04', 'end_date' => '2026-11-09'], [])->body);
         self::assertSame(['total', Per::UNIT_TRILLION_USD], [$total['per'], $total['unit']]);
         self::assertArrayNotHasKey('divisor', $total);
+    }
+
+    // ---------- Your Share on the page: switch, labels, units, footnote ----------
+
+    /** @return array<string, array{0: string}> */
+    public static function modes(): array
+    {
+        return ['total' => ['total'], 'per person' => ['person'], 'per household' => ['household']];
+    }
+
+    #[DataProvider('modes')]
+    public function testRangePageLabelsUnitsAndFootnoteFollowTheMode(string $mode): void
+    {
+        $per = Per::from($mode);
+        $query = ['start_date' => '2000-01-04', 'end_date' => '2026-11-09'] + ($per->isTotal() ? [] : ['per' => $mode]);
+        $html = FrontControllerTest::app(FrontControllerTest::source())->handle($query, [])->body;
+        $text = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $words = [
+            'total' => ['Debt today', 'Change in this range', 'Per day', 'Starting debt amount', 'Last debt amount of date range',
+                'Change during the date range', 'Average change per day', 'The debt over time', 'Debt (dollars)', 'Total debt'],
+            'person' => ['Debt per person today', 'Change per person in this range', 'Per person per day', 'Per person at start',
+                'Per person at end', 'Change per person', 'Average per person per day', 'Debt per person over time', 'Debt per person (dollars)', 'Debt per person'],
+            'household' => ['Debt per household today', 'Change per household in this range', 'Per household per day', 'Per household at start',
+                'Per household at end', 'Change per household', 'Average per household per day', 'Debt per household over time', 'Debt per household (dollars)', 'Debt per household'],
+        ][$mode];
+        [$today, $change, $perDay, $start, $end, $statsChange, $statsPerDay, $heading, $axis, $column] = $words;
+
+        // Headline cards.
+        preg_match_all('#<p class="stat-label">([^<]*)</p>#', $text, $labels);
+        self::assertSame([$today, $change, $perDay], $labels[1]);
+        // Stats rows.
+        foreach ([$start, $end, $statsChange, $statsPerDay] as $row) {
+            self::assertStringContainsString('<dt>' . $row . '</dt>', $text);
+        }
+        // Results heading, table column, y axis title (drawn by the page script from the chart data).
+        self::assertStringContainsString('<h2 id="results-title" class="card-title">' . $heading . '</h2>', $text);
+        self::assertStringContainsString('<th scope="col" class="currency">' . $column . '</th>', $text);
+        $chart = FrontControllerTest::chartJson($html);
+        self::assertSame($axis, $chart['y_title']);
+        self::assertSame($per->unit(), $chart['unit']);
+
+        // Amounts: per person and per household are dollars, never trillions.
+        preg_match_all('#<p class="stat-value num">([^<]*)</p>#', $text, $values);
+        self::assertCount(3, $values[1]);
+        if (!$per->isTotal()) {
+            foreach ($values[1] as $value) {
+                self::assertMatchesRegularExpression('/^[+-]?\$[0-9]{1,3}(,[0-9]{3})*\.[0-9]{2}$/', $value);
+            }
+            preg_match('#<section class="card results".*</section>#s', $text, $results);
+            self::assertStringNotContainsString('trillion', $results[0], 'the chart, stats and table are in dollars');
+        }
+
+        // The Census footnote under the chart: per modes only, with the latest year.
+        $footnote = 'Per-person and per-household figures divide the debt by U.S. Census Bureau population and household counts.'
+            . ' Counts are yearly; days between years are estimated in straight-line steps, and the latest Census figure (2025) is used for recent dates.'
+            . ' Debt: U.S. Treasury, Debt to the Penny.';
+        if ($per->isTotal()) {
+            self::assertStringNotContainsString('chart-source', $html);
+            self::assertStringNotContainsString('Census', $text);
+        } else {
+            self::assertStringContainsString('<p class="footnote chart-source">' . $footnote . '</p>', $text);
+        }
+    }
+
+    #[DataProvider('modes')]
+    public function testSwitchShowsThePickedModeAndKeepsDatesAndTrend(string $mode): void
+    {
+        $per = Per::from($mode);
+        $app = FrontControllerTest::app(FrontControllerTest::source());
+        $html = $app->handle(['start_date' => '2000-01-04', 'end_date' => '2026-11-09', 'per' => $mode, 'trend' => '0'], [])->body;
+
+        // A labelled switch at the top of the page, above the headline numbers.
+        self::assertStringContainsString('<section class="per-bar" id="per_switch" aria-label="Choose how to show the numbers">', $html);
+        self::assertStringContainsString('<span class="per-label" id="per_label">Show numbers as</span>', $html);
+        self::assertLessThan(strpos($html, 'class="headline"'), strpos($html, 'id="per_switch"'));
+        self::assertSame(1, substr_count($html, 'class="per-switch"'), 'one switch only');
+        $help = [
+            'total' => 'The whole national debt.',
+            'person' => 'The debt divided by the U.S. population: every resident, all ages.',
+            'household' => 'The debt divided by the number of U.S. households.',
+        ];
+        self::assertStringContainsString('<p class="per-help">' . $help[$mode] . '</p>', html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+        $range = './?start_date=2000-01-04&end_date=2026-11-09';
+        self::assertSame([
+            [$range . '&trend=0', 'Total', $per === Per::Total],
+            [$range . '&per=person&trend=0', 'Per person', $per === Per::Person],
+            [$range . '&per=household&trend=0', 'Per household', $per === Per::Household],
+        ], self::switchOptions($html));
+
+        // Trend on: no trend=0; the home page keeps nothing but per.
+        $home = $app->handle(['per' => $mode], [])->body;
+        self::assertSame(['./', './?per=person', './?per=household'], array_column(self::switchOptions($home), 0));
+    }
+
+    public function testSwitchOnCompareKeepsThePicksByLinkAndAfterTheFormPost(): void
+    {
+        $all = array_keys(\USDebt\Service\PresidentService::getPresidentConfig());
+        $picks = implode(',', $all);
+        $app = FrontControllerTest::app(FrontControllerTest::source());
+        foreach ([
+            'link' => $app->handle(['compare' => $picks, 'per' => 'person'], [])->body,
+            'post' => $app->handle(['per' => 'person'], ['submit' => 'Compare', 'compare_pres' => array_map('strval', $all)])->body,
+        ] as $how => $html) {
+            self::assertSame([
+                ['./?compare=' . $picks, 'Total', false],
+                ['./?compare=' . $picks . '&per=person', 'Per person', true],
+                ['./?compare=' . $picks . '&per=household', 'Per household', false],
+            ], self::switchOptions($html), $how);
+
+            $text = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $chart = FrontControllerTest::chartJson($html);
+            self::assertSame(['usd', 'Change per person since taking office'], [$chart['unit'], $chart['y_title']], $how);
+            self::assertStringContainsString('<p class="footnote chart-source">Per-person and per-household figures divide the debt', $text, $how);
+            self::assertStringContainsString('aria-label="Line chart comparing the change in debt per person during each picked presidential term"', $text, $how);
+            // Each term's change per person, in dollars.
+            preg_match_all('#<li>([^<]*) after [0-9]+ months? in office\.#', $text, $lines);
+            self::assertCount(count(array_unique(array_column(\USDebt\Service\PresidentService::getPresidentConfig(), 'pres'))), $lines[1], $how);
+            foreach ($lines[1] as $line) {
+                self::assertMatchesRegularExpression('/: [+-]?\$[0-9]{1,3}(,[0-9]{3})*\.[0-9]{2}$/', $line, $how);
+            }
+        }
+
+        // The total Compare keeps its own axis title and has no footnote.
+        $total = $app->handle(['compare' => $picks], [])->body;
+        self::assertSame(['trillion_usd', 'Change since taking office'], [FrontControllerTest::chartJson($total)['unit'], FrontControllerTest::chartJson($total)['y_title']]);
+        self::assertStringNotContainsString('chart-source', $total);
+    }
+
+    public function testScriptFormatsDollarsOrTrillionsByUnitAndTheSwitchKeepsPer(): void
+    {
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Public/js/usdebt.js');
+        self::assertStringNotContainsString('trillions(', $js, 'every amount goes through formatAmount()');
+        self::assertStringContainsString('formatAmount(item.parsed.y, unit, false)', $js, 'date-range tooltip');
+        self::assertStringContainsString('formatAmount(value, unit, true)', $js, 'date-range axis');
+        self::assertStringContainsString('formatAmount(item.parsed.y, unit, false, true)', $js, 'Compare tooltip');
+        self::assertStringContainsString('formatAmount(value, unit, true, true)', $js, 'Compare axis');
+
+        $node = self::findNode();
+        if ($node === null) {
+            self::markTestSkipped('Node is not installed; the static checks above still ran.');
+        }
+        $check = dirname(__DIR__) . '/js/per-format.check.js';
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($check) . ' 2>&1', $output, $code);
+        self::assertSame(0, $code, implode("\n", $output));
+    }
+
+    private static function findNode(): ?string
+    {
+        $finder = DIRECTORY_SEPARATOR === '\\' ? 'where node 2>NUL' : 'command -v node 2>/dev/null';
+        $found = trim((string) shell_exec($finder));
+        $first = $found === '' ? '' : trim(strtok($found, "\r\n"));
+        return $first !== '' && is_file($first) ? $first : null;
     }
 
     // ---------- Site name in one place ----------

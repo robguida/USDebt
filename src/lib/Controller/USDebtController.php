@@ -124,9 +124,11 @@ class USDebtController
                     'last' => $last,
                     'show_trend' => $requestModel->showTrend(),
                     'per' => $per,
+                    'footnote' => $this->censusFootnote($per),
                 ]),
                 'stats' => $this->loadFile('tab_stats.php', [
                     'stats' => $stats,
+                    'per' => $per,
                     'method_note' => ShareText::method($per, $this->population()->latest($per)),
                 ]),
                 'data' => $this->loadFile('tab_data.php', [
@@ -172,6 +174,7 @@ class USDebtController
                 'chart' => $chart,
                 'show_trend' => $requestModel->showTrend(),
                 'per' => $per,
+                'footnote' => $this->censusFootnote($per),
             ]);
         }
 
@@ -213,9 +216,15 @@ class USDebtController
             'site_name' => SiteConfig::NAME,
             'per_query' => $requestModel->per()->query(),
             'notice' => $notice,
+            'per_switch' => $this->loadFile('per_switch.php', [
+                'options' => self::perLinks($requestModel, $viewQuery),
+                'label' => ShareText::PER_SWITCH_LABEL,
+                'aria' => ShareText::PER_SWITCH_ARIA,
+                'help' => ShareText::perHelp($requestModel->per()),
+            ]),
             'cards' => $cards === [] ? '' : $this->loadFile('headline.php', ['cards' => $cards]),
             'controls' => $this->getSearchForm($requestModel, $viewQuery),
-            'results_heading' => $heading,
+            'results_heading' => $heading !== '' ? $heading : ShareText::resultsHeading($requestModel->per()),
             'results' => $results,
             // The trend button shows only when the chart has a trend line to switch.
             'trend_toggle' => $trendToggle,
@@ -344,16 +353,26 @@ class USDebtController
             'today' => $today->format('Y-m-d'),
             'show_trend' => $requestModel->showTrend(),
             'per' => $requestModel->per(),
-            'per_links' => self::perLinks($requestModel, $viewQuery),
         ]);
     }
 
     /**
-     * The "Show the debt as" switch: this same view as the total, per person
+     * Footnote under the chart for per person and per household: the Census
+     * counts and the year of the latest one ('' for the total).
+     */
+    private function censusFootnote(Per $per): string
+    {
+        return ShareText::censusFootnote($per, $per->isTotal() ? null : ($this->population()->latest($per)['year'] ?? null));
+    }
+
+    /**
+     * The "Show numbers as" switch: this same view as the total, per person
      * and per household. Plain links, so they work without JavaScript. They
-     * keep trend=0; the page script keeps them in step with the trend switch.
+     * keep the dates (or Compare picks) and trend=0; the page script keeps
+     * them in step with the trend switch. No #results jump: the switch sits
+     * at the top, right above the headline numbers it changes.
      *
-     * @return list<array{label: string, href: string, current: bool}>
+     * @return list<array{label: string, href: string, current: bool, value: string}>
      */
     private static function perLinks(RequestModel $requestModel, string $viewQuery): array
     {
@@ -365,8 +384,9 @@ class USDebtController
             ));
             $links[] = [
                 'label' => ShareText::PER_OPTIONS[$per->value],
-                'href' => './' . ($query === '' ? '' : '?' . $query) . '#results',
+                'href' => './' . ($query === '' ? '' : '?' . $query),
                 'current' => $per === $requestModel->per(),
+                'value' => $per->value,
             ];
         }
         return $links;

@@ -12,6 +12,7 @@
  * @var array{type: string, series: list<array<string, mixed>>} $chart  From ChartData::compare(), same order as $series.
  * @var bool $show_trend  Trend lines on (false when the URL says trend=0).
  * @var \USDebt\Model\Per $per  Total, per person or per household (change per person, in dollars).
+ * @var string $footnote  Census source line for per person (or household), or '' for the total.
  */
 
 use USDebt\Service\ChartData;
@@ -48,13 +49,15 @@ foreach ($series as $i => $s) {
         );
     }
 }
+/* the page script draws the y axis title from here, so the script holds no per-mode words */
+$chart['y_title'] = ShareText::compareAxisTitle($per);
 ?>
 <p class="lede">Each line shows how much the <?php echo Html::e(lcfirst(ShareText::debtWord($per))); ?> changed from a president's first day in office,
     month by month. The x axis is the month in office. <?php echo Html::e(ShareText::compareAxis($per)); ?></p>
 <p class="caption">Congress sets spending and taxes. Presidential terms are shown for reference only.</p>
 <figure class="chart-figure">
     <div class="chart-box chart-box-tall">
-        <canvas id="debt_chart" role="img" aria-label="Line chart comparing the change in debt during each picked presidential term" aria-describedby="chart_summary"></canvas>
+        <canvas id="debt_chart" role="img" aria-label="Line chart comparing the change in <?php echo Html::e(lcfirst(ShareText::debtWord($per))); ?> during each picked presidential term" aria-describedby="chart_summary"></canvas>
     </div>
     <figcaption id="chart_summary" class="chart-summary num">
         <ul>
@@ -70,4 +73,7 @@ foreach ($series as $i => $s) {
         <?php } ?>
     </figcaption>
 </figure>
+<?php if ($footnote !== '') { ?>
+<p class="footnote chart-source"><?php echo Html::e($footnote); ?> <?php echo Html::e(ShareText::DEBT_SOURCE_LINE); ?></p>
+<?php } ?>
 <script type="application/json" id="chart-data"><?php echo Html::json($chart); ?></script>

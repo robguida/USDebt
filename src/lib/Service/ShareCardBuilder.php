@@ -23,7 +23,7 @@ use USDebt\SiteConfig;
 final class ShareCardBuilder
 {
     /** Bump when the card's look changes, so old cached cards are not served. */
-    public const RENDER_VERSION = 3;
+    public const RENDER_VERSION = 4;
 
     public function __construct(private readonly CompareService $compareService)
     {

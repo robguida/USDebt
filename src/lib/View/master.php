@@ -16,6 +16,7 @@
  * @var string $share_menu       Already-rendered HTML (Share button and menu, share_menu.php) or ''.
  * @var string $site_name        The site's name (SiteConfig::NAME), plain text.
  * @var string $per_query        "per=person", "per=household" or '' (the total), kept by the home link.
+ * @var string $per_switch       Already-rendered HTML (the "Show numbers as" switch, per_switch.php).
  */
 
 use USDebt\Service\Html;
@@ -74,6 +75,7 @@ $home_href = './' . ($home_query === '' ? '' : '?' . $home_query);
 
 <main class="wrap" id="main_content">
     <?php echo $notice; ?>
+    <?php echo $per_switch; ?>
     <?php echo $cards; ?>
     <?php echo $controls; ?>
 

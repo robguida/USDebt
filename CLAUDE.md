@@ -62,7 +62,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **q.** `Data/debt_seed_1993.json` — debt for 1993-01-04 to 1993-03-31, before the API's first day.
         - **i.** `Data/us_population_households.json` — Census population (July 1) and households (March), 1993 to 2025, one figure per year, with its sources and notes inside. Public domain.
     - **r.** `Assets/fonts/` — `DejaVuSans.ttf`, `DejaVuSans-Bold.ttf` and their license, for the card. Self-hosted; their checksums are pinned in a test.
-    - **s.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`, `share_menu.php` (Share button and menu).
+    - **s.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`, `share_menu.php` (Share button and menu), `per_switch.php` (the "Show numbers as: Total / Per person / Per household" switch at the top of the page: plain links, so it works without JavaScript).
 3. `src/var/cache/` — the saved Treasury copy. `src/var/cache/cards/` — the saved picture cards. `src/var/log-markers/` — private (0700) "already logged" markers, next to the cache folder. All gitignored. Never web-served.
 4. Top level, not shipped: `composer.json`, `composer.lock`, `composer.phar`, `composer.phar.sha256`, `phpunit.xml`, `tests/`, `docs/`, this file.
 5. Stray untracked files at the top (`index.php`, `scratch.php`) are not part of this app. Do not ship them or commit them without Rob's say-so.

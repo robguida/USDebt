@@ -26,8 +26,9 @@ use USDebt\SiteConfig;
  *
  * "Your Share" (per person and per household, see Per) has its own section
  * at the end: the share and card words for those views, and the page words
- * that say what "per person" means. PLACEHOLDER COPY: the final words are
- * still being written; swap them there without touching any other file.
+ * on the page (the "Show numbers as" switch, headline cards, Stats rows,
+ * chart axis titles and the Census footnote). Swap them there without
+ * touching any other file.
  */
 final class ShareText
 {
@@ -91,14 +92,15 @@ final class ShareText
 
     /**
      * Card headline: "U.S. debt grew $9.32 trillion", "U.S. debt: $38.12 trillion" for one day.
-     * Per person: "U.S. debt per person grew $62,104.33" (the entries are already per person).
+     * Per person: "U.S. debt grew $62,104.33 per person", "U.S. debt per person: $118,670.55"
+     * for one day (the entries are already per person).
      */
     public static function rangeHeadline(DebtEntry $first, DebtEntry $last, Per $per = Per::Total): string
     {
         if (self::oneDay($first, $last)) {
             return self::subject($per) . ': ' . Html::compactMoney($last->totalDebt);
         }
-        return self::subject($per) . ' ' . self::changed($first, $last);
+        return self::SUBJECTS['total'] . ' ' . self::changed($first, $last, $per);
     }
 
     /** Card line under the headline: "Jan 20, 2009 to Jan 19, 2017", or the one day. */
@@ -107,9 +109,15 @@ final class ShareText
         return self::span($first, $last);
     }
 
-    /** Link preview title: "U.S. debt, Jan 20, 2009 to Jan 19, 2017" ("U.S. debt per person, ..."). */
+    /**
+     * Link preview title: "U.S. debt, Jan 20, 2009 to Jan 19, 2017" ("U.S. debt per person, ...").
+     * One day, per person: "U.S. debt per person on Jan 20, 2009".
+     */
     public static function rangeTitle(DebtEntry $first, DebtEntry $last, Per $per = Per::Total): string
     {
+        if (!$per->isTotal() && self::oneDay($first, $last)) {
+            return self::subject($per) . ' on ' . self::span($first, $last);
+        }
         return self::subject($per) . ', ' . self::span($first, $last);
     }
 
@@ -118,36 +126,37 @@ final class ShareText
     {
         $tail = $per->isTotal() ? self::RANGE_DESCRIPTION_TAIL : self::PER_DESCRIPTION_TAIL[$per->value];
         if (self::oneDay($first, $last)) {
-            return self::debtWord($per) . ' was ' . Html::compactMoney($last->totalDebt) . ' on this day.' . $tail;
+            return 'Debt was ' . Html::compactMoney($last->totalDebt) . self::perWords($per) . ' on this day.' . $tail;
         }
-        return self::debtWord($per) . ' ' . self::changed($first, $last) . ' over this period.' . $tail;
+        return 'Debt ' . self::changed($first, $last, $per) . ' over this period.' . $tail;
     }
 
     /** Alt text for the range card: "Chart of U.S. debt from Jan 20, 2009 to Jan 19, 2017. Debt grew $9.32 trillion." */
     public static function rangeAlt(DebtEntry $first, DebtEntry $last, Per $per = Per::Total): string
     {
         if (self::oneDay($first, $last)) {
-            return sprintf('Chart of %s on %s. %s was %s.', self::subject($per), self::span($first, $last), self::debtWord($per), Html::compactMoney($last->totalDebt));
+            return sprintf('Chart of %s on %s. Debt was %s%s.', self::subject($per), self::span($first, $last), Html::compactMoney($last->totalDebt), self::perWords($per));
         }
-        return sprintf('Chart of %s from %s. %s %s.', self::subject($per), self::span($first, $last), self::debtWord($per), self::changed($first, $last));
+        return sprintf('Chart of %s from %s. Debt %s.', self::subject($per), self::span($first, $last), self::changed($first, $last, $per));
     }
 
     /**
      * Share text, without the link (each site adds the link its own way):
      * "U.S. debt grew $9.32 trillion from Jan 20, 2009 to Jan 19, 2017."
+     * Per person: "U.S. debt grew $26,000.00 per person from Jan 20, 2009 to Jan 19, 2017."
      */
     public static function rangeShareText(DebtEntry $first, DebtEntry $last, Per $per = Per::Total): string
     {
         if (self::oneDay($first, $last)) {
-            return sprintf('%s on %s: %s.', self::subject($per), self::span($first, $last), Html::compactMoney($last->totalDebt));
+            return sprintf('%s on %s: %s%s.', self::SUBJECTS['total'], self::span($first, $last), Html::compactMoney($last->totalDebt), self::perWords($per));
         }
-        return sprintf('%s %s from %s.', self::subject($per), self::changed($first, $last), self::span($first, $last));
+        return sprintf('%s %s from %s.', self::SUBJECTS['total'], self::changed($first, $last, $per), self::span($first, $last));
     }
 
-    /** Email subject: "U.S. debt, Jan 20, 2009 to Jan 19, 2017". */
+    /** Email subject: "U.S. debt, Jan 20, 2009 to Jan 19, 2017" ("U.S. debt per person, Jan 20, 2009" for one day). */
     public static function rangeEmailSubject(DebtEntry $first, DebtEntry $last, Per $per = Per::Total): string
     {
-        return self::rangeTitle($first, $last, $per);
+        return self::subject($per) . ', ' . self::span($first, $last);
     }
 
     /** Compare card line under the headline: "Change in debt during each term, 1993 to 2026". */
@@ -187,18 +196,19 @@ final class ShareText
 
     /**
      * "grew $9.32 trillion", "fell $9.32 trillion", or "was about the same"
-     * when the change rounds to $0.00.
+     * when the change rounds to $0.00. Per person: "grew $26,000.00 per person",
+     * "was about the same per person".
      */
-    private static function changed(DebtEntry $first, DebtEntry $last): string
+    private static function changed(DebtEntry $first, DebtEntry $last, Per $per = Per::Total): string
     {
         $change = round($last->totalDebt - $first->totalDebt, 2);
         if ($change > 0) {
-            return 'grew ' . Html::compactMoney($change);
+            return 'grew ' . Html::compactMoney($change) . self::perWords($per);
         }
         if ($change < 0) {
-            return 'fell ' . Html::compactMoney(-$change);
+            return 'fell ' . Html::compactMoney(-$change) . self::perWords($per);
         }
-        return 'was about the same';
+        return 'was about the same' . self::perWords($per);
     }
 
     /** "Jan 20, 2009 to Jan 19, 2017", or "Jan 20, 2009" for one day. */
@@ -216,8 +226,10 @@ final class ShareText
     }
 
     // ---------- Your Share (per person, per household) ----------
-    // PLACEHOLDER COPY until the final words are ready. Swap the words here;
-    // the code around them does not change. The total view uses the words above.
+    // Final copy (2026-11-12). Swap the words here; the code around them does
+    // not change. The total view uses the words above and is unchanged.
+    // Neutral: "per person" is arithmetic (the debt divided by residents),
+    // never "owe", "your debt" or "burden".
 
     /** "U.S. debt", "U.S. debt per person", "U.S. debt per household". */
     private const SUBJECTS = [
@@ -226,32 +238,42 @@ final class ShareText
         'household' => 'U.S. debt per household',
     ];
 
-    /** Sentence start: "Debt grew ...", "Debt per person grew ...". */
+    /** "Debt", "Debt per person", "Debt per household". */
     private const DEBT_WORDS = [
         'total' => 'Debt',
         'person' => 'Debt per person',
         'household' => 'Debt per household',
     ];
 
+    /** After an amount: "grew $26,000.00 per person". Nothing for the total. */
+    private const PER_WORDS = [
+        'total' => '',
+        'person' => ' per person',
+        'household' => ' per household',
+    ];
+
     private const PER_DESCRIPTION_TAIL = [
-        'person' => ' Daily U.S. Treasury data and Census population estimates.',
-        'household' => ' Daily U.S. Treasury data and Census household estimates.',
+        'person' => ' Daily U.S. Treasury data and Census Bureau counts.',
+        'household' => ' Daily U.S. Treasury data and Census Bureau counts.',
     ];
 
-    /** Small note on the card: what "per person" means. */
+    /** Small mode tag on the card: what "per person" means. */
     private const PER_NOTES = [
-        'person' => "Each day's debt divided by the U.S. population that day (Census estimates).",
-        'household' => "Each day's debt divided by the number of U.S. households that day (Census estimates).",
+        'person' => 'Per person: debt divided by U.S. population',
+        'household' => 'Per household: debt divided by U.S. households',
     ];
 
-    /** Card footer source for per person and per household. */
-    public const SOURCE_PER = 'Sources: U.S. Treasury (Debt to the Penny), U.S. Census Bureau';
+    /** Card footer source for per person and per household (the site address is drawn on the right). */
+    public const SOURCE_PER = 'Source: U.S. Treasury, Census Bureau';
 
     /** Last line of a shared email, per person and per household. */
-    public const EMAIL_NOTE_PER = 'Data: U.S. Treasury, Debt to the Penny; U.S. Census Bureau estimates.';
+    public const EMAIL_NOTE_PER = 'Data: U.S. Treasury, Debt to the Penny; U.S. Census Bureau.';
 
-    /** The switch on the page: "Show the debt as: Total | Per person | Per household". */
-    public const PER_SWITCH_LABEL = 'Show the debt as';
+    /** The switch on the page: "Show numbers as: Total | Per person | Per household". */
+    public const PER_SWITCH_LABEL = 'Show numbers as';
+
+    /** Screen-reader name of the switch. */
+    public const PER_SWITCH_ARIA = 'Choose how to show the numbers';
 
     /** @var array{total: string, person: string, household: string} */
     public const PER_OPTIONS = [
@@ -259,6 +281,59 @@ final class ShareText
         'person' => 'Per person',
         'household' => 'Per household',
     ];
+
+    /** One line under the switch: what the picked mode means. */
+    private const PER_HELP = [
+        'total' => 'The whole national debt.',
+        'person' => 'The debt divided by the U.S. population: every resident, all ages.',
+        'household' => 'The debt divided by the number of U.S. households.',
+    ];
+
+    /** Headline cards and Stats rows, per mode. The total keeps its words from before. */
+    private const PAGE_LABELS = [
+        'total' => [
+            'today' => 'Debt today',
+            'change' => 'Change in this range',
+            'per_day' => 'Per day',
+            'stats_start' => 'Starting debt amount',
+            'stats_end' => 'Last debt amount of date range',
+            'stats_change' => 'Change during the date range',
+            'stats_per_day' => 'Average change per day',
+            'stats_above' => 'Days the debt was above the start*',
+            'stats_below' => 'Days the debt was below the start*',
+            'axis' => 'Debt (dollars)',
+            'compare_axis' => 'Change since taking office',
+        ],
+        'person' => [
+            'today' => 'Debt per person today',
+            'change' => 'Change per person in this range',
+            'per_day' => 'Per person per day',
+            'stats_start' => 'Per person at start',
+            'stats_end' => 'Per person at end',
+            'stats_change' => 'Change per person',
+            'stats_per_day' => 'Average per person per day',
+            'stats_above' => 'Days the debt per person was above the start*',
+            'stats_below' => 'Days the debt per person was below the start*',
+            'axis' => 'Debt per person (dollars)',
+            'compare_axis' => 'Change per person since taking office',
+        ],
+        'household' => [
+            'today' => 'Debt per household today',
+            'change' => 'Change per household in this range',
+            'per_day' => 'Per household per day',
+            'stats_start' => 'Per household at start',
+            'stats_end' => 'Per household at end',
+            'stats_change' => 'Change per household',
+            'stats_per_day' => 'Average per household per day',
+            'stats_above' => 'Days the debt per household was above the start*',
+            'stats_below' => 'Days the debt per household was below the start*',
+            'axis' => 'Debt per household (dollars)',
+            'compare_axis' => 'Change per household since taking office',
+        ],
+    ];
+
+    /** Source line under the chart, per person and per household. */
+    public const DEBT_SOURCE_LINE = 'Debt: U.S. Treasury, Debt to the Penny.';
 
     /** People or households, for "÷ 341.8 million people". */
     private const DIVISOR_NOUNS = [
@@ -323,15 +398,78 @@ final class ShareText
     /** Compare card note: the reference-only note, plus what "per person" means. */
     public static function compareNote(Per $per): string
     {
-        return $per->isTotal() ? self::COMPARE_NOTE : self::COMPARE_NOTE . ' ' . self::perNote($per);
+        return $per->isTotal() ? self::COMPARE_NOTE : self::COMPARE_NOTE . ' ' . self::perNote($per) . '.';
+    }
+
+    /** After an amount: " per person", " per household", or '' for the total. */
+    private static function perWords(Per $per): string
+    {
+        return self::PER_WORDS[$per->value];
     }
 
     // ---------- Your Share: words on the page ----------
 
-    /** Headline card label: "Debt today", "Debt today, per person". */
+    /** One line under the switch: what the picked mode means. */
+    public static function perHelp(Per $per): string
+    {
+        return self::PER_HELP[$per->value];
+    }
+
+    /**
+     * A headline card or Stats row label for this mode.
+     *
+     * @param 'today'|'change'|'per_day'|'stats_start'|'stats_end'|'stats_change'|'stats_per_day'|'stats_above'|'stats_below'|'axis'|'compare_axis' $key
+     */
+    public static function label(Per $per, string $key): string
+    {
+        return self::PAGE_LABELS[$per->value][$key];
+    }
+
+    /** Date-range chart, y axis title: "Debt (dollars)", "Debt per person (dollars)". */
+    public static function axisTitle(Per $per): string
+    {
+        return self::label($per, 'axis');
+    }
+
+    /** Compare chart, y axis title: "Change since taking office", "Change per person since taking office". */
+    public static function compareAxisTitle(Per $per): string
+    {
+        return self::label($per, 'compare_axis');
+    }
+
+    /** Heading of the results card: "The debt over time", "Debt per person over time". */
+    public static function resultsHeading(Per $per): string
+    {
+        return $per->isTotal() ? 'The debt over time' : self::debtWord($per) . ' over time';
+    }
+
+    /** Screen-reader name of the date-range chart. */
+    public static function chartLabel(Per $per): string
+    {
+        return $per->isTotal()
+            ? 'Line chart of the total U.S. debt for the chosen dates'
+            : 'Line chart of ' . lcfirst(self::debtWord($per)) . ' over time, for the chosen dates';
+    }
+
+    /**
+     * Footnote under the chart, per person and per household ('' for the total):
+     * where the counts come from and how days between yearly counts are filled.
+     */
+    public static function censusFootnote(Per $per, ?int $latestYear): string
+    {
+        if ($per->isTotal()) {
+            return '';
+        }
+        return 'Per-person and per-household figures divide the debt by U.S. Census Bureau population and household counts.'
+            . ' Counts are yearly; days between years are estimated in straight-line steps, and the latest Census figure'
+            . ($latestYear === null ? '' : sprintf(' (%d)', $latestYear))
+            . ' is used for recent dates.';
+    }
+
+    /** Headline card label: "Debt today", "Debt per person today". */
     public static function todayLabel(Per $per): string
     {
-        return $per->isTotal() ? 'Debt today' : 'Debt today, ' . lcfirst(self::PER_OPTIONS[$per->value]);
+        return self::label($per, 'today');
     }
 
     /**
@@ -352,13 +490,13 @@ final class ShareText
     /** "Change in this range", "Change per person in this range". */
     public static function changeLabel(Per $per): string
     {
-        return $per->isTotal() ? 'Change in this range' : 'Change ' . lcfirst(self::PER_OPTIONS[$per->value]) . ' in this range';
+        return self::label($per, 'change');
     }
 
-    /** "Per day", "Per person, per day". */
+    /** "Per day", "Per person per day". */
     public static function perDayLabel(Per $per): string
     {
-        return $per->isTotal() ? 'Per day' : self::PER_OPTIONS[$per->value] . ', per day';
+        return self::label($per, 'per_day');
     }
 
     /** Chart summary sentence start and data table column: "Total debt", "Debt per person". */

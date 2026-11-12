@@ -35,6 +35,8 @@ final class ViewRenderTest extends TestCase
             'custom range' => [['start_date' => '2020-01-01', 'end_date' => '2026-11-09'], []],
             'compare all' => [[], ['submit' => 'Compare', 'compare_pres' => $all]],
             'bad date' => [['start_date' => '2026-02-30'], []],
+            'per person range' => [['start_date' => '2000-01-04', 'end_date' => '2026-11-09', 'per' => 'person'], []],
+            'per household compare' => [['per' => 'household'], ['submit' => 'Compare', 'compare_pres' => $all]],
         ];
     }
 
@@ -375,7 +377,8 @@ final class ViewRenderTest extends TestCase
         ob_start();
         try {
             $per = \USDebt\Model\Per::Total;
-            (static function () use ($chart, $first, $last, $show_trend, $per): void {
+            $footnote = '';
+            (static function () use ($chart, $first, $last, $show_trend, $per, $footnote): void {
                 require dirname(__DIR__, 2) . '/src/lib/View/chart_daily.php';
             })();
         } finally {

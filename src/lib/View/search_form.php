@@ -15,11 +15,10 @@
  * @var string    $today       Y-m-d.
  * @var bool      $show_trend  Trend line on. When off, every link and form here keeps trend=0.
  * @var \USDebt\Model\Per $per  Total, per person or per household. Every link and form here keeps per (none for the total).
- * @var list<array{label: string, href: string, current: bool}> $per_links  The "Show the debt as" switch.
+ *      The "Show numbers as" switch itself is per_switch.php, at the top of the page.
  */
 
 use USDebt\Service\Html;
-use USDebt\Service\ShareText;
 
 $per_param = $per->isTotal() ? [] : ['per' => $per->value];
 $trend_param = $show_trend ? [] : ['trend' => '0'];
@@ -52,13 +51,6 @@ $compare_action = './' . ($compare_query === '' ? '' : '?' . $compare_query) . '
         <?php foreach ($quick_ranges as $range) { ?>
         <a class="chip" href="<?php echo Html::e($range_href($range['start'], $range['end'])); ?>" data-trend-link
            title="<?php echo Html::e($range['title']); ?>"<?php echo $range['current'] ? ' aria-current="true"' : ''; ?>><?php echo Html::e($range['label']); ?></a>
-        <?php } ?>
-    </nav>
-    <?php /* Your Share: the same view as the total, per person or per household */ ?>
-    <nav class="chips per-switch" aria-label="<?php echo Html::e(ShareText::PER_SWITCH_LABEL); ?>">
-        <span class="chips-label"><?php echo Html::e(ShareText::PER_SWITCH_LABEL); ?>:</span>
-        <?php foreach ($per_links as $link) { ?>
-        <a class="chip" href="<?php echo Html::e($link['href']); ?>" data-trend-link<?php echo $link['current'] ? ' aria-current="true"' : ''; ?>><?php echo Html::e($link['label']); ?></a>
         <?php } ?>
     </nav>
 </section>

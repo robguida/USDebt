@@ -13,6 +13,7 @@
  * @var bool $show_trend  Trend line on (false when the URL says trend=0).
  * @var \USDebt\Model\Per $per  Total, per person or per household. For per person (or household)
  *      $first, $last and the chart are already per person, in dollars (chart unit "usd").
+ * @var string $footnote  Census source line for per person (or household), or '' for the total.
  */
 
 use USDebt\Service\ChartData;
@@ -65,10 +66,12 @@ $summary = sprintf(
     Html::shortDate($last->effectiveDate),
     ($change > 0 ? '+' : '') . Html::money($change)
 );
+/* the page script draws the y axis title from here, so the script holds no per-mode words */
+$chart['y_title'] = ShareText::axisTitle($per);
 ?>
 <figure class="chart-figure">
     <div class="chart-box">
-        <canvas id="debt_chart" role="img" aria-label="<?php echo Html::e($per->isTotal() ? 'Line chart of the total U.S. debt for the chosen dates' : 'Line chart of the ' . ShareText::subject($per) . ' for the chosen dates'); ?>" aria-describedby="chart_summary"></canvas>
+        <canvas id="debt_chart" role="img" aria-label="<?php echo Html::e(ShareText::chartLabel($per)); ?>" aria-describedby="chart_summary"></canvas>
     </div>
     <figcaption id="chart_summary" class="chart-summary num">
         <p><?php echo Html::e($summary); ?></p>
@@ -77,4 +80,7 @@ $summary = sprintf(
         <?php } ?>
     </figcaption>
 </figure>
+<?php if ($footnote !== '') { ?>
+<p class="footnote chart-source"><?php echo Html::e($footnote); ?> <?php echo Html::e(ShareText::DEBT_SOURCE_LINE); ?></p>
+<?php } ?>
 <script type="application/json" id="chart-data"><?php echo Html::json($chart); ?></script>

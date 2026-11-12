@@ -745,7 +745,7 @@ final class ShareTest extends TestCase
         $builder = new ShareCardBuilder(new CompareService());
         $card = $builder->forRange($source->load(), new DateTimeImmutable('2009-01-20'), new DateTimeImmutable('2017-01-19'), true, true, Per::Person);
         self::assertNotNull($card);
-        self::assertStringStartsWith('U.S. debt per person grew $', $card->headline);
+        self::assertMatchesRegularExpression('/^U\.S\. debt grew \$[0-9]{1,3}(,[0-9]{3})*\.[0-9]{2} per person$/', $card->headline, 'dollars, not trillions');
         self::assertStringContainsString('&per=person', $card->cardQuery);
         self::assertSame('us-debt-per-person-2009-01-26-to-2017-01-16.png', $card->downloadName);
         $renderer->render($card);
@@ -761,7 +761,60 @@ final class ShareTest extends TestCase
             self::assertLessThan(1_000_000, abs($row['change']), 'rows are per household, in dollars');
         }
         $renderer->render($compare);
-        self::assertCardFits($renderer->lastLayout(), count($compare->rows), false);
+        $compareLayout = $renderer->lastLayout();
+        self::assertCardFits($compareLayout, count($compare->rows), false);
+        // Every amount drawn on the card is in dollars ("+$29,101.12"), never trillions.
+        foreach (self::boxes($compareLayout, 'row-value') as $value) {
+            self::assertMatchesRegularExpression('/^[+-]?\$[0-9]{1,3}(,[0-9]{3})*\.[0-9]{2}$/', $value['text']);
+        }
+        self::assertContains(ShareText::SOURCE_PER, array_column(self::boxes($compareLayout, 'footer'), 'text'));
+    }
+
+    public function testPerShareWordsFollowTheFinalCopy(): void
+    {
+        $a = new DebtEntry('2009-01-20', 35_000.0);
+        $b = new DebtEntry('2017-01-19', 61_000.0);
+        $down = new DebtEntry('2017-01-19', 30_000.0);
+        $same = new DebtEntry('2017-01-19', 35_000.0);
+        $p = Per::Person;
+        $h = Per::Household;
+
+        // Share text, email.
+        self::assertSame('U.S. debt grew $26,000.00 per person from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b, $p));
+        self::assertSame('U.S. debt fell $5,000.00 per household from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $down, $h));
+        self::assertSame('U.S. debt was about the same per person from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $same, $p));
+        self::assertSame('U.S. debt on Jan 20, 2009: $35,000.00 per person.', ShareText::rangeShareText($a, $a, $p));
+        self::assertSame('U.S. debt per person, Jan 20, 2009 to Jan 19, 2017', ShareText::rangeEmailSubject($a, $b, $p));
+        self::assertSame('U.S. debt per household, Jan 20, 2009', ShareText::rangeEmailSubject($a, $a, $h));
+        self::assertSame('Data: U.S. Treasury, Debt to the Penny; U.S. Census Bureau.', ShareText::emailNote($p));
+
+        // Picture card.
+        self::assertSame('U.S. debt grew $26,000.00 per person', ShareText::rangeHeadline($a, $b, $p));
+        self::assertSame('U.S. debt fell $5,000.00 per household', ShareText::rangeHeadline($a, $down, $h));
+        self::assertSame('U.S. debt was about the same per person', ShareText::rangeHeadline($a, $same, $p));
+        self::assertSame('U.S. debt per person: $35,000.00', ShareText::rangeHeadline($a, $a, $p));
+        self::assertSame('Per person: debt divided by U.S. population', ShareText::perNote($p));
+        self::assertSame('Per household: debt divided by U.S. households', ShareText::perNote($h));
+        self::assertSame('Source: U.S. Treasury, Census Bureau', ShareText::source($p));
+        self::assertSame('Chart of U.S. debt per person from Jan 20, 2009 to Jan 19, 2017. Debt grew $26,000.00 per person.', ShareText::rangeAlt($a, $b, $p));
+        self::assertSame('Chart of U.S. debt per person from Jan 20, 2009 to Jan 19, 2017. Debt was about the same per person.', ShareText::rangeAlt($a, $same, $p));
+
+        // Link preview.
+        self::assertSame('U.S. debt per person, Jan 20, 2009 to Jan 19, 2017', ShareText::rangeTitle($a, $b, $p));
+        self::assertSame('Debt grew $26,000.00 per person over this period. Daily U.S. Treasury data and Census Bureau counts.', ShareText::rangeDescription($a, $b, $p));
+        self::assertSame('Debt was about the same per household over this period. Daily U.S. Treasury data and Census Bureau counts.', ShareText::rangeDescription($a, $same, $h));
+        self::assertSame('U.S. debt per person on Jan 20, 2009', ShareText::rangeTitle($a, $a, $p));
+        self::assertSame('Debt was $35,000.00 per person on this day. Daily U.S. Treasury data and Census Bureau counts.', ShareText::rangeDescription($a, $a, $p));
+
+        // The total words are unchanged.
+        self::assertSame('U.S. debt grew $26,000.00', ShareText::rangeHeadline($a, $b));
+        self::assertSame('U.S. debt, Jan 20, 2009', ShareText::rangeTitle($a, $a));
+        self::assertSame('U.S. debt, Jan 20, 2009', ShareText::rangeEmailSubject($a, $a));
+        self::assertSame('U.S. debt on Jan 20, 2009: $35,000.00.', ShareText::rangeShareText($a, $a));
+        self::assertSame('Debt grew $26,000.00 over this period. Daily U.S. Treasury data.', ShareText::rangeDescription($a, $b));
+        self::assertSame('Chart of U.S. debt from Jan 20, 2009 to Jan 19, 2017. Debt grew $26,000.00.', ShareText::rangeAlt($a, $b));
+        self::assertSame(ShareText::SOURCE, ShareText::source(Per::Total));
+        self::assertSame(ShareText::EMAIL_NOTE, ShareText::emailNote(Per::Total));
     }
 
     public function testPerShareWordsStayNeutral(): void
@@ -772,12 +825,17 @@ final class ShareTest extends TestCase
             $words = [ShareText::rangeHeadline($a, $b, $per), ShareText::rangeTitle($a, $b, $per), ShareText::rangeDescription($a, $b, $per),
                 ShareText::rangeAlt($a, $b, $per), ShareText::rangeShareText($a, $b, $per), ShareText::compareTitle($per),
                 ShareText::compareDescription($per), ShareText::compareShareText($per), ShareText::compareAlt($per),
-                ShareText::compareNote($per), ShareText::perNote($per), ShareText::method($per, null)];
+                ShareText::compareNote($per), ShareText::perNote($per), ShareText::method($per, null),
+                ShareText::perHelp($per), ShareText::censusFootnote($per, 2025), ShareText::resultsHeading($per), ShareText::chartLabel($per)];
+            foreach (['today', 'change', 'per_day', 'stats_start', 'stats_end', 'stats_change', 'stats_per_day', 'stats_above', 'stats_below', 'axis', 'compare_axis'] as $key) {
+                $words[] = ShareText::label($per, $key);
+            }
             foreach ($words as $text) {
-                self::assertDoesNotMatchRegularExpression('/\b(under|because|thanks to|blame|record|surge|crisis|Democrat|Republican|owe|your fault)\b/i', $text);
+                self::assertDoesNotMatchRegularExpression('/\b(under|because|thanks to|blame|record|surge|crisis|Democrat|Republican|owes?|your|burden|bill)\b/i', $text);
             }
         }
-        self::assertSame('U.S. debt per person grew $26,000.00 from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b, Per::Person));
+        self::assertSame('Show numbers as', ShareText::PER_SWITCH_LABEL, 'not "Your share": it could read as a personal bill');
+        self::assertSame('U.S. debt grew $26,000.00 per person from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b, Per::Person));
         self::assertSame('Change in debt per household during each term, 1993 to 2026', ShareText::compareDetail(1993, 2026, Per::Household));
         // The total words are unchanged.
         self::assertSame('U.S. debt grew $26,000.00 from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b));
