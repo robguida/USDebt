@@ -11,9 +11,12 @@
  * @var list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>, change: float, months: int}> $series  From CompareService::buildSeries().
  * @var array{type: string, series: list<array<string, mixed>>} $chart  From ChartData::compare(), same order as $series.
  * @var bool $show_trend  Trend lines on (false when the URL says trend=0).
+ * @var \USDebt\Model\Per $per  Total, per person or per household (change per person, in dollars).
  */
 
+use USDebt\Service\ChartData;
 use USDebt\Service\Html;
+use USDebt\Service\ShareText;
 
 $lines = [];
 $notes = [];
@@ -33,7 +36,7 @@ foreach ($series as $i => $s) {
         $has_trend = true;
         $line .= sprintf(
             ' Trend: about %s per month (straight line).',
-            Html::compactMoney($trend['slope_per_month'] * 1_000_000_000_000, true)
+            Html::compactMoney(ChartData::toDollars($chart, (float) $trend['slope_per_month']), true)
         );
     }
     $lines[] = $line;
@@ -46,8 +49,8 @@ foreach ($series as $i => $s) {
     }
 }
 ?>
-<p class="lede">Each line shows how much the debt changed from a president's first day in office,
-    month by month. The x axis is the month in office. The y axis is the change, in trillions of U.S. dollars.</p>
+<p class="lede">Each line shows how much the <?php echo Html::e(lcfirst(ShareText::debtWord($per))); ?> changed from a president's first day in office,
+    month by month. The x axis is the month in office. <?php echo Html::e(ShareText::compareAxis($per)); ?></p>
 <p class="caption">Congress sets spending and taxes. Presidential terms are shown for reference only.</p>
 <figure class="chart-figure">
     <div class="chart-box chart-box-tall">

@@ -374,7 +374,8 @@ final class ViewRenderTest extends TestCase
         $last = new \USDebt\Model\DebtEntry('2026-01-02', 38_100_000_000_000.0);
         ob_start();
         try {
-            (static function () use ($chart, $first, $last, $show_trend): void {
+            $per = \USDebt\Model\Per::Total;
+            (static function () use ($chart, $first, $last, $show_trend, $per): void {
                 require dirname(__DIR__, 2) . '/src/lib/View/chart_daily.php';
             })();
         } finally {

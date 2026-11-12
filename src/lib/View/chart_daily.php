@@ -11,9 +11,13 @@
  * @var \USDebt\Model\DebtEntry $first  Oldest day in the range.
  * @var \USDebt\Model\DebtEntry $last   Newest day in the range.
  * @var bool $show_trend  Trend line on (false when the URL says trend=0).
+ * @var \USDebt\Model\Per $per  Total, per person or per household. For per person (or household)
+ *      $first, $last and the chart are already per person, in dollars (chart unit "usd").
  */
 
+use USDebt\Service\ChartData;
 use USDebt\Service\Html;
+use USDebt\Service\ShareText;
 
 /* the trend lines and their projections, when the range has at least 2 days */
 $by_key = [];
@@ -22,7 +26,7 @@ foreach ($chart['series'] as $s) {
 }
 
 /* " Projection to Nov 9, 2027: about $45.12 trillion." from a projection series */
-$projection_text = static function (?array $projection, string $name): string {
+$projection_text = static function (?array $projection, string $name) use ($chart): string {
     if ($projection === null || $projection['points'] === []) {
         return '';
     }
@@ -31,7 +35,7 @@ $projection_text = static function (?array $projection, string $name): string {
         ' %s to %s: about %s.',
         $name,
         Html::shortDate($end_point[0]),
-        Html::compactMoney($end_point[1] * 1_000_000_000_000)
+        Html::compactMoney(ChartData::toDollars($chart, (float) $end_point[1]))
     );
 };
 
@@ -40,7 +44,7 @@ $trend_texts = [];
 if (isset($by_key['trend'])) {
     $trend_texts[] = sprintf(
         'Trend: about %s per day (straight line).',
-        Html::compactMoney($by_key['trend']['slope_per_day'] * 1_000_000_000_000, true)
+        Html::compactMoney(ChartData::toDollars($chart, (float) $by_key['trend']['slope_per_day']), true)
     ) . $projection_text($by_key['projection'] ?? null, 'Projection');
 }
 if (isset($by_key['curve'])) {
@@ -53,7 +57,8 @@ $last_text = count($trend_texts) - 1;
 
 $change = $last->totalDebt - $first->totalDebt;
 $summary = sprintf(
-    'Total debt went from %s on %s to %s on %s, a change of %s.',
+    '%s went from %s on %s to %s on %s, a change of %s.',
+    ShareText::summarySubject($per),
     Html::money($first->totalDebt),
     Html::shortDate($first->effectiveDate),
     Html::money($last->totalDebt),
@@ -63,7 +68,7 @@ $summary = sprintf(
 ?>
 <figure class="chart-figure">
     <div class="chart-box">
-        <canvas id="debt_chart" role="img" aria-label="Line chart of the total U.S. debt for the chosen dates" aria-describedby="chart_summary"></canvas>
+        <canvas id="debt_chart" role="img" aria-label="<?php echo Html::e($per->isTotal() ? 'Line chart of the total U.S. debt for the chosen dates' : 'Line chart of the ' . ShareText::subject($per) . ' for the chosen dates'); ?>" aria-describedby="chart_summary"></canvas>
     </div>
     <figcaption id="chart_summary" class="chart-summary num">
         <p><?php echo Html::e($summary); ?></p>

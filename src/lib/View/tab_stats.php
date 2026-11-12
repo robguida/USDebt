@@ -6,6 +6,7 @@
  * Time: 9:43 PM
  *
  * @var array<string, int|float|null>|null $stats  From StatsCalculator::summarize(); null when there is no data.
+ * @var string $method_note  How per person (or household) is worked out, or '' for the total.
  */
 
 use USDebt\Service\Html;
@@ -43,3 +44,6 @@ if (($stats['growth_pct_per_year'] ?? null) !== null) {
     <?php } ?>
 </dl>
 <p class="footnote">* Counts only days when the Treasury reported data (business days).</p>
+<?php if ($method_note !== '') { ?>
+<p class="footnote"><?php echo Html::e($method_note); ?></p>
+<?php } ?>

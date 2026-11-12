@@ -2,7 +2,7 @@
 
 Source of truth for anyone (human or tool) working on this project.
 Owner: Rob Guida (RandBMedia, his own company; not a client project).
-Last updated: 2026-11-12 (matches branch USD-6-share-card).
+Last updated: 2026-11-12 (matches branch USD-7-your-share).
 
 ## 1. What it is
 
@@ -37,10 +37,11 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **f.** `images/` — president photos. `favicon.svg` — site icon.
 2. `src/lib/` — app code, outside the web root.
     - **a.** `bootstrap.php` — error settings, timezone (America/New_York), class autoloader. No session.
+        - **i.** `SiteConfig.php` — the site's name (`SiteConfig::NAME`), in this one place. The header, page title, link preview tags, share words and picture card all read it. Not final yet ("Our U.S. Debt" or "U.S. Debt Tracker"); change it only here.
     - **b.** `Controller/FrontController.php` — turns one request into one page. Visitors only see friendly messages.
     - **c.** `Controller/USDebtController.php` — builds the date-range view, compare view and error view, and the share tags and Share menu for each. Loads view files.
     - **d.** `Controller/CardController.php` — the picture card: same input checks as the page, the cached PNG or a fresh one, plain-text errors (400, 503, 500).
-    - **e.** `Model/` — `RequestModel.php` (dates, picked terms, trend on/off), `DebtEntry.php`, `DebtDataset.php`, `ShareCard.php` (everything needed to share one view: words, links, cache key, what the card draws).
+    - **e.** `Model/` — `RequestModel.php` (dates, picked terms, trend on/off, per mode), `DebtEntry.php`, `DebtDataset.php`, `ShareCard.php` (everything needed to share one view: words, links, cache key, what the card draws), `Per.php` (Your Share: total, per person or per household, from `?per=`).
     - **f.** `Service/FiscalDataClient.php` — downloads the full Treasury history, page by page.
     - **g.** `Service/DebtSource.php` (the interface) and `Service/DebtRepository.php` — the daily cache.
     - **h.** `Service/LogOnce.php` — logs a lasting problem once per 15 minutes across PHP processes (a marker file in `src/var/log-markers`). Used by the Treasury cache and the card cache.
@@ -49,6 +50,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **k.** `Service/StatsCalculator.php`, `Service/ChartData.php`, `Service/Html.php` — stats, chart data shaping, safe HTML output.
     - **l.** `Service/PresidentService.php` — fixed list of presidents (term dates, photo, chart colour).
     - **m.** `Service/ValidateDateTime.php` — date checks.
+        - **i.** `Service/PopulationService.php` — Your Share: U.S. population and households for any day (straight line between yearly Census figures), and the debt divided by them.
     - **n.** Sharing:
         - **i.** `Service/ShareText.php` — every share word (see §5.6.c).
         - **ii.** `Service/ShareLinks.php` — the share links: absolute page and card links from `USDEBT_BASE_URL`, the root-relative card link for the menu, and the plain links to each social site.
@@ -58,6 +60,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **o.** `Http/` — `HttpFetcher.php` (the interface), `NativeHttpFetcher.php`, `Response.php`.
     - **p.** `Exception/` — `UserFacingException.php` (a message safe to show the visitor: 400 by default), `DataUnavailableException.php` (no download and no saved copy: 503), `HttpException.php` (a Treasury request failed), `IncompleteDownloadException.php` (a page or rows are missing, so nothing is saved), `CardUnavailableException.php` (this server cannot draw cards: 503).
     - **q.** `Data/debt_seed_1993.json` — debt for 1993-01-04 to 1993-03-31, before the API's first day.
+        - **i.** `Data/us_population_households.json` — Census population (July 1) and households (March), 1993 to 2025, one figure per year, with its sources and notes inside. Public domain.
     - **r.** `Assets/fonts/` — `DejaVuSans.ttf`, `DejaVuSans-Bold.ttf` and their license, for the card. Self-hosted; their checksums are pinned in a test.
     - **s.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`, `share_menu.php` (Share button and menu).
 3. `src/var/cache/` — the saved Treasury copy. `src/var/cache/cards/` — the saved picture cards. `src/var/log-markers/` — private (0700) "already logged" markers, next to the cache folder. All gitignored. Never web-served.

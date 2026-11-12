@@ -14,6 +14,8 @@
  * @var array{title: string, description: string, url: string, image: string, image_alt: string} $share
  *        Link preview tags: plain text and absolute links from the configured site address.
  * @var string $share_menu       Already-rendered HTML (Share button and menu, share_menu.php) or ''.
+ * @var string $site_name        The site's name (SiteConfig::NAME), plain text.
+ * @var string $per_query        "per=person", "per=household" or '' (the total), kept by the home link.
  */
 
 use USDebt\Service\Html;
@@ -25,8 +27,9 @@ $asset = static function (string $path) use ($public_dir): string {
     return Html::e($path . ($mtime ? '?r=' . $mtime : ''));
 };
 $treasury_url = 'https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/';
-/* links on the page keep the trend switch; the page script updates them when it changes */
-$home_href = $show_trend ? './' : './?trend=0';
+/* links on the page keep the trend switch (the page script updates them when it changes) and the per person view */
+$home_query = implode('&', array_filter([$per_query, $show_trend ? '' : 'trend=0'], static fn (string $p): bool => $p !== ''));
+$home_href = './' . ($home_query === '' ? '' : '?' . $home_query);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -38,7 +41,7 @@ $home_href = $show_trend ? './' : './?trend=0';
     <meta name="description" content="<?php echo Html::e(\USDebt\Service\ShareText::SITE_DESCRIPTION); ?>">
     <?php /* link preview for social sites and chat apps (Open Graph, Twitter) */ ?>
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="<?php echo Html::e(\USDebt\Service\ShareText::SITE_NAME); ?>">
+    <meta property="og:site_name" content="<?php echo Html::e($site_name); ?>">
     <meta property="og:title" content="<?php echo Html::e($share['title']); ?>">
     <meta property="og:description" content="<?php echo Html::e($share['description']); ?>">
     <meta property="og:url" content="<?php echo Html::e($share['url']); ?>">
@@ -61,7 +64,7 @@ $home_href = $show_trend ? './' : './?trend=0';
 <a class="skip-link" href="#results">Skip to the chart</a>
 <header class="topbar">
     <div class="wrap topbar-inner">
-        <a class="brand" href="<?php echo Html::e($home_href); ?>" data-trend-link><?php echo Html::e(\USDebt\Controller\USDebtController::SITE_TITLE); ?></a>
+        <a class="brand" href="<?php echo Html::e($home_href); ?>" data-trend-link><?php echo Html::e($site_name); ?></a>
         <nav class="topnav" aria-label="Site">
             <a href="#terms">Compare terms</a>
             <a href="#about">About the data</a>

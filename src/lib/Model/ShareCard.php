@@ -24,6 +24,8 @@ namespace USDebt\Model;
  * - cardTrendMatters: the card changes with the trend switch (a range card
  *   with a trend line to draw), so the page script updates its link.
  * - downloadName: file name for "Download picture".
+ * - per: total, per person or per household. For per person (or household)
+ *   the entries and rows are already per person, in dollars.
  */
 final class ShareCard
 {
@@ -54,6 +56,7 @@ final class ShareCard
         public readonly string $emailSubject = '',
         public readonly bool $cardTrendMatters = false,
         public readonly string $downloadName = 'usdebt.png',
+        public readonly Per $per = Per::Total,
     ) {
     }
 }

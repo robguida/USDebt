@@ -6,6 +6,7 @@ namespace USDebt\Service;
 
 use DateTimeImmutable;
 use USDebt\Model\DebtDataset;
+use USDebt\Model\Per;
 
 /**
  * Builds the president Compare chart data.
@@ -26,6 +27,12 @@ use USDebt\Model\DebtDataset;
  *   month), so the last point can be up to a month short of the term's end.
  *   Stated totals (the Compare page summary and the share card) use 'change',
  *   never the last chart point.
+ * - Per person and per household ("Your Share", Per): every day's debt is
+ *   first divided by that day's people or households (PopulationService),
+ *   then the same steps run on those values. So a term's change is
+ *   D_last/P_last - D_first/P_first per person, in dollars, and the chart
+ *   points are in dollars (not trillions). Two terms of one president add up
+ *   the same way.
  */
 final class CompareService
 {
@@ -34,12 +41,21 @@ final class CompareService
     /** @var array<int, array{pres: string, start: string, end: string, img: string}> */
     private array $terms;
 
+    private readonly PopulationService $population;
+
     /**
      * @param array<int, array{pres: string, start: string, end: string, img: string}>|null $terms
+     * @param PopulationService|null $population  For per person and per household (default: the shipped Census data).
      */
-    public function __construct(?array $terms = null)
+    public function __construct(?array $terms = null, ?PopulationService $population = null)
     {
         $this->terms = $terms ?? PresidentService::getPresidentConfig();
+        $this->population = $population ?? new PopulationService();
+    }
+
+    public function population(): PopulationService
+    {
+        return $this->population;
     }
 
     /**
@@ -79,9 +95,13 @@ final class CompareService
      *   The Compare chart draws a diamond at each one (js/usdebt.js).
      *   change = exact debt change in dollars, first to last data day of each
      *   picked term, summed. months = months in office with data (the last x).
+     *   Per person or per household: change is in dollars per person (or
+     *   household), and the points are in dollars, not trillions.
      */
-    public function buildSeries(array $keys, DebtDataset $dataset): array
+    public function buildSeries(array $keys, DebtDataset $dataset, Per $per = Per::Total): array
     {
+        $unit = $per->isTotal() ? self::TRILLION : 1;
+        $decimals = $per->isTotal() ? 3 : 2;
         $groups = [];
         foreach ($keys as $key) {
             if (!isset($this->terms[$key])) {
@@ -100,7 +120,7 @@ final class CompareService
             $x = 0;
             $carried = 0.0; // debt change (dollars) at the end of the previous term(s)
             foreach ($termKeys as $key) {
-                $entries = $dataset->between($this->start($key), $this->end($key));
+                $entries = $this->population->scale($dataset->between($this->start($key), $this->end($key)), $per);
                 if ($entries === []) {
                     continue; // no Treasury data for this term (yet)
                 }
@@ -116,7 +136,7 @@ final class CompareService
                     }
                     $month = $entryMonth;
                     $x++;
-                    $points[] = [$x, round(($carried + $entry->totalDebt - $baseline) / self::TRILLION, 3)];
+                    $points[] = [$x, round(($carried + $entry->totalDebt - $baseline) / $unit, $decimals)];
                 }
                 $carried += end($entries)->totalDebt - $baseline;
                 $years[] = $this->start($key)->format('Y') . '-' . $this->end($key)->format('Y');

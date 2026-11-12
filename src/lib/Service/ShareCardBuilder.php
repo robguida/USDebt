@@ -6,12 +6,19 @@ namespace USDebt\Service;
 
 use DateTimeImmutable;
 use USDebt\Model\DebtDataset;
+use USDebt\Model\Per;
 use USDebt\Model\ShareCard;
+use USDebt\SiteConfig;
 
 /**
  * Builds the ShareCard for a date range or a Compare view, from the one daily
  * Treasury copy (no extra Treasury calls). Returns null when the view has no
  * data to draw.
+ *
+ * Per person and per household ("Your Share"): the card draws the scaled
+ * days (each day's debt divided by that day's people or households), its
+ * words say "per person", and every link carries per=person (or
+ * per=household). The total view's links have no per at all.
  */
 final class ShareCardBuilder
 {
@@ -31,8 +38,9 @@ final class ShareCardBuilder
         DateTimeImmutable $end,
         bool $showTrend,
         bool $explicitDates,
+        Per $per = Per::Total,
     ): ?ShareCard {
-        $entries = $dataset->between($start, $end);
+        $entries = $this->compareService->population()->scale($dataset->between($start, $end), $per);
         if ($entries === []) {
             return null;
         }
@@ -41,46 +49,51 @@ final class ShareCardBuilder
         $canTrend = count($entries) >= 2;
         $drawTrend = $showTrend && $canTrend;
 
-        $pageQuery = $explicitDates
-            ? 'start_date=' . $start->format('Y-m-d') . '&end_date=' . $end->format('Y-m-d')
-            : '';
-        if (!$showTrend) {
-            $pageQuery .= ($pageQuery === '' ? '' : '&') . 'trend=0';
-        }
+        $pageQuery = self::join(
+            $explicitDates ? 'start_date=' . $start->format('Y-m-d') . '&end_date=' . $end->format('Y-m-d') : '',
+            $per->query(),
+            $showTrend ? '' : 'trend=0',
+        );
         // The card does not depend on the exact dates picked, only on the days that have data.
-        $cardQuery = 'start_date=' . $first->effectiveDate . '&end_date=' . $last->effectiveDate;
-        if (!$drawTrend && $canTrend) {
-            $cardQuery .= '&trend=0';
-        }
+        $cardQuery = self::join(
+            'start_date=' . $first->effectiveDate . '&end_date=' . $last->effectiveDate,
+            $per->query(),
+            !$drawTrend && $canTrend ? 'trend=0' : '',
+        );
+        // The home page shares as the site; a picked range (or a per person
+        // view, which the site-wide words do not describe) shares as that range.
+        $asRange = $explicitDates || !$per->isTotal();
+        $name = $per->isTotal() ? 'us-debt-' : 'us-debt-per-' . $per->value . '-';
 
         return new ShareCard(
             kind: ShareCard::KIND_RANGE,
-            headline: ShareText::rangeHeadline($first, $last),
+            headline: ShareText::rangeHeadline($first, $last, $per),
             detail: ShareText::rangeDetail($first, $last),
-            // The home page shares as the site; a picked range shares as that range.
-            description: $explicitDates ? ShareText::rangeDescription($first, $last) : ShareText::HOME_DESCRIPTION,
+            description: $asRange ? ShareText::rangeDescription($first, $last, $per) : ShareText::HOME_DESCRIPTION,
             pageQuery: $pageQuery,
             cardQuery: $cardQuery,
             cacheKey: self::cacheKey($dataset, $cardQuery),
             entries: $entries,
             drawTrend: $drawTrend,
-            title: $explicitDates ? ShareText::rangeTitle($first, $last) : ShareText::HOME_TITLE,
-            imageAlt: ShareText::rangeAlt($first, $last),
-            shareText: ShareText::rangeShareText($first, $last),
-            emailSubject: ShareText::rangeEmailSubject($first, $last),
+            title: $asRange ? ShareText::rangeTitle($first, $last, $per) : ShareText::HOME_TITLE,
+            note: ShareText::perNote($per),
+            imageAlt: ShareText::rangeAlt($first, $last, $per),
+            shareText: ShareText::rangeShareText($first, $last, $per),
+            emailSubject: ShareText::rangeEmailSubject($first, $last, $per),
             cardTrendMatters: $canTrend,
             downloadName: $first->effectiveDate === $last->effectiveDate
-                ? 'us-debt-' . $first->effectiveDate . '.png'
-                : 'us-debt-' . $first->effectiveDate . '-to-' . $last->effectiveDate . '.png',
+                ? $name . $first->effectiveDate . '.png'
+                : $name . $first->effectiveDate . '-to-' . $last->effectiveDate . '.png',
+            per: $per,
         );
     }
 
     /**
      * @param list<int> $keys  Validated term ids (CompareService::validateSelection), at least 2.
      */
-    public function forCompare(DebtDataset $dataset, array $keys, bool $showTrend): ?ShareCard
+    public function forCompare(DebtDataset $dataset, array $keys, bool $showTrend, Per $per = Per::Total): ?ShareCard
     {
-        $series = $this->compareService->buildSeries($keys, $dataset);
+        $series = $this->compareService->buildSeries($keys, $dataset, $per);
         $years = $this->compareService->dataYears($keys, $dataset);
         if ($series === [] || $years === null) {
             return null;
@@ -92,30 +105,38 @@ final class ShareCardBuilder
             $rows[] = ['label' => $s['label'], 'change' => $s['change']];
         }
         $picks = 'compare=' . implode(',', $keys);
-        $pageQuery = $picks . ($showTrend ? '' : '&trend=0');
+        $pageQuery = self::join($picks, $per->query(), $showTrend ? '' : 'trend=0');
         // The Compare card draws no trend line, so the trend switch does not change it.
-        $cardQuery = $picks;
+        $cardQuery = self::join($picks, $per->query());
 
         return new ShareCard(
             kind: ShareCard::KIND_COMPARE,
-            headline: ShareText::COMPARE_TITLE,
-            detail: ShareText::compareDetail($years[0], $years[1]),
-            description: ShareText::COMPARE_DESCRIPTION,
+            headline: ShareText::compareTitle($per),
+            detail: ShareText::compareDetail($years[0], $years[1], $per),
+            description: ShareText::compareDescription($per),
             pageQuery: $pageQuery,
             cardQuery: $cardQuery,
             cacheKey: self::cacheKey($dataset, $cardQuery),
             rows: $rows,
-            title: ShareText::COMPARE_TITLE,
-            note: ShareText::COMPARE_NOTE,
-            imageAlt: ShareText::COMPARE_ALT,
-            shareText: ShareText::COMPARE_SHARE_TEXT,
-            emailSubject: ShareText::COMPARE_TITLE,
-            downloadName: 'us-debt-presidential-terms.png',
+            title: ShareText::compareTitle($per),
+            note: ShareText::compareNote($per),
+            imageAlt: ShareText::compareAlt($per),
+            shareText: ShareText::compareShareText($per),
+            emailSubject: ShareText::compareTitle($per),
+            downloadName: $per->isTotal() ? 'us-debt-presidential-terms.png' : 'us-debt-per-' . $per->value . '-presidential-terms.png',
+            per: $per,
         );
     }
 
+    /** Query parts joined with "&", empty parts left out. */
+    private static function join(string ...$parts): string
+    {
+        return implode('&', array_filter($parts, static fn (string $p): bool => $p !== ''));
+    }
+
+    /** The site name is drawn on the card, so a new name gets new cards. */
     private static function cacheKey(DebtDataset $dataset, string $cardQuery): string
     {
-        return hash('sha256', self::RENDER_VERSION . '|' . $dataset->savedOn() . '|' . $cardQuery);
+        return hash('sha256', self::RENDER_VERSION . '|' . SiteConfig::NAME . '|' . $dataset->savedOn() . '|' . $cardQuery);
     }
 }

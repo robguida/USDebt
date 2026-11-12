@@ -16,6 +16,7 @@ use USDebt\Exception\DataUnavailableException;
 use USDebt\Http\Response;
 use USDebt\Model\DebtDataset;
 use USDebt\Model\DebtEntry;
+use USDebt\Model\Per;
 use USDebt\Service\CardCache;
 use USDebt\Service\CardRenderer;
 use USDebt\Service\CompareService;
@@ -28,6 +29,7 @@ use USDebt\Service\ShareCardBuilder;
 use USDebt\Service\ShareLinks;
 use USDebt\Service\ShareText;
 use USDebt\Tests\Support\FakeHttpFetcher;
+use USDebt\SiteConfig;
 use USDebt\Tests\Support\TempDir;
 
 /**
@@ -264,7 +266,8 @@ final class ShareTest extends TestCase
     {
         $meta = self::meta(self::page(['start_date' => '2026-02-30'])->body);
 
-        self::assertSame('U.S. Debt Tracker', $meta['og:title']);
+        // The home page title is the site's name, from its one place.
+        self::assertSame(SiteConfig::NAME, $meta['og:title']);
         self::assertSame(ShareText::HOME_DESCRIPTION, $meta['og:description']);
         self::assertSame(ShareText::HOME_ALT, $meta['og:image:alt']);
         self::assertSame(self::BASE . '/', $meta['og:url']);
@@ -465,7 +468,7 @@ final class ShareTest extends TestCase
         $meta = self::meta($html);
         $share = self::shareMenu($html);
 
-        self::assertSame('U.S. Debt Tracker', $meta['og:title']);
+        self::assertSame(SiteConfig::NAME, $meta['og:title']);
         self::assertSame(ShareText::HOME_DESCRIPTION, $meta['og:description']);
         self::assertSame(self::BASE . '/', $share['url']);
         self::assertStringStartsWith('U.S. debt grew $', $share['attrs']['data-text']);
@@ -715,6 +718,70 @@ final class ShareTest extends TestCase
         // Through card.php too.
         $cards = new CardController($source, $compare, $renderer, null);
         self::assertPng($cards->handle(['compare' => implode(',', array_keys($terms))]));
+    }
+
+    // ---------- Your Share cards (per person, per household) ----------
+
+    public function testCardForPerPersonAndPerHouseholdViews(): void
+    {
+        self::requireGd();
+        $dir = $this->makeTempDir() . '/cards';
+        $cards = $this->cards(null, $dir);
+        $range = ['start_date' => '2009-01-20', 'end_date' => '2017-01-19'];
+        $all = implode(',', array_keys(PresidentService::getPresidentConfig()));
+
+        foreach (['person', 'household'] as $per) {
+            self::assertPng($cards->handle($range + ['per' => $per]));
+            self::assertPng($cards->handle($range + ['per' => $per, 'trend' => '0']));
+            self::assertPng($cards->handle(['start_date' => '2026-11-09', 'end_date' => '2026-11-09', 'per' => $per]), 'one day');
+            self::assertPng($cards->handle(['compare' => $all, 'per' => $per]));
+        }
+        self::assertCount(8, self::cardFiles($dir), 'each view is its own cached card');
+        self::assertPlainError(400, $cards->handle(['compare' => self::CLINTON, 'per' => 'person']));
+
+        // Words and layout: the per words are drawn, the site name comes from its one place, and it all fits.
+        $source = FrontControllerTest::source();
+        $renderer = new CardRenderer('usdebt.bengusa.pro');
+        $builder = new ShareCardBuilder(new CompareService());
+        $card = $builder->forRange($source->load(), new DateTimeImmutable('2009-01-20'), new DateTimeImmutable('2017-01-19'), true, true, Per::Person);
+        self::assertNotNull($card);
+        self::assertStringStartsWith('U.S. debt per person grew $', $card->headline);
+        self::assertStringContainsString('&per=person', $card->cardQuery);
+        self::assertSame('us-debt-per-person-2009-01-26-to-2017-01-16.png', $card->downloadName);
+        $renderer->render($card);
+        $layout = $renderer->lastLayout();
+        self::assertSame([SiteConfig::NAME], array_column(self::boxes($layout, 'site'), 'text'));
+        self::assertSame([ShareText::perNote(Per::Person)], array_column(self::boxes($layout, 'note'), 'text'));
+        self::assertContains(ShareText::SOURCE_PER, array_column(self::boxes($layout, 'footer'), 'text'));
+
+        $compare = $builder->forCompare($source->load(), array_keys(PresidentService::getPresidentConfig()), true, Per::Household);
+        self::assertNotNull($compare);
+        self::assertSame('U.S. debt per household across presidential terms', $compare->headline);
+        foreach ($compare->rows as $row) {
+            self::assertLessThan(1_000_000, abs($row['change']), 'rows are per household, in dollars');
+        }
+        $renderer->render($compare);
+        self::assertCardFits($renderer->lastLayout(), count($compare->rows), false);
+    }
+
+    public function testPerShareWordsStayNeutral(): void
+    {
+        $a = new DebtEntry('2009-01-20', 35_000.0);
+        $b = new DebtEntry('2017-01-19', 61_000.0);
+        foreach ([Per::Person, Per::Household] as $per) {
+            $words = [ShareText::rangeHeadline($a, $b, $per), ShareText::rangeTitle($a, $b, $per), ShareText::rangeDescription($a, $b, $per),
+                ShareText::rangeAlt($a, $b, $per), ShareText::rangeShareText($a, $b, $per), ShareText::compareTitle($per),
+                ShareText::compareDescription($per), ShareText::compareShareText($per), ShareText::compareAlt($per),
+                ShareText::compareNote($per), ShareText::perNote($per), ShareText::method($per, null)];
+            foreach ($words as $text) {
+                self::assertDoesNotMatchRegularExpression('/\b(under|because|thanks to|blame|record|surge|crisis|Democrat|Republican|owe|your fault)\b/i', $text);
+            }
+        }
+        self::assertSame('U.S. debt per person grew $26,000.00 from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b, Per::Person));
+        self::assertSame('Change in debt per household during each term, 1993 to 2026', ShareText::compareDetail(1993, 2026, Per::Household));
+        // The total words are unchanged.
+        self::assertSame('U.S. debt grew $26,000.00 from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b));
+        self::assertSame('Change in debt during each term, 1993 to 2026', ShareText::compareDetail(1993, 2026));
     }
 
     /**

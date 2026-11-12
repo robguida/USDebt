@@ -18,7 +18,11 @@ use USDebt\Model\DebtEntry;
  * - The projection carries the same straight line past the last reported day:
  *   25% of the shown range, at least PROJECTION_MIN_DAYS, at most
  *   PROJECTION_MAX_DAYS (12 months). One point per calendar day.
- * - Chart values are in trillions of U.S. dollars, like ChartData.
+ * - Chart values are in trillions of U.S. dollars, like ChartData, by
+ *   default. Pass $unit = 1.0 for plain dollars (the per person and per
+ *   household views, whose values are a few hundred thousand dollars at most).
+ *   The line is fitted on the values as given, so for those views it is
+ *   fitted on the per person (or per household) series the chart draws.
  *
  * growth() adds a second, curved line next to the straight one: steady
  * percent growth, value = A * e^(k * t), with t in calendar days. It uses the
@@ -91,9 +95,9 @@ final class TrendService
      *   line's value on first_date. fitted has one point per entry, oldest first,
      *   on the same dates as the chart. projection starts the day after last_date.
      */
-    public static function daily(array $entries): ?array
+    public static function daily(array $entries, float $unit = self::TRILLION): ?array
     {
-        $fit = self::fitDays($entries);
+        $fit = self::fitDays($entries, $unit);
         if ($fit === null) {
             return null;
         }
@@ -147,9 +151,9 @@ final class TrendService
      *   chart (a skipped day still gets the curve's value). projection uses
      *   the same days as the straight line's projection.
      */
-    public static function growth(array $entries): ?array
+    public static function growth(array $entries, float $unit = self::TRILLION): ?array
     {
-        $curve = self::fitGrowthDays($entries);
+        $curve = self::fitGrowthDays($entries, $unit);
         if ($curve === null) {
             return null;
         }
@@ -187,22 +191,22 @@ final class TrendService
      *
      * @param list<DebtEntry> $entries  Any order.
      */
-    public static function growthPctPerYear(array $entries): ?float
+    public static function growthPctPerYear(array $entries, float $unit = self::TRILLION): ?float
     {
-        $curve = self::fitGrowthDays($entries);
+        $curve = self::fitGrowthDays($entries, $unit);
         return $curve === null ? null : self::annualGrowthPct($curve['k']);
     }
 
     /**
-     * Slope of the date-range trend line only, in trillions of dollars per
-     * calendar day; null when there is no line. Same line as daily(), without
+     * Slope of the date-range trend line only, in $unit (default trillions of
+     * dollars) per calendar day; null when there is no line. Same line as daily(), without
      * building the fitted points or the projection (for the Stats tab).
      *
      * @param list<DebtEntry> $entries  Any order.
      */
-    public static function slopePerDay(array $entries): ?float
+    public static function slopePerDay(array $entries, float $unit = self::TRILLION): ?float
     {
-        $fit = self::fitDays($entries);
+        $fit = self::fitDays($entries, $unit);
         return $fit === null ? null : $fit['line']['slope'];
     }
 
@@ -213,7 +217,7 @@ final class TrendService
      * @return array{entries: list<DebtEntry>, points: list<array{0: int, 1: float}>,
      *               line: array{slope: float, intercept: float, r2: float}}|null
      */
-    private static function fitDays(array $entries): ?array
+    private static function fitDays(array $entries, float $unit): ?array
     {
         usort($entries, static fn (DebtEntry $a, DebtEntry $b): int => strcmp($a->effectiveDate, $b->effectiveDate));
         if (count($entries) < 2) {
@@ -222,7 +226,7 @@ final class TrendService
         $firstDay = self::dayNumber($entries[0]->effectiveDate);
         $points = [];
         foreach ($entries as $entry) {
-            $points[] = [self::dayNumber($entry->effectiveDate) - $firstDay, $entry->totalDebt / self::TRILLION];
+            $points[] = [self::dayNumber($entry->effectiveDate) - $firstDay, $entry->totalDebt / $unit];
         }
         $line = self::fit($points);
         if ($line === null) {
@@ -238,7 +242,7 @@ final class TrendService
      * @param list<DebtEntry> $entries  Any order.
      * @return array{entries: list<DebtEntry>, offsets: list<int>, a: float, k: float, r2: float, skipped: int}|null
      */
-    private static function fitGrowthDays(array $entries): ?array
+    private static function fitGrowthDays(array $entries, float $unit): ?array
     {
         usort($entries, static fn (DebtEntry $a, DebtEntry $b): int => strcmp($a->effectiveDate, $b->effectiveDate));
         if (count($entries) < 2) {
@@ -252,7 +256,7 @@ final class TrendService
         foreach ($entries as $entry) {
             $t = self::dayNumber($entry->effectiveDate) - $firstDay;
             $offsets[] = $t;
-            $value = $entry->totalDebt / self::TRILLION;
+            $value = $entry->totalDebt / $unit;
             if (!is_finite($value) || $value <= 0.0) {
                 $skipped++; // no log of zero or less: leave this day out, keep the rest
                 continue;

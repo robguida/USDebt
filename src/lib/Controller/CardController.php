@@ -24,7 +24,8 @@ use USDebt\Service\ShareText;
  *
  * - Same input as the page, checked the same way (FrontController::readRequest):
  *   ?start_date=&end_date=[&trend=0], or ?compare=<id>,<id>,... No parameters
- *   gives the home page's default range.
+ *   gives the home page's default range. Either can add per=person or
+ *   per=household (anything else is the total).
  * - Drawn from the one daily Treasury copy. Never calls the Treasury itself
  *   beyond the normal once-a-day download that any page view can start.
  * - Saved on disk (CardCache), keyed by the normalized view, so the same view
@@ -91,8 +92,8 @@ final class CardController
 
             $dataset = $this->debtSource->load();
             $card = $request->isCompare()
-                ? $this->shareCards->forCompare($dataset, $request->getComparePres(), $request->showTrend())
-                : $this->shareCards->forRange($dataset, $request->getStartDate(), $request->getEndDate(), $request->showTrend(), true);
+                ? $this->shareCards->forCompare($dataset, $request->getComparePres(), $request->showTrend(), $request->per())
+                : $this->shareCards->forRange($dataset, $request->getStartDate(), $request->getEndDate(), $request->showTrend(), true, $request->per());
             if ($card === null) {
                 return self::error(400, ShareText::CARD_NO_DATA);
             }

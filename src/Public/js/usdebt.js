@@ -1,5 +1,5 @@
 /*
- * Our U.S. Debt - page script.
+ * UsDebt page script.
  *
  * Loaded as a separate file (no inline scripts), so the site can run under a
  * strict Content Security Policy. Chart data comes from the

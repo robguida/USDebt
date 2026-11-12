@@ -1,5 +1,5 @@
 /*
- * Our U.S. Debt - site styles.
+ * UsDebt site styles.
  * Mobile first. Colors live in variables; dark mode swaps them.
  * Red (--trend, --trend-curve) is reserved for the trend lines only. Term lines use the
  * neutral --series-* colors (no party blue or red).

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace USDebt\Service;
 
 use USDebt\Model\DebtEntry;
+use USDebt\Model\Per;
 
 /**
  * JSON-ready arrays for the charts. Values are numbers, not strings.
@@ -21,31 +22,45 @@ use USDebt\Model\DebtEntry;
  * - Compare chart: each president's series carries its own "trend" (or null),
  *   fitted over that series' months in office. No projection, and no growth
  *   curve (one extra line per term would double the lines on that chart).
+ *
+ * Units ("Your Share"): both shapes carry "per" (total, person or household)
+ * and "unit". The total view is in trillions of dollars ("trillion_usd"),
+ * as before. Per person and per household are in plain dollars ("usd"):
+ * each day's debt divided by that day's people or households, and every
+ * trend line, curve, slope and projection is fitted on that scaled series,
+ * so the lines sit on the plotted data. Slopes are in the same unit.
  */
 final class ChartData
 {
-    private const TRILLION = 1_000_000_000_000;
+    /** Series labels per mode: the debt line, and the Compare axis words. */
+    private const DEBT_LABELS = [
+        'total' => 'Total debt (trillions USD)',
+        'person' => 'Debt per person (USD)',
+        'household' => 'Debt per household (USD)',
+    ];
 
     /**
      * Date-range chart.
      *
-     * @param list<DebtEntry> $entries  Oldest first.
-     * @return array{type: string, series: list<array<string, mixed>>}
-     *   Every series has key, label and points = [ISO date, debt in trillions USD].
-     *   "trend" also has slope_per_day (trillions per day) and r2.
-     *   "curve" also has growth_pct_per_year (percent) and r2 (on the dollar scale).
+     * @param list<DebtEntry> $entries  Oldest first. For per person or per
+     *                                  household: already scaled (PopulationService::scale).
+     * @return array{type: string, per: string, unit: string, series: list<array<string, mixed>>}
+     *   Every series has key, label and points = [ISO date, value in the unit].
+     *   "trend" also has slope_per_day (unit per day) and r2.
+     *   "curve" also has growth_pct_per_year (percent) and r2 (on the plotted scale).
      */
-    public static function daily(array $entries): array
+    public static function daily(array $entries, Per $per = Per::Total): array
     {
+        $unit = $per->unitDollars();
         $points = [];
         foreach ($entries as $entry) {
-            $points[] = [$entry->effectiveDate, round($entry->totalDebt / self::TRILLION, 6)];
+            $points[] = [$entry->effectiveDate, round($entry->totalDebt / $unit, $per->isTotal() ? 6 : 2)];
         }
         $series = [
-            ['key' => 'debt', 'label' => 'Total debt (trillions USD)', 'points' => $points],
+            ['key' => 'debt', 'label' => self::DEBT_LABELS[$per->value], 'points' => $points],
         ];
 
-        $trend = TrendService::daily($entries);
+        $trend = TrendService::daily($entries, $unit);
         if ($trend !== null) {
             $series[] = [
                 'key' => 'trend',
@@ -62,7 +77,7 @@ final class ChartData
             ];
         }
 
-        $curve = TrendService::growth($entries);
+        $curve = TrendService::growth($entries, $unit);
         if ($curve !== null) {
             $series[] = [
                 'key' => 'curve',
@@ -79,19 +94,19 @@ final class ChartData
             ];
         }
 
-        return ['type' => 'daily', 'series' => $series];
+        return ['type' => 'daily', 'per' => $per->value, 'unit' => $per->unit(), 'series' => $series];
     }
 
     /**
-     * Compare chart, from CompareService::buildSeries().
+     * Compare chart, from CompareService::buildSeries() (built for the same mode).
      *
      * @param list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>}> $series
-     * @return array{type: string, series: list<array{key: string, label: string, term_starts: list<int>, points: list<array{0: int, 1: float}>,
+     * @return array{type: string, per: string, unit: string, series: list<array{key: string, label: string, term_starts: list<int>, points: list<array{0: int, 1: float}>,
      *               trend: array{slope_per_month: float, r2: float, points: list<array{0: int, 1: float}>}|null}>}
-     *   points = [month in office, change in trillions USD]; term_starts = months where a later term begins.
+     *   points = [month in office, change in the unit]; term_starts = months where a later term begins.
      *   trend = straight line over this series' own points (null with fewer than 2 months).
      */
-    public static function compare(array $series): array
+    public static function compare(array $series, Per $per = Per::Total): array
     {
         $out = [];
         foreach ($series as $i => $s) {
@@ -108,6 +123,12 @@ final class ChartData
                 ],
             ];
         }
-        return ['type' => 'compare', 'series' => $out];
+        return ['type' => 'compare', 'per' => $per->value, 'unit' => $per->unit(), 'series' => $out];
+    }
+
+    /** A chart value (or slope) back to dollars: times 1e12 for "trillion_usd", as-is for "usd". */
+    public static function toDollars(array $chart, float $value): float
+    {
+        return ($chart['unit'] ?? Per::UNIT_TRILLION_USD) === Per::UNIT_USD ? $value : $value * 1_000_000_000_000;
     }
 }
