@@ -14,7 +14,7 @@ use USDebt\Model\ShareCard;
  * Draws the share picture card: a 1200x630 PNG (the size social sites use for
  * a large link preview), with PHP gd and the self-hosted DejaVu Sans font.
  *
- * Layout: site name, headline, one detail line, then
+ * Layout: site name, headline, one detail line (plus a small note on Compare), then
  * - date range: a small line chart of the days in the range (x = calendar
  *   day, like the page chart) with the straight trend line in red when it is on;
  * - Compare: one row per term with a bar for its debt change.
@@ -103,6 +103,13 @@ final class CardRenderer
         foreach (array_slice($this->wrap($card->detail, $this->regular, 18, $width), 0, 2) as $line) {
             $this->text($img, $this->regular, 18, self::PAD, $y, self::MUTED, $line);
             $y += 30;
+        }
+        // Small note (Compare: terms are shown for reference only).
+        if ($card->note !== '') {
+            foreach (array_slice($this->wrap($card->note, $this->regular, 15, $width), 0, 2) as $line) {
+                $this->text($img, $this->regular, 15, self::PAD, $y, self::MUTED, $line);
+                $y += 24;
+            }
         }
 
         // Footer.

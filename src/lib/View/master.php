@@ -13,6 +13,7 @@
  * @var bool   $show_trend       Trend line on (false when the URL says trend=0).
  * @var array{title: string, description: string, url: string, image: string, image_alt: string} $share
  *        Link preview tags: plain text and absolute links from the configured site address.
+ * @var string $share_menu       Already-rendered HTML (Share button and menu, share_menu.php) or ''.
  */
 
 use USDebt\Service\Html;
@@ -76,9 +77,14 @@ $home_href = $show_trend ? './' : './?trend=0';
     <section class="card results" id="results" aria-labelledby="results-title" tabindex="-1">
         <div class="card-head">
             <h2 id="results-title" class="card-title"><?php echo Html::e($results_heading !== '' ? $results_heading : 'The debt over time'); ?></h2>
-            <?php if ($trend_toggle) { ?>
-            <?php /* hidden until the page script runs: without it there is no chart to switch */ ?>
-            <button type="button" class="btn btn-quiet btn-toggle" id="trend_toggle" aria-pressed="<?php echo $show_trend ? 'true' : 'false'; ?>" hidden>Trend line<span class="toggle-state" aria-hidden="true">: <?php echo $show_trend ? 'On' : 'Off'; ?></span></button>
+            <?php if ($trend_toggle || $share_menu !== '') { ?>
+            <div class="card-actions">
+                <?php if ($trend_toggle) { ?>
+                <?php /* hidden until the page script runs: without it there is no chart to switch */ ?>
+                <button type="button" class="btn btn-quiet btn-toggle" id="trend_toggle" aria-pressed="<?php echo $show_trend ? 'true' : 'false'; ?>" hidden>Trend line<span class="toggle-state" aria-hidden="true">: <?php echo $show_trend ? 'On' : 'Off'; ?></span></button>
+                <?php } ?>
+                <?php echo $share_menu; ?>
+            </div>
             <?php } ?>
         </div>
         <?php echo $results; ?>

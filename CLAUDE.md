@@ -2,7 +2,7 @@
 
 Source of truth for anyone (human or tool) working on this project.
 Owner: Rob Guida (RandBMedia, his own company; not a client project).
-Last updated: 2026-11-12 (matches branch USD-5-curved-trend).
+Last updated: 2026-11-12 (matches branch USD-6-share-card).
 
 ## 1. What it is
 
@@ -45,7 +45,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
     - **k.** `Service/ValidateDateTime.php` — date checks.
     - **l.** `Http/` (`HttpFetcher`, `NativeHttpFetcher`, `Response`) and `Exception/` — the HTTP fetcher and the error types.
     - **m.** `Data/debt_seed_1993.json` — debt for 1993-01-04 to 1993-03-31, before the API's first day.
-    - **n.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`.
+    - **n.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`, `share_menu.php` (Share button and menu).
 3. `src/var/cache/` — the saved Treasury copy. `src/var/log-markers/` — private (0700) "already logged" markers, next to the cache folder. Both gitignored. Never web-served.
 4. Top level, not shipped: `composer.json`, `composer.lock`, `composer.phar`, `composer.phar.sha256`, `phpunit.xml`, `tests/`, `docs/`, this file.
 5. Stray untracked files at the top (`index.php`, `scratch.php`) are not part of this app. Do not ship them or commit them without Rob's say-so.
@@ -73,6 +73,10 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 3. Colours come from CSS variables in `css/usdebt.css`. Term lines use neutral colours. Red (`--trend`, and darker `--trend-curve`) is reserved for the date-range trend lines and their projections.
 4. Compare is labelled "View by presidential term", with the caption that Congress sets spending and taxes and terms are shown for reference only.
 5. Quick ranges (1M, 1Y, 5Y, This term) are plain links. They are month-end safe: Mar 31 minus one month gives Feb 28 or 29, never Mar 3.
+6. Share button (chart card header, next to "Trend line"): a `<details>` menu, so it works with JavaScript off.
+    - **a.** Shares the view's own GET link (the same as og:url), with the trend choice. After a Compare form post it is the `?compare=` link.
+    - **b.** Copy link, Download picture (`card.php`, same site), a card preview, and plain links to X, Facebook, LinkedIn, Reddit and email. No scripts from social sites. Phones with a system share sheet get "Share with an app" first.
+    - **c.** Every word is in `Service/ShareText.php`; the share links are built in `Service/ShareLinks.php` and again in `js/usdebt.js` when the trend switch changes (checked by `tests/js/share-url.check.js`).
 
 ## 6. Trend line and projection
 

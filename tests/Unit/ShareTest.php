@@ -201,8 +201,12 @@ final class ShareTest extends TestCase
 
         self::assertSame('website', $meta['og:type']);
         self::assertSame('Our U.S. Debt', $meta['og:site_name']);
-        self::assertStringStartsWith('U.S. debt grew $', $meta['og:title']);
-        self::assertStringContainsString(ShareText::SOURCE, $meta['og:description']);
+        self::assertSame('U.S. debt, ' . self::short($first) . ' to ' . self::short($last), $meta['og:title']);
+        self::assertMatchesRegularExpression('/^Debt grew \$[0-9.]+ trillion over this period\. Daily U\.S\. Treasury data\.$/', $meta['og:description']);
+        self::assertMatchesRegularExpression(
+            '/^' . preg_quote('Chart of U.S. debt from ' . self::short($first) . ' to ' . self::short($last) . '. Debt grew $', '/') . '[0-9.]+ trillion\.$/',
+            $meta['og:image:alt'],
+        );
         self::assertSame(self::BASE . '/?start_date=2020-01-01&end_date=2026-11-09', $meta['og:url']);
         // The card link uses the first and last day that has data.
         self::assertSame(self::BASE . "/card.php?start_date={$first}&end_date={$last}", $meta['og:image']);
@@ -210,7 +214,7 @@ final class ShareTest extends TestCase
         self::assertSame('summary_large_image', $meta['twitter:card']);
         self::assertSame($meta['og:title'], $meta['twitter:title']);
         self::assertSame($meta['og:image'], $meta['twitter:image']);
-        self::assertStringStartsWith($meta['og:title'], $meta['og:image:alt']);
+        self::assertSame($meta['og:image:alt'], $meta['twitter:image:alt']);
         foreach (['og:url', 'og:image', 'twitter:image'] as $link) {
             self::assertStringStartsWith(self::BASE . '/', $meta[$link], $link);
         }
@@ -241,20 +245,238 @@ final class ShareTest extends TestCase
         // Term order, no duplicates, whatever order they were sent in.
         self::assertSame(self::BASE . '/?compare=' . self::CLINTON . ',' . self::BUSH, $meta['og:url']);
         self::assertSame(self::BASE . '/card.php?compare=' . self::CLINTON . ',' . self::BUSH, $meta['og:image']);
-        self::assertSame(ShareText::COMPARE_TITLE, $meta['og:title']);
-        self::assertStringContainsString('Bill Clinton (1993-2001): +$', $meta['og:description']);
-        self::assertStringContainsString(ShareText::COMPARE_CAPTION, $meta['og:description']);
+        self::assertSame('U.S. debt across presidential terms', $meta['og:title']);
+        self::assertSame(
+            'Change in debt during each term, side by side. Congress sets spending and taxes; terms are shown for reference only.',
+            $meta['og:description'],
+        );
+        self::assertSame(ShareText::COMPARE_ALT, $meta['og:image:alt']);
     }
 
     public function testErrorPageGetsTheSiteWidePreview(): void
     {
         $meta = self::meta(self::page(['start_date' => '2026-02-30'])->body);
 
-        self::assertSame(ShareText::SITE_NAME, $meta['og:title']);
-        self::assertSame(ShareText::SITE_DESCRIPTION, $meta['og:description']);
+        self::assertSame('U.S. Debt Tracker', $meta['og:title']);
+        self::assertSame(ShareText::HOME_DESCRIPTION, $meta['og:description']);
+        self::assertSame(ShareText::HOME_ALT, $meta['og:image:alt']);
         self::assertSame(self::BASE . '/', $meta['og:url']);
         self::assertSame(self::BASE . '/card.php', $meta['og:image']);
         self::assertSame('summary_large_image', $meta['twitter:card']);
+    }
+
+    // ---------- Share button and menu ----------
+
+    /**
+     * The Share menu's parts.
+     *
+     * @return array{menu: string, attrs: array<string, string>, url: string, links: array<string, string>, tags: array<string, string>, download: array<string, string>, thumb: array<string, string>}
+     */
+    private static function shareMenu(string $html): array
+    {
+        self::assertSame(1, preg_match('#<details class="share" id="share_menu"([^>]*)>(.*?)</details>#s', $html, $m), 'one Share menu');
+        [, $attrText, $menu] = $m;
+        $decode = static fn (string $v): string => html_entity_decode($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $attrsOf = static function (string $tag) use ($decode): array {
+            preg_match_all('#([a-z-]+)="([^"]*)"#', $tag, $pairs, PREG_SET_ORDER);
+            $out = [];
+            foreach ($pairs as [, $k, $v]) {
+                $out[$k] = $decode($v);
+            }
+            return $out;
+        };
+        self::assertSame(1, preg_match('#<input type="text" class="share-url" id="share_url"[^>]*>#', $menu, $input));
+        self::assertSame(1, preg_match('#<a class="share-item" id="share_download"[^>]*>#', $menu, $download));
+        self::assertSame(1, preg_match('#<img class="share-thumb"[^>]*>#', $menu, $thumb));
+        preg_match_all('#<a class="share-item" data-share="([a-z]+)"[^>]*>#', $menu, $found, PREG_SET_ORDER);
+        $links = [];
+        $tags = [];
+        foreach ($found as [$tag, $key]) {
+            $links[$key] = $attrsOf($tag)['href'];
+            $tags[$key] = $tag;
+        }
+        return [
+            'menu' => $menu,
+            'attrs' => $attrsOf($attrText),
+            'url' => $attrsOf($input[0])['value'],
+            'links' => $links,
+            'tags' => $tags,
+            'download' => $attrsOf($download[0]),
+            'thumb' => $attrsOf($thumb[0]),
+        ];
+    }
+
+    public function testRangePageHasAShareButtonAndMenu(): void
+    {
+        $html = self::page(['start_date' => '2009-01-20', 'end_date' => '2017-01-19'])->body;
+        $meta = self::meta($html);
+        $share = self::shareMenu($html);
+
+        // The button sits in the chart card's header, next to the Trend line switch.
+        self::assertMatchesRegularExpression('#<div class="card-actions">\s*<button[^>]*id="trend_toggle"[^>]*>.*?</button>\s*<details class="share" id="share_menu"#s', $html);
+        self::assertStringContainsString('<summary class="btn btn-quiet share-button">Share</summary>', $share['menu']);
+        foreach (['Share this view', 'Copy link', 'Download picture', 'Share to X', 'Share to Facebook', 'Share to LinkedIn', 'Share to Reddit', 'Share by email'] as $label) {
+            self::assertStringContainsString('>' . $label . '<', $share['menu'], $label);
+        }
+
+        // The link to share is the view's own GET link: the same as og:url.
+        self::assertSame(self::BASE . '/?start_date=2009-01-20&end_date=2017-01-19', $meta['og:url']);
+        self::assertSame($meta['og:url'], $share['url']);
+        self::assertStringContainsString('<label class="sr-only" for="share_url">', $share['menu']);
+        self::assertStringContainsString(' readonly', $share['menu']);
+
+        // Plain links with the encoded link and share text: no scripts from the social sites.
+        $text = $share['attrs']['data-text'];
+        // The words use the first and last day that has data (the same days as the card).
+        parse_str((string) parse_url($meta['og:image'], PHP_URL_QUERY), $days);
+        $span = self::short($days['start_date']) . ' to ' . self::short($days['end_date']);
+        self::assertMatchesRegularExpression('/^U\.S\. debt grew \$[0-9.]+ trillion from ' . preg_quote($span, '/') . '\.$/', $text);
+        self::assertSame('U.S. debt, ' . $span, $share['attrs']['data-subject']);
+        self::assertSame(ShareLinks::networks($meta['og:url'], $text, $share['attrs']['data-subject']), $share['links']);
+        $encodedUrl = 'https%3A%2F%2Fusdebt.bengusa.pro%2F%3Fstart_date%3D2009-01-20%26end_date%3D2017-01-19';
+        self::assertSame('https://x.com/intent/tweet?text=' . rawurlencode($text) . '&url=' . $encodedUrl, $share['links']['x']);
+        self::assertSame('https://www.facebook.com/sharer/sharer.php?u=' . $encodedUrl, $share['links']['facebook']);
+        self::assertSame('https://www.linkedin.com/sharing/share-offsite/?url=' . $encodedUrl, $share['links']['linkedin']);
+        self::assertSame('https://www.reddit.com/submit?url=' . $encodedUrl . '&title=' . rawurlencode($text), $share['links']['reddit']);
+        self::assertSame(
+            'mailto:?subject=' . rawurlencode('U.S. debt, ' . $span) . '&body=' . rawurlencode($text) . '%20' . $encodedUrl
+            . '%0A%0AData%3A%20U.S.%20Treasury%2C%20Debt%20to%20the%20Penny.',
+            $share['links']['email'],
+        );
+        foreach (['x', 'facebook', 'linkedin', 'reddit'] as $key) {
+            self::assertStringContainsString(' target="_blank" rel="noopener noreferrer"', $share['tags'][$key], $key);
+        }
+        self::assertStringNotContainsString('target=', $share['tags']['email']);
+
+        // Download picture and the preview: the card for this view, on this site.
+        $card = 'card.php?' . parse_url($meta['og:image'], PHP_URL_QUERY);
+        self::assertSame($card, $share['download']['href']);
+        self::assertSame('us-debt-' . $days['start_date'] . '-to-' . $days['end_date'] . '.png', $share['download']['download']);
+        self::assertSame($card, $share['thumb']['src']);
+        self::assertSame('lazy', $share['thumb']['loading']);
+        self::assertSame($meta['og:image:alt'], $share['thumb']['alt']);
+        self::assertSame(['1200', '630'], [$share['thumb']['width'], $share['thumb']['height']]);
+        self::assertSame('1', $share['attrs']['data-card-trend'], 'a range card follows the trend switch');
+
+        // Script-only parts start hidden; nothing inline.
+        self::assertStringContainsString('id="share_copy" hidden', $share['menu']);
+        self::assertStringContainsString('id="share_native" hidden', $share['menu']);
+        self::assertDoesNotMatchRegularExpression('#<script|\son[a-z]+\s*=|\sstyle\s*=|javascript:#i', $share['menu']);
+    }
+
+    public function testShareMenuAfterAComparePostSharesTheGetLink(): void
+    {
+        $html = self::page([], ['submit' => 'Compare', 'compare_pres' => [self::BUSH, self::CLINTON]])->body;
+        $meta = self::meta($html);
+        $share = self::shareMenu($html);
+        $link = self::BASE . '/?compare=' . self::CLINTON . ',' . self::BUSH;
+
+        self::assertSame($link, $meta['og:url']);
+        self::assertSame($link, $share['url']);
+        self::assertStringContainsString('url=' . rawurlencode($link), $share['links']['x']);
+        self::assertSame('How the U.S. debt changed across presidential terms.', $share['attrs']['data-text']);
+        self::assertSame('U.S. debt across presidential terms', $share['attrs']['data-subject']);
+        self::assertSame('card.php?compare=' . self::CLINTON . ',' . self::BUSH, $share['download']['href']);
+        self::assertSame('us-debt-presidential-terms.png', $share['download']['download']);
+        self::assertSame(ShareText::COMPARE_ALT, $share['thumb']['alt']);
+        self::assertSame('0', $share['attrs']['data-card-trend'], 'the Compare card has no trend line');
+    }
+
+    public function testCompareCardWordsUseTheYearsThatHaveData(): void
+    {
+        $source = FrontControllerTest::sourceOf(
+            new DebtEntry('1993-03-01', 4.2e12),
+            new DebtEntry('2000-12-29', 5.6e12),
+            new DebtEntry('2001-02-01', 5.7e12),
+            new DebtEntry('2008-12-31', 10.7e12),
+        );
+        $card = (new ShareCardBuilder(new CompareService()))->forCompare($source->load(), [(int) self::CLINTON, (int) self::BUSH], true);
+
+        self::assertNotNull($card);
+        self::assertSame('U.S. debt across presidential terms', $card->headline);
+        self::assertSame('Change in debt during each term, 1993 to 2008', $card->detail);
+        self::assertSame('Congress sets spending and taxes. Terms are shown for reference only.', $card->note);
+        self::assertFalse($card->cardTrendMatters);
+    }
+
+    public function testShareMenuKeepsTheTrendSwitch(): void
+    {
+        $html = self::page(['start_date' => '2026-01-01', 'end_date' => '2026-11-09', 'trend' => '0'])->body;
+        $share = self::shareMenu($html);
+
+        self::assertStringEndsWith('&trend=0', $share['url']);
+        self::assertStringEndsWith('%26trend%3D0', $share['links']['facebook']);
+        self::assertStringEndsWith('&trend=0', $share['download']['href']);
+    }
+
+    public function testHomePageSharesTheHomeLinkWithTheRangeWords(): void
+    {
+        $html = FrontControllerTest::app(self::recentSource())->handle([], [])->body;
+        $meta = self::meta($html);
+        $share = self::shareMenu($html);
+
+        self::assertSame('U.S. Debt Tracker', $meta['og:title']);
+        self::assertSame(ShareText::HOME_DESCRIPTION, $meta['og:description']);
+        self::assertSame(self::BASE . '/', $share['url']);
+        self::assertStringStartsWith('U.S. debt grew $', $share['attrs']['data-text']);
+    }
+
+    public function testNoShareMenuWithoutSomethingToShare(): void
+    {
+        self::assertStringNotContainsString('share_menu', self::page(['start_date' => '2026-02-30'])->body, 'error page');
+        self::assertStringNotContainsString('share_menu', self::page(['start_date' => '1990-01-01', 'end_date' => '1990-02-01'])->body, 'no data');
+    }
+
+    public function testScriptBuildsTheSameShareLinksAsTheServer(): void
+    {
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Public/js/usdebt.js');
+        // No social-site scripts or SDKs, the Clipboard API with a fallback, Esc closes, the phone's share sheet.
+        foreach (['platform.twitter.com', 'connect.facebook.net', 'platform.linkedin.com', 'embed.reddit'] as $sdk) {
+            self::assertStringNotContainsString($sdk, $js);
+        }
+        self::assertStringContainsString('navigator.clipboard.writeText', $js);
+        self::assertStringContainsString("document.execCommand('copy')", $js);
+        self::assertStringContainsString("e.key === 'Escape'", $js);
+        self::assertStringContainsString("typeof navigator.share === 'function'", $js);
+        self::assertStringContainsString("document.querySelector('meta[property=\"og:url\"]')", $js);
+
+        $node = self::findNode();
+        if ($node === null) {
+            self::markTestSkipped('Node is not installed; the static checks above still ran.');
+        }
+        $pages = [];
+        $views = [
+            'range' => [['start_date' => '2009-01-20', 'end_date' => '2017-01-19'], [], true],
+            'range, trend off' => [['start_date' => '2009-01-20', 'end_date' => '2017-01-19', 'trend' => '0'], [], false],
+            'compare post' => [[], ['submit' => 'Compare', 'compare_pres' => [self::CLINTON, self::BUSH]], true],
+            'compare link, trend off' => [['compare' => self::CLINTON . ',' . self::BUSH, 'trend' => '0'], [], false],
+        ];
+        foreach ($views as $name => [$query, $post, $trendOn]) {
+            $html = self::page($query, $post)->body;
+            $share = self::shareMenu($html);
+            $pages[] = [
+                'name' => $name,
+                'ogUrl' => self::meta($html)['og:url'],
+                'trendOn' => $trendOn,
+                'text' => $share['attrs']['data-text'],
+                'subject' => $share['attrs']['data-subject'],
+                'note' => $share['attrs']['data-note'],
+                'links' => $share['links'],
+            ];
+        }
+        $file = $this->makeTempDir() . '/share-pages.json';
+        file_put_contents($file, json_encode($pages, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $check = dirname(__DIR__) . '/js/share-url.check.js';
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($check) . ' ' . escapeshellarg($file) . ' 2>&1', $output, $code);
+        self::assertSame(0, $code, implode("\n", $output));
+    }
+
+    private static function findNode(): ?string
+    {
+        $finder = DIRECTORY_SEPARATOR === '\\' ? 'where node 2>NUL' : 'command -v node 2>/dev/null';
+        $found = trim((string) shell_exec($finder));
+        $first = $found === '' ? '' : trim(strtok($found, "\r\n"));
+        return $first !== '' && is_file($first) ? $first : null;
     }
 
     public function testBaseUrlComesFromConfigurationNeverFromTheHostHeader(): void
@@ -324,14 +546,57 @@ final class ShareTest extends TestCase
         $a = new DebtEntry('2009-01-20', 10.63e12);
         $b = new DebtEntry('2017-01-19', 19.95e12);
 
-        self::assertSame('U.S. debt grew $9.32 trillion from Jan 20, 2009 to Jan 19, 2017', ShareText::rangeHeadline($a, $b));
-        self::assertSame('U.S. debt fell $9.32 trillion from Jan 19, 2017 to Jan 20, 2009', ShareText::rangeHeadline(
-            new DebtEntry('2017-01-19', 19.95e12),
-            new DebtEntry('2009-01-20', 10.63e12),
-        ));
-        self::assertSame('U.S. debt did not change from Jan 20, 2009 to Jan 19, 2017', ShareText::rangeHeadline($a, new DebtEntry('2017-01-19', 10.63e12)));
-        self::assertSame('U.S. debt was $10.63 trillion on Jan 20, 2009', ShareText::rangeHeadline($a, $a));
-        self::assertSame('From $10.63 trillion to $19.95 trillion.', ShareText::rangeDetail($a, $b));
+        $down = [new DebtEntry('2017-01-19', 19.95e12), new DebtEntry('2009-01-20', 10.63e12)];
+        $flat = new DebtEntry('2017-01-19', 10.63e12);
+
+        // Card headline and the line under it.
+        self::assertSame('U.S. debt grew $9.32 trillion', ShareText::rangeHeadline($a, $b));
+        self::assertSame('U.S. debt fell $9.32 trillion', ShareText::rangeHeadline(...$down));
+        self::assertSame('U.S. debt was about the same', ShareText::rangeHeadline($a, $flat));
+        self::assertSame('U.S. debt: $10.63 trillion', ShareText::rangeHeadline($a, $a));
+        self::assertSame('Jan 20, 2009 to Jan 19, 2017', ShareText::rangeDetail($a, $b));
+        self::assertSame('Jan 20, 2009', ShareText::rangeDetail($a, $a));
+
+        // Share text (the link is added by each site).
+        self::assertSame('U.S. debt grew $9.32 trillion from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $b));
+        self::assertSame('U.S. debt fell $9.32 trillion from Jan 19, 2017 to Jan 20, 2009.', ShareText::rangeShareText(...$down));
+        self::assertSame('U.S. debt was about the same from Jan 20, 2009 to Jan 19, 2017.', ShareText::rangeShareText($a, $flat));
+        self::assertSame('U.S. debt on Jan 20, 2009: $10.63 trillion.', ShareText::rangeShareText($a, $a));
+        self::assertSame('U.S. debt, Jan 20, 2009 to Jan 19, 2017', ShareText::rangeEmailSubject($a, $b));
+        self::assertSame("U.S. debt grew. https://x.test/\n\nData: U.S. Treasury, Debt to the Penny.", ShareText::emailBody('U.S. debt grew.', 'https://x.test/'));
+
+        // Link preview and alt text.
+        self::assertSame('U.S. debt, Jan 20, 2009 to Jan 19, 2017', ShareText::rangeTitle($a, $b));
+        self::assertSame('Debt grew $9.32 trillion over this period. Daily U.S. Treasury data.', ShareText::rangeDescription($a, $b));
+        self::assertSame('Debt was about the same over this period. Daily U.S. Treasury data.', ShareText::rangeDescription($a, $flat));
+        self::assertSame('Chart of U.S. debt from Jan 20, 2009 to Jan 19, 2017. Debt grew $9.32 trillion.', ShareText::rangeAlt($a, $b));
+        self::assertSame('Chart of U.S. debt from Jan 19, 2017 to Jan 20, 2009. Debt fell $9.32 trillion.', ShareText::rangeAlt(...$down));
+
+        // Compare.
+        self::assertSame('Change in debt during each term, 1993 to 2026', ShareText::compareDetail(1993, 2026));
+        self::assertSame('How the U.S. debt changed across presidential terms.', ShareText::COMPARE_SHARE_TEXT);
+        self::assertSame('Congress sets spending and taxes. Terms are shown for reference only.', ShareText::COMPARE_NOTE);
+    }
+
+    public function testShareWordsStayNeutral(): void
+    {
+        $words = [ShareText::HOME_TITLE, ShareText::HOME_DESCRIPTION, ShareText::HOME_ALT, ShareText::COMPARE_TITLE,
+            ShareText::COMPARE_DESCRIPTION, ShareText::COMPARE_NOTE, ShareText::COMPARE_SHARE_TEXT, ShareText::COMPARE_ALT,
+            ShareText::EMAIL_NOTE, ShareText::SOURCE];
+        $a = new DebtEntry('2009-01-20', 10.63e12);
+        $b = new DebtEntry('2017-01-19', 19.95e12);
+        foreach (['rangeHeadline', 'rangeDetail', 'rangeTitle', 'rangeDescription', 'rangeAlt', 'rangeShareText', 'rangeEmailSubject'] as $method) {
+            $words[] = ShareText::$method($a, $b);
+            $words[] = ShareText::$method($b, $a);
+        }
+        foreach ($words as $text) {
+            self::assertDoesNotMatchRegularExpression('/\b(under|because|thanks to|blame|record|surge|crisis|Democrat|Republican)\b/i', $text);
+        }
+    }
+
+    private static function short(string $isoDate): string
+    {
+        return (new DateTimeImmutable($isoDate))->format('M j, Y');
     }
 
     // ---------- The card image ----------

@@ -190,6 +190,8 @@ class USDebtController
             'trend_toggle' => $trendToggle,
             'show_trend' => $requestModel->showTrend(),
             'share' => $this->shareMeta($share),
+            // A page with something to share gets the Share button and menu.
+            'share_menu' => $share === null ? '' : $this->loadFile('share_menu.php', $this->shareMenu($share)),
         ]);
     }
 
@@ -204,19 +206,41 @@ class USDebtController
     {
         if ($share === null) {
             return [
-                'title' => ShareText::SITE_NAME,
-                'description' => ShareText::SITE_DESCRIPTION,
+                'title' => ShareText::HOME_TITLE,
+                'description' => ShareText::HOME_DESCRIPTION,
                 'url' => $this->shareLinks->page(''),
                 'image' => $this->shareLinks->card(''),
-                'image_alt' => ShareText::imageAlt(ShareText::SITE_NAME),
+                'image_alt' => ShareText::HOME_ALT,
             ];
         }
         return [
-            'title' => $share->headline,
+            'title' => $share->title,
             'description' => $share->description,
             'url' => $this->shareLinks->page($share->pageQuery),
             'image' => $this->shareLinks->card($share->cardQuery),
-            'image_alt' => ShareText::imageAlt($share->headline),
+            'image_alt' => $share->imageAlt,
+        ];
+    }
+
+    /**
+     * Everything the Share menu shows. The page link is the same as og:url;
+     * the card links are relative so "Download picture" stays on this site.
+     *
+     * @return array<string, mixed>
+     */
+    private function shareMenu(ShareCard $share): array
+    {
+        $url = $this->shareLinks->page($share->pageQuery);
+        return [
+            'url' => $url,
+            'card_href' => ShareLinks::localCard($share->cardQuery),
+            'card_trend' => $share->cardTrendMatters,
+            'download_name' => $share->downloadName,
+            'image_alt' => $share->imageAlt,
+            'share_text' => $share->shareText,
+            'email_subject' => $share->emailSubject,
+            'email_note' => ShareText::EMAIL_NOTE,
+            'networks' => ShareLinks::networks($url, $share->shareText, $share->emailSubject),
         ];
     }
 

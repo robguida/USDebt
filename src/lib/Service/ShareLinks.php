@@ -83,4 +83,34 @@ final class ShareLinks
     {
         return $this->baseUrl . '/' . self::CARD_PATH . ($query === '' ? '' : '?' . $query);
     }
+
+    /**
+     * The card link on this site, relative ("card.php?..."), for the Share
+     * menu's preview and "Download picture". A browser only honours the
+     * download attribute on a same-site link, so this one is not absolute.
+     */
+    public static function localCard(string $query): string
+    {
+        return self::CARD_PATH . ($query === '' ? '' : '?' . $query);
+    }
+
+    /**
+     * Plain share links for the Share menu: no scripts or SDKs from the
+     * social sites. Every value is percent-encoded (spaces as %20, which
+     * mail apps need). The page script builds the same links again when the
+     * trend switch changes the page link (js/usdebt.js shareHrefs).
+     *
+     * @return array{x: string, facebook: string, linkedin: string, reddit: string, email: string}
+     */
+    public static function networks(string $url, string $text, string $subject): array
+    {
+        $u = rawurlencode($url);
+        return [
+            'x' => 'https://x.com/intent/tweet?text=' . rawurlencode($text) . '&url=' . $u,
+            'facebook' => 'https://www.facebook.com/sharer/sharer.php?u=' . $u,
+            'linkedin' => 'https://www.linkedin.com/sharing/share-offsite/?url=' . $u,
+            'reddit' => 'https://www.reddit.com/submit?url=' . $u . '&title=' . rawurlencode($text),
+            'email' => 'mailto:?subject=' . rawurlencode($subject) . '&body=' . rawurlencode(ShareText::emailBody($text, $url)),
+        ];
+    }
 }

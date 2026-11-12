@@ -574,6 +574,13 @@
             }
         }
 
+        /* the Share menu shares the view as it is shown */
+        try {
+            updateShare(on);
+        } catch (e) {
+            if (window.console) { console.warn('UsDebt: could not update the share links', e); }
+        }
+
         if (remember) {
             try {
                 window.localStorage.setItem(TREND_STORAGE_KEY, on ? '1' : '0');
@@ -601,6 +608,191 @@
         button.addEventListener('click', function () {
             setTrend(!trendOn, true);
         });
+    }
+
+    /* ---------- Share menu ---------- */
+
+    var SHARE_COPIED = 'Link copied';
+    var SHARE_COPY_FAILED = 'Couldn\'t copy the link. Select it and copy it by hand.';
+
+    /* encodeURIComponent, plus !'()* so the links match the server's (PHP rawurlencode) */
+    function encode(value) {
+        return encodeURIComponent(String(value)).replace(/[!'()*]/g, function (c) {
+            return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+        });
+    }
+
+    /*
+     * The link to share: the page's canonical link (og:url, which the server
+     * builds from the configured site address, never from this page's
+     * address), with trend=0 added (off) or removed (on). Only a plain
+     * http(s) link is used; anything else gives null, and the menu keeps the
+     * links the server wrote. The query is edited as text, so "compare=1,2"
+     * keeps its commas.
+     */
+    function shareUrl(canonical, on) {
+        var url;
+        try {
+            url = new URL(String(canonical));
+        } catch (e) {
+            return null;
+        }
+        if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password) {
+            return null;
+        }
+        var params = url.search.replace(/^\?/, '').split('&').filter(function (p) {
+            return p !== '' && p.split('=')[0] !== 'trend';
+        });
+        if (!on) {
+            params.push('trend=0');
+        }
+        return url.origin + url.pathname + (params.length ? '?' + params.join('&') : '');
+    }
+
+    /* Plain share links, the same as the server's (ShareLinks::networks). */
+    function shareHrefs(url, text, subject, note) {
+        var u = encode(url);
+        return {
+            x: 'https://x.com/intent/tweet?text=' + encode(text) + '&url=' + u,
+            facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + u,
+            linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + u,
+            reddit: 'https://www.reddit.com/submit?url=' + u + '&title=' + encode(text),
+            email: 'mailto:?subject=' + encode(subject) + '&body=' + encode(text + ' ' + url + '\n\n' + note)
+        };
+    }
+
+    function shareData(menu) {
+        return {
+            text: menu.getAttribute('data-text') || '',
+            subject: menu.getAttribute('data-subject') || '',
+            note: menu.getAttribute('data-note') || ''
+        };
+    }
+
+    /* Point every link in the Share menu at the view as it is shown (trend on or off). */
+    function updateShare(on) {
+        var menu = document.getElementById('share_menu');
+        if (!menu) {
+            return;
+        }
+        var meta = document.querySelector('meta[property="og:url"]');
+        var url = meta ? shareUrl(meta.getAttribute('content'), on) : null;
+        if (url !== null) {
+            var input = document.getElementById('share_url');
+            if (input) {
+                input.value = url;
+            }
+            var words = shareData(menu);
+            var hrefs = shareHrefs(url, words.text, words.subject, words.note);
+            Array.prototype.forEach.call(menu.querySelectorAll('[data-share]'), function (a) {
+                var href = hrefs[a.getAttribute('data-share')];
+                if (href) {
+                    a.setAttribute('href', href);
+                }
+            });
+        }
+        /* a date-range card draws the trend line, so its link follows the switch */
+        if (menu.getAttribute('data-card-trend') === '1') {
+            var card = withTrend(menu.getAttribute('data-card') || '', on);
+            if (card !== null) {
+                var download = document.getElementById('share_download');
+                var thumb = document.getElementById('share_thumb');
+                if (download) {
+                    download.setAttribute('href', card);
+                }
+                if (thumb && thumb.getAttribute('src') !== card) {
+                    thumb.setAttribute('src', card);
+                }
+            }
+        }
+    }
+
+    function initShare() {
+        var menu = document.getElementById('share_menu');
+        if (!menu) {
+            return;
+        }
+        var summary = menu.querySelector('summary');
+        var input = document.getElementById('share_url');
+        var status = document.getElementById('share_status');
+        var copyButton = document.getElementById('share_copy');
+        var nativeButton = document.getElementById('share_native');
+
+        function say(text) {
+            if (status) {
+                status.textContent = text;
+            }
+        }
+
+        function close(focusSummary) {
+            if (menu.open) {
+                menu.open = false;
+                if (focusSummary && summary) {
+                    summary.focus();
+                }
+            }
+        }
+
+        menu.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' || e.key === 'Esc') {
+                e.preventDefault();
+                close(true);
+            }
+        });
+        document.addEventListener('click', function (e) {
+            if (menu.open && !menu.contains(e.target)) {
+                close(false);
+            }
+        });
+        menu.addEventListener('toggle', function () {
+            if (!menu.open) {
+                say('');
+            }
+        });
+
+        /* Copy link: the Clipboard API, else select the link and try the old copy command. */
+        if (copyButton && input) {
+            var copyByHand = function () {
+                var ok = false;
+                try {
+                    input.focus();
+                    input.select();
+                    ok = document.execCommand ? document.execCommand('copy') : false;
+                } catch (e) {
+                    ok = false;
+                }
+                say(ok ? SHARE_COPIED : SHARE_COPY_FAILED);
+                if (!ok) {
+                    input.focus();
+                    input.select();
+                }
+            };
+            copyButton.hidden = false;
+            copyButton.addEventListener('click', function () {
+                if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+                    navigator.clipboard.writeText(input.value).then(function () { say(SHARE_COPIED); }, copyByHand);
+                } else {
+                    copyByHand();
+                }
+            });
+            input.addEventListener('focus', function () { input.select(); });
+        }
+
+        /* Phones: the system share sheet comes first, when there is one. */
+        var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        if (nativeButton && input && typeof navigator.share === 'function' && coarse) {
+            nativeButton.hidden = false;
+            nativeButton.addEventListener('click', function () {
+                var words = shareData(menu);
+                try {
+                    navigator.share({ title: words.subject, text: words.text, url: input.value }).catch(function () {
+                        /* closed without sharing: nothing to do */
+                    });
+                } catch (e) {
+                    /* not allowed here: the links below still work */
+                }
+            });
+        }
     }
 
     /* ---------- Chart / Stats / Table switch ---------- */
@@ -677,6 +869,7 @@
     function init() {
         initSwitch();
         initSelectAll();
+        initShare();
         initTrendToggle();
         drawChart();
         showTrendButton();

@@ -125,6 +125,33 @@ final class CompareService
         return $series;
     }
 
+    /**
+     * First and last year that has data in the picked terms, for the share
+     * card ("1993 to 2026"). A term still running ends at the latest data.
+     *
+     * @param list<int> $keys  Validated term ids.
+     * @return array{0: int, 1: int}|null  Null when no picked term has data.
+     */
+    public function dataYears(array $keys, DebtDataset $dataset): ?array
+    {
+        $first = null;
+        $last = null;
+        foreach ($keys as $key) {
+            if (!isset($this->terms[$key])) {
+                continue;
+            }
+            $entries = $dataset->between($this->start($key), $this->end($key));
+            if ($entries === []) {
+                continue;
+            }
+            $from = (int) substr($entries[0]->effectiveDate, 0, 4);
+            $to = (int) substr($entries[count($entries) - 1]->effectiveDate, 0, 4);
+            $first = $first === null ? $from : min($first, $from);
+            $last = $last === null ? $to : max($last, $to);
+        }
+        return $first === null || $last === null ? null : [$first, $last];
+    }
+
     private function start(int $key): DateTimeImmutable
     {
         return new DateTimeImmutable($this->terms[$key]['start']);
