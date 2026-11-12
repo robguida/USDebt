@@ -50,6 +50,19 @@ final class Html
         return $sign . '$' . number_format($abs, 2);
     }
 
+    /**
+     * Signed percent with one decimal: "+8.1%", "-2.3%". A value that rounds
+     * to zero is "0.0%", never "+0.0%" or "-0.0%".
+     */
+    public static function signedPercent(float $percent): string
+    {
+        $rounded = round($percent, 1);
+        if ($rounded == 0.0) {
+            return '0.0%';
+        }
+        return ($rounded > 0 ? '+' : '-') . number_format(abs($rounded), 1) . '%';
+    }
+
     /** "Nov 9, 2026" from "2026-11-09". */
     public static function shortDate(string $isoDate): string
     {

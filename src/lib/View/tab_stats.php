@@ -31,8 +31,7 @@ if ($stats['trend_per_day'] !== null) {
 }
 if (($stats['growth_pct_per_year'] ?? null) !== null) {
     // Yearly growth of the growth curve on the chart, in percent.
-    $growth = (float) $stats['growth_pct_per_year'];
-    $rows[] = ['Growth curve', 'About ' . ($growth > 0 ? '+' : '') . number_format($growth, 1) . '% per year'];
+    $rows[] = ['Growth curve', 'About ' . Html::signedPercent((float) $stats['growth_pct_per_year']) . ' per year'];
 }
 ?>
 <dl class="stats-grid">

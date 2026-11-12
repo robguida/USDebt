@@ -131,7 +131,8 @@ final class TrendService
      * The log of a value needs the value to be above zero: a day with a zero,
      * negative or non-finite value is left out of the fit and counted in
      * skipped_points (the other days still count). Fewer than 2 usable days,
-     * or all usable days on one date, gives null.
+     * or all usable days on one date, gives null. So does a curve whose
+     * growth % or projection would not be a finite number (no curve is drawn).
      *
      * @param list<DebtEntry> $entries  Any order.
      * @return array{rate_per_day: float, start_value: float, annual_growth_pct: float, r2: float,
@@ -266,6 +267,19 @@ final class TrendService
         $a = exp($logLine['intercept']);
         $k = $logLine['slope'];
 
+        // A tiny or odd value on a short range can make the curve explode
+        // (e.g. 1e-300 one day and 1e13 the next): its yearly % or its
+        // projection would be infinite, and an infinite number cannot be sent
+        // to the page. Then there is simply no curve; it is never an error.
+        // The curve is largest at one of its two ends, so checking the start
+        // and the last projection day covers every point in between.
+        $lastOffset = $offsets[count($offsets) - 1];
+        $furthest = $lastOffset + self::projectionDays($lastOffset);
+        if (!is_finite($a) || !is_finite($k) || !is_finite(self::annualGrowthPct($k))
+            || !is_finite($a * exp($k * $furthest)) || $a <= 0.0) {
+            return null;
+        }
+
         // r2 on the original scale: how closely the curve follows the real values.
         $mean = array_sum(array_column($usable, 1)) / count($usable);
         $ssTot = 0.0;
@@ -275,6 +289,9 @@ final class TrendService
             $ssRes += ($value - $a * exp($k * $t)) ** 2;
         }
         $r2 = $ssTot == 0.0 ? 1.0 : max(0.0, 1.0 - $ssRes / $ssTot);
+        if (!is_finite($r2)) {
+            return null;
+        }
 
         return ['entries' => $entries, 'offsets' => $offsets, 'a' => $a, 'k' => $k, 'r2' => $r2, 'skipped' => $skipped];
     }
