@@ -14,23 +14,24 @@ if ($stats === null) {
     echo '<p class="message">There is no data for this date range.</p>';
     return;
 }
+
+$delta = (float) $stats['delta'];
+$rows = [
+    ['Starting debt amount', Html::money((float) $stats['first_debt'])],
+    ['Last debt amount of date range', Html::money((float) $stats['last_debt'])],
+    ['Change during the date range', ($delta > 0 ? '+' : '') . Html::money($delta)],
+    ['Average change per day', ($stats['average_per_day'] > 0 ? '+' : '') . Html::money((float) $stats['average_per_day'])],
+    ['Days with reported data*', number_format((int) $stats['working_days']) . ' of ' . number_format((int) $stats['total_days']) . ' calendar days'],
+    ['Days the debt was above the start*', number_format((int) $stats['days_above_start']) . ' (' . $stats['pct_above_start'] . '%)'],
+    ['Days the debt was below the start*', number_format((int) $stats['days_below_start']) . ' (' . $stats['pct_below_start'] . '%)'],
+];
 ?>
-<h3>Starting debt amount</h3>
-<p><?php echo Html::e(Html::money($stats['first_debt'])); ?></p>
-<h3>Last debt amount of date range</h3>
-<p><?php echo Html::e(Html::money($stats['last_debt'])); ?></p>
-<h3>During the given time span, the debt increased</h3>
-<p><?php echo Html::e(Html::money($stats['delta'])); ?></p>
-<h3>This works out to be</h3>
-<p><?php echo Html::e(Html::money($stats['average_per_day'])); ?> per day</p>
-<h3>Days in the date range</h3>
-<p><?php echo Html::e($stats['working_days']); ?> days<sup>*</sup> / <?php echo Html::e($stats['total_days']); ?> total days in range</p>
-<h3>How many days during the given time span, was the debt greater than the starting amount</h3>
-<p><?php echo Html::e($stats['days_above_start']); ?> days<sup>*</sup></p>
-<h3>Percentage of days debt was greater than the start date range</h3>
-<p><?php echo Html::e($stats['pct_above_start']); ?>%</p>
-<h3>How many days during the given time span, was the debt lower than the starting amount</h3>
-<p><?php echo Html::e($stats['days_below_start']); ?> days<sup>*</sup></p>
-<h3>Percentage of days debt was lower than the start date range</h3>
-<p><?php echo Html::e($stats['pct_below_start']); ?>%</p>
-<p class="stats_footer"><sup>*</sup> Includes only days when data is reported.</p>
+<dl class="stats-grid">
+    <?php foreach ($rows as [$label, $value]) { ?>
+    <div class="stats-item">
+        <dt><?php echo Html::e($label); ?></dt>
+        <dd class="num"><?php echo Html::e($value); ?></dd>
+    </div>
+    <?php } ?>
+</dl>
+<p class="footnote">* Counts only days when the Treasury reported data (business days).</p>

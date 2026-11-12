@@ -69,7 +69,7 @@ final class CompareService
      * @param list<int> $keys  Validated term ids (see validateSelection).
      * @return list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>}>
      *   term_starts = x values where a later term begins (empty for one term).
-     *   Not drawn yet; kept for the chart rework, which marks where each later term starts.
+     *   The Compare chart draws a diamond at each one (js/usdebt.js).
      */
     public function buildSeries(array $keys, DebtDataset $dataset): array
     {

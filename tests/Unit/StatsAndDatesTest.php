@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace USDebt\Tests\Unit;
 
+use DateTimeImmutable;
+use DateTimeZone;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use USDebt\Controller\USDebtController;
 use USDebt\Model\DebtEntry;
 use USDebt\Service\ChartData;
+use USDebt\Service\Html;
 use USDebt\Service\StatsCalculator;
 use USDebt\Service\ValidateDateTime;
 
@@ -53,9 +58,33 @@ final class StatsAndDatesTest extends TestCase
     {
         $chart = ChartData::daily([new DebtEntry('2026-11-09', 40559796589243.37)]);
 
-        self::assertSame(['11/9/26'], $chart['labels']);
-        self::assertSame([40.559797], $chart['values']);
-        self::assertSame('[40.559797]', json_encode($chart['values']));
+        self::assertSame('daily', $chart['type']);
+        self::assertSame('debt', $chart['series'][0]['key']);
+        self::assertSame([['2026-11-09', 40.559797]], $chart['series'][0]['points']);
+        self::assertSame('[["2026-11-09",40.559797]]', json_encode($chart['series'][0]['points']));
+    }
+
+    public function testCompareChartDataKeepsTermStarts(): void
+    {
+        $chart = ChartData::compare([
+            ['label' => 'A (2017-2021, 2025-2029)', 'president' => 'A', 'term_starts' => [49], 'data' => [[1, 0.0], [49, 7.5]]],
+            ['label' => 'B (2021-2025)', 'president' => 'B', 'term_starts' => [], 'data' => [[1, 0.0]]],
+        ]);
+
+        self::assertSame('compare', $chart['type']);
+        self::assertSame(['term1', 'term2'], array_column($chart['series'], 'key'));
+        self::assertSame([49], $chart['series'][0]['term_starts']);
+        self::assertSame([[1, 0.0], [49, 7.5]], $chart['series'][0]['points']);
+        self::assertArrayNotHasKey('color', $chart['series'][0], 'colors come from the stylesheet, not the data');
+    }
+
+    public function testCompactMoney(): void
+    {
+        self::assertSame('$38.12 trillion', Html::compactMoney(38_123_456_789_012.0));
+        self::assertSame('+$6.04 billion', Html::compactMoney(6_041_000_000.0, true));
+        self::assertSame('-$1.50 million', Html::compactMoney(-1_500_000.0, true));
+        self::assertSame('+$950.00', Html::compactMoney(950.0, true));
+        self::assertSame('$0.00', Html::compactMoney(0.0, true));
     }
 
     public function testStrictDateValidation(): void
@@ -66,5 +95,33 @@ final class StatsAndDatesTest extends TestCase
         self::assertFalse(ValidateDateTime::isValid('2026-1-1'));
         self::assertFalse(ValidateDateTime::isValid('<script>'));
         self::assertFalse(ValidateDateTime::isValid(''));
+    }
+
+    /** @return array<string, array{0: string, 1: int, 2: string}> */
+    public static function monthsBack(): array
+    {
+        return [
+            'Mar 31 -> Feb 28' => ['2026-03-31', 1, '2026-02-28'],
+            'Mar 31 -> Feb 29 in a leap year' => ['2028-03-31', 1, '2028-02-29'],
+            'Jan 31 -> Dec 31 of the year before' => ['2026-01-31', 1, '2025-12-31'],
+            'May 31 -> Apr 30' => ['2026-05-31', 1, '2026-04-30'],
+            'leap Feb 29 -> Jan 29' => ['2028-02-29', 1, '2028-01-29'],
+            'leap Feb 29, 1 year -> Feb 28' => ['2028-02-29', 12, '2027-02-28'],
+            'leap Feb 29, 4 years -> Feb 29' => ['2028-02-29', 48, '2024-02-29'],
+            'leap Feb 29, 5 years -> Feb 28' => ['2028-02-29', 60, '2023-02-28'],
+            'mid-month is unchanged' => ['2026-11-12', 1, '2026-10-12'],
+            'one year back' => ['2026-11-12', 12, '2025-11-12'],
+        ];
+    }
+
+    #[DataProvider('monthsBack')]
+    public function testMonthsBeforeNeverRollsIntoTheNextMonth(string $from, int $months, string $expected): void
+    {
+        $zone = new DateTimeZone('America/New_York');
+        $result = USDebtController::monthsBefore(new DateTimeImmutable($from, $zone), $months);
+
+        self::assertSame($expected, $result->format('Y-m-d'));
+        self::assertSame('00:00:00', $result->format('H:i:s'), 'the time of day is kept');
+        self::assertSame('America/New_York', $result->getTimezone()->getName());
     }
 }

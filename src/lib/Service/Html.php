@@ -33,4 +33,26 @@ final class Html
     {
         return ($amount < 0 ? '-$' : '$') . number_format(abs($amount), 2);
     }
+
+    /**
+     * Short money for headline numbers: "$38.12 trillion", "$6.04 billion".
+     * Pass $signed = true to get "+$1.20 trillion" for a rise.
+     */
+    public static function compactMoney(float $amount, bool $signed = false): string
+    {
+        $sign = $amount < 0 ? '-' : ($signed && $amount > 0 ? '+' : '');
+        $abs = abs($amount);
+        foreach ([1_000_000_000_000 => 'trillion', 1_000_000_000 => 'billion', 1_000_000 => 'million'] as $unit => $word) {
+            if ($abs >= $unit) {
+                return $sign . '$' . number_format($abs / $unit, 2) . ' ' . $word;
+            }
+        }
+        return $sign . '$' . number_format($abs, 2);
+    }
+
+    /** "Nov 9, 2026" from "2026-11-09". */
+    public static function shortDate(string $isoDate): string
+    {
+        return (new \DateTimeImmutable($isoDate))->format('M j, Y');
+    }
 }

@@ -30,13 +30,13 @@ final class FrontControllerTest extends TestCase
         $this->removeTempDir();
     }
 
-    private static function app(DebtSource $source): FrontController
+    public static function app(DebtSource $source): FrontController
     {
         return new FrontController(new USDebtController($source, new CompareService()));
     }
 
     /** Weekly rows from 1993 to 2026 so every term has data. */
-    private static function source(bool $stale = false): DebtSource
+    public static function source(bool $stale = false): DebtSource
     {
         $entries = [];
         $day = new \DateTimeImmutable('1993-01-04');
@@ -57,6 +57,13 @@ final class FrontControllerTest extends TestCase
                 return $this->dataset;
             }
         };
+    }
+
+    /** @return array<string, mixed> The chart JSON data block on the page. */
+    public static function chartJson(string $html): array
+    {
+        self::assertSame(1, preg_match('#<script type="application/json" id="chart-data">(.*?)</script>#s', $html, $m), 'chart data block');
+        return json_decode($m[1], true, 512, JSON_THROW_ON_ERROR);
     }
 
     public function testUnexpectedErrorShowsOnlyTheGenericMessage(): void
@@ -99,7 +106,11 @@ final class FrontControllerTest extends TestCase
     {
         $html = self::app(self::source())->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], [])->body;
 
-        self::assertMatchesRegularExpression('/var chartData = \{"labels":\[[^\]]+\],"values":\[[0-9.,]+\]\};/', $html);
+        $chart = self::chartJson($html);
+        self::assertSame('daily', $chart['type']);
+        self::assertSame('debt', $chart['series'][0]['key']);
+        self::assertSame('2026-10-05', $chart['series'][0]['points'][0][0], 'first weekly row in range, oldest first');
+        self::assertIsFloat($chart['series'][0]['points'][0][1]);
         self::assertStringContainsString('Starting debt amount', $html);
         self::assertStringContainsString('<td class="currency">$', $html);
         self::assertStringNotContainsString('TM0.', $html, 'timing footer removed');
@@ -132,13 +143,13 @@ final class FrontControllerTest extends TestCase
         $all = array_map('strval', array_keys(PresidentService::getPresidentConfig()));
         $html = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => $all])->body;
 
-        self::assertMatchesRegularExpression('/var data = (\[.*\]);/', $html);
-        preg_match('/var data = (\[.*\]);/', $html, $m);
-        $series = json_decode($m[1], true, 512, JSON_THROW_ON_ERROR);
+        $chart = self::chartJson($html);
+        self::assertSame('compare', $chart['type']);
+        $series = $chart['series'];
         self::assertCount(5, $series, 'one line per president; both Trump terms are one line');
         foreach ($series as $s) {
-            self::assertIsInt($s['data'][0][0]);
-            self::assertIsFloat($s['data'][1][1]);
+            self::assertIsInt($s['points'][0][0]);
+            self::assertIsFloat($s['points'][1][1]);
         }
         self::assertSame(count($all), substr_count($html, 'checked="checked"'), 'all boxes stay ticked');
     }
@@ -179,7 +190,7 @@ final class FrontControllerTest extends TestCase
         );
 
         self::assertSame(200, $response->status);
-        self::assertStringContainsString('var chartData = ', $response->body, 'falls back to the default view');
+        self::assertStringContainsString('id="chart-data"', $response->body, 'falls back to the default view');
         self::assertStringNotContainsString('Array', $response->body);
 
         $compare = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => 'not-a-list']);

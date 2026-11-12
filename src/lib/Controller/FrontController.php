@@ -84,7 +84,8 @@ final class FrontController
             return new Response($status, $this->controller->getErrorView($message, $request));
         } catch (Throwable $e) {
             error_log('UsDebt: error page failed: ' . get_class($e) . ': ' . $e->getMessage());
-            return new Response(500, '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Our U.S. Debt</title></head><body><p>'
+            return new Response(500, '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+                . '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Our U.S. Debt</title></head><body><p>'
                 . Html::e(self::GENERIC_ERROR) . '</p></body></html>');
         }
     }
