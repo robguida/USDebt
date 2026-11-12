@@ -1,3 +1,6 @@
 # Vendored third-party files are kept byte-for-byte so their published
 # checksums still match after a checkout on any OS.
 src/Public/lib/** -text
+
+# Checksum files are checked with sha256sum -c, which needs plain LF lines.
+*.sha256 text eol=lf
