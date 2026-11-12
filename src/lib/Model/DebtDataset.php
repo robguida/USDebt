@@ -74,6 +74,13 @@ final class DebtDataset
         return $last === false ? null : $last->effectiveDate;
     }
 
+    /** The newest reported day, or null when there is no data. */
+    public function latest(): ?DebtEntry
+    {
+        $last = end($this->entries);
+        return $last === false ? null : $last;
+    }
+
     public function savedOn(): string
     {
         return $this->savedOn;

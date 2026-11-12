@@ -25,6 +25,8 @@ use USDebt\Service\StatsCalculator;
 
 class USDebtController
 {
+    public const SITE_TITLE = 'Our U.S. Debt';
+
     public function __construct(
         private readonly DebtSource $debtSource,
         private readonly CompareService $compareService,
@@ -37,11 +39,11 @@ class USDebtController
     }
 
     /**
-     * Date-range view: graph, stats and data tabs. Defaults to the last month.
+     * Date-range view: headline numbers, then chart, stats and table. Defaults to the last month.
      */
     public function defaultView(RequestModel $requestModel): string
     {
-        $today = new DateTimeImmutable('today', new DateTimeZone('America/New_York'));
+        $today = self::today();
         if ($requestModel->getEndDate() === null) {
             $requestModel->setEndDate($today);
         }
@@ -54,22 +56,42 @@ class USDebtController
 
         $dataset = $this->debtSource->load();
         $entries = $dataset->between($requestModel->getStartDate(), $requestModel->getEndDate());
+        $cards = $this->debtTodayCard($dataset);
 
         if ($entries === []) {
-            $tabData = $this->message(sprintf(
+            $results = $this->message(sprintf(
                 'There is no Treasury data for this date range. Data runs from %s to %s.',
                 $dataset->firstDate() ?? '?',
                 $dataset->lastDate() ?? '?'
             ));
         } else {
-            $tabData = $this->loadFile('tabs.php', [
+            $stats = StatsCalculator::summarize($entries);
+            $first = $entries[0];
+            $last = $entries[count($entries) - 1];
+            if ($stats !== null) {
+                $cards[] = [
+                    'label' => 'Change in this range',
+                    'value' => Html::compactMoney($stats['delta'], true),
+                    'detail' => Html::shortDate($first->effectiveDate) . ' to ' . Html::shortDate($last->effectiveDate),
+                ];
+                $cards[] = [
+                    'label' => 'Per day',
+                    'value' => Html::compactMoney($stats['average_per_day'], true),
+                    'detail' => 'Average over ' . number_format($stats['total_days']) . ' calendar days',
+                ];
+            }
+            $results = $this->loadFile('tabs.php', [
+                'graph' => $this->loadFile('chart_daily.php', [
+                    'chart' => ChartData::daily($entries),
+                    'first' => $first,
+                    'last' => $last,
+                ]),
+                'stats' => $this->loadFile('tab_stats.php', ['stats' => $stats]),
                 'data' => $this->loadFile('tab_data.php', ['datas' => array_reverse($entries)]),
-                'graph' => $this->loadFile('tab_graph_Chart.php', ['chart' => ChartData::daily($entries)]),
-                'stats' => $this->loadFile('tab_stats.php', ['stats' => StatsCalculator::summarize($entries)]),
             ]);
         }
 
-        return $this->page($requestModel, $tabData, $dataset);
+        return $this->page($requestModel, $results, $dataset, $cards);
     }
 
     /**
@@ -79,11 +101,11 @@ class USDebtController
     {
         $dataset = $this->debtSource->load();
         $series = $this->compareService->buildSeries($requestModel->getComparePres(), $dataset);
-        $tabData = $series === []
+        $results = $series === []
             ? $this->message('There is no Treasury data yet for the presidents you picked.')
-            : $this->loadFile('tab_graph_Flot.php', ['series' => $series]);
+            : $this->loadFile('chart_compare.php', ['series' => $series, 'chart' => ChartData::compare($series)]);
 
-        return $this->page($requestModel, $tabData, $dataset);
+        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset), 'Compare presidential terms');
     }
 
     /**
@@ -94,8 +116,16 @@ class USDebtController
         return $this->page($requestModel, $this->message($error, 'error'));
     }
 
-    private function page(RequestModel $requestModel, string $tabData, ?DebtDataset $dataset = null): string
-    {
+    /**
+     * @param list<array{label: string, value: string, detail: string}> $cards
+     */
+    private function page(
+        RequestModel $requestModel,
+        string $results,
+        ?DebtDataset $dataset = null,
+        array $cards = [],
+        string $heading = '',
+    ): string {
         $notice = '';
         if ($dataset !== null && $dataset->isStale()) {
             $notice = $this->message(
@@ -103,10 +133,30 @@ class USDebtController
                 'notice'
             );
         }
-        return $this->loadFile('master.php', ['main_content' => [
-            'search_form' => $this->getSearchForm($requestModel),
-            'tab_data' => $notice . $tabData,
-        ]]);
+        return $this->loadFile('master.php', [
+            'title' => $heading === '' ? self::SITE_TITLE : $heading . ' - ' . self::SITE_TITLE,
+            'notice' => $notice,
+            'cards' => $cards === [] ? '' : $this->loadFile('headline.php', ['cards' => $cards]),
+            'controls' => $this->getSearchForm($requestModel),
+            'results_heading' => $heading,
+            'results' => $results,
+        ]);
+    }
+
+    /**
+     * @return list<array{label: string, value: string, detail: string}>
+     */
+    private function debtTodayCard(DebtDataset $dataset): array
+    {
+        $latest = $dataset->latest();
+        if ($latest === null) {
+            return [];
+        }
+        return [[
+            'label' => 'Debt today',
+            'value' => Html::compactMoney($latest->totalDebt),
+            'detail' => Html::money($latest->totalDebt) . ' on ' . Html::shortDate($latest->effectiveDate),
+        ]];
     }
 
     private function message(string $text, string $class = 'message'): string
@@ -116,12 +166,53 @@ class USDebtController
 
     private function getSearchForm(RequestModel $requestModel): string
     {
+        $today = self::today();
+        // Compare and error pages have no range of their own: prefill the default (last month).
+        $end = $requestModel->getEndDate()?->format('Y-m-d') ?? $today->format('Y-m-d');
+        $start = $requestModel->getStartDate()?->format('Y-m-d') ?? $today->modify('-1 month')->format('Y-m-d');
         return $this->loadFile('search_form.php', [
             'pres_array' => PresidentService::getPresidentConfig(),
-            'start_date' => $requestModel->getStartDate()?->format('Y-m-d') ?? '',
-            'end_date' => $requestModel->getEndDate()?->format('Y-m-d') ?? '',
+            'start_date' => $start,
+            'end_date' => $end,
             'compare_pres' => $requestModel->getComparePres(),
+            // Highlight a chip only when this page shows a date range (not on Compare or error pages).
+            'quick_ranges' => self::quickRanges($today, $requestModel->getStartDate() === null ? '' : $start, $end),
+            'today' => $today->format('Y-m-d'),
         ]);
+    }
+
+    /**
+     * Quick-range chips. Each is a plain link, so they work without JavaScript.
+     *
+     * @return list<array{label: string, title: string, start: string, end: string, current: bool}>
+     */
+    private static function quickRanges(DateTimeImmutable $today, string $start, string $end): array
+    {
+        $to = $today->format('Y-m-d');
+        $ranges = [
+            ['label' => '1M', 'title' => 'Last month', 'start' => $today->modify('-1 month')->format('Y-m-d')],
+            ['label' => '1Y', 'title' => 'Last year', 'start' => $today->modify('-1 year')->format('Y-m-d')],
+            ['label' => '5Y', 'title' => 'Last 5 years', 'start' => $today->modify('-5 years')->format('Y-m-d')],
+        ];
+        foreach (PresidentService::getPresidentConfig() as $term) {
+            $termStart = new DateTimeImmutable($term['start']);
+            if ($termStart <= $today && $today <= new DateTimeImmutable($term['end'])) {
+                $ranges[] = ['label' => 'This term', 'title' => 'Since ' . $termStart->format('F j, Y'), 'start' => $termStart->format('Y-m-d')];
+                break;
+            }
+        }
+        $out = [];
+        foreach ($ranges as $range) {
+            $range['end'] = $to;
+            $range['current'] = $range['start'] === $start && $to === $end;
+            $out[] = $range;
+        }
+        return $out;
+    }
+
+    private static function today(): DateTimeImmutable
+    {
+        return new DateTimeImmutable('today', new DateTimeZone('America/New_York'));
     }
 
     /**

@@ -5,70 +5,76 @@
  * Date: 6/5/18
  * Time: 8:29 PM
  *
+ * Date-range controls and the presidential term strip.
+ *
  * @var array<int, array{pres: string, start: string, end: string, img: string}> $pres_array
- * @var string    $start_date
- * @var string    $end_date
+ * @var string    $start_date  Y-m-d or ''.
+ * @var string    $end_date    Y-m-d or ''.
  * @var list<int> $compare_pres
+ * @var list<array{label: string, title: string, start: string, end: string, current: bool}> $quick_ranges
+ * @var string    $today       Y-m-d.
  */
 
 use USDebt\Service\Html;
 
-$pres_nav = '';
-foreach ($pres_array as $key => $pres) {
-    $pres_start = new DateTimeImmutable($pres['start']);
-    $pres_end = new DateTimeImmutable($pres['end']);
-    $checked = in_array($key, $compare_pres, true) ? ' checked="checked"' : '';
-    $href = '?' . http_build_query(['start_date' => $pres_start->format('Y-m-d'), 'end_date' => $pres_end->format('Y-m-d')]);
-    $title = $pres['pres'] . ' (' . $pres_start->format('Y') . '-' . $pres_end->format('Y') . ')';
-    $pres_nav .= '<div class="pres">'
-        . '<div><a href="' . Html::e($href) . '">'
-        . '<img src="images/' . Html::e($pres['img']) . '" title="' . Html::e($title) . '" alt="' . Html::e($title) . '"></a></div>'
-        . '<div><input type="checkbox" name="compare_pres[]" value="' . Html::e($key) . '"' . $checked . ' /></div>'
-        . '</div>';
-}
+$range_href = static fn (string $start, string $end): string
+    => '?' . http_build_query(['start_date' => $start, 'end_date' => $end]) . '#results';
 ?>
-<div class="header">
-    <div class="search_form">
-        <div class="search_form_top">
-            <h2>Select a date range</h2>
+<section class="card controls" aria-labelledby="controls-title">
+    <h2 id="controls-title" class="card-title">Pick a date range</h2>
+    <form id="search" class="range-form" method="get" action="./#results">
+        <div class="field">
+            <label for="start_date">Start date</label>
+            <input type="date" id="start_date" name="start_date" min="1993-01-04" max="<?php echo Html::e($today); ?>"
+                   value="<?php echo Html::e($start_date); ?>" required>
         </div>
-        <div class="search_form_bottom">
-            <form id="search" class="search">
-                <label for="start_date">Start Date:</label>
-                <input type="text" id="start_date" name="start_date" value="<?php echo Html::e($start_date); ?>" />
-                <label for="end_date">End Date:</label>
-                <input type="text" id="end_date" name="end_date" value="<?php echo Html::e($end_date); ?>" />
-                <input type="submit" id="submit" name="submit" value="Fetch" />
-            </form>
+        <div class="field">
+            <label for="end_date">End date</label>
+            <input type="date" id="end_date" name="end_date" min="1993-01-04" max="<?php echo Html::e($today); ?>"
+                   value="<?php echo Html::e($end_date); ?>" required>
         </div>
+        <button type="submit" class="btn btn-primary">Show range</button>
+    </form>
+    <nav class="chips" aria-label="Quick ranges">
+        <?php foreach ($quick_ranges as $range) { ?>
+        <a class="chip" href="<?php echo Html::e($range_href($range['start'], $range['end'])); ?>"
+           title="<?php echo Html::e($range['title']); ?>"<?php echo $range['current'] ? ' aria-current="true"' : ''; ?>><?php echo Html::e($range['label']); ?></a>
+        <?php } ?>
+    </nav>
+</section>
+
+<section class="card terms" id="terms" aria-labelledby="terms-title">
+    <div class="card-head">
+        <h2 id="terms-title" class="card-title">View by presidential term</h2>
+        <button type="button" class="btn btn-quiet" id="select_all" hidden>Select all</button>
     </div>
-    <div class="pres_nav">
-        <form id="compare" method="post">
-            <div class="pres_header">
-                <div class="top"><h2>Press a Prez!<p class="stats_footer">Click a picture to see data for a president.</p> </h2></div>
-                <div class="bottom"><input type="submit" value="Compare" id="compare_submit" name="submit" /></div>
-            </div>
-            <?php echo $pres_nav; ?>
-        </form>
-    </div>
-</div>
-<script type="text/javascript">
-    $(function(){
-        $('#start_date').datepicker({
-            showOtherMonths: true,
-            selectOtherMonths: true,
-            changeMonth: true,
-            changeYear: true,
-            dateFormat: 'yy-mm-dd',
-            minDate: new Date(1993, 0, 4),
-        });
-        $('#end_date').datepicker({
-            showOtherMonths: true,
-            selectOtherMonths: true,
-            changeMonth: true,
-            changeYear: true,
-            dateFormat: 'yy-mm-dd',
-            minDate: new Date(1993, 0, 4),
-        });
-    });
-</script>
+    <p class="caption">Congress sets spending and taxes. Presidential terms are shown for reference only.</p>
+    <form id="compare" method="post" action="./#results">
+        <ul class="term-strip">
+            <?php foreach ($pres_array as $key => $pres) {
+                $pres_start = new DateTimeImmutable($pres['start']);
+                $pres_end = new DateTimeImmutable($pres['end']);
+                $link_end = min($pres_end->format('Y-m-d'), $today);
+                $years = $pres_start->format('Y') . "\u{2013}" . $pres_end->format('Y');
+                $checked = in_array($key, $compare_pres, true) ? ' checked="checked"' : '';
+                $box_id = 'pres_' . $key;
+                ?>
+            <li class="term">
+                <a class="term-link" href="<?php echo Html::e($range_href($pres_start->format('Y-m-d'), $link_end)); ?>">
+                    <img src="images/<?php echo Html::e($pres['img']); ?>" alt="" width="56" height="72" loading="lazy">
+                    <span class="term-name"><?php echo Html::e($pres['pres']); ?></span>
+                    <span class="term-years num"><?php echo Html::e($years); ?></span>
+                </a>
+                <label class="term-pick" for="<?php echo Html::e($box_id); ?>">
+                    <input type="checkbox" id="<?php echo Html::e($box_id); ?>" name="compare_pres[]" value="<?php echo Html::e($key); ?>"<?php echo $checked; ?>>
+                    Compare<span class="sr-only"> <?php echo Html::e($pres['pres'] . ' ' . $years); ?></span>
+                </label>
+            </li>
+            <?php } ?>
+        </ul>
+        <div class="form-actions">
+            <p class="hint">Tap a term to see its dates. Tick two or more to compare them.</p>
+            <button type="submit" class="btn btn-primary" id="compare_submit" name="submit" value="Compare">Compare selected</button>
+        </div>
+    </form>
+</section>

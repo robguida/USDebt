@@ -7,6 +7,7 @@ namespace USDebt\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use USDebt\Model\DebtEntry;
 use USDebt\Service\ChartData;
+use USDebt\Service\Html;
 use USDebt\Service\StatsCalculator;
 use USDebt\Service\ValidateDateTime;
 
@@ -53,9 +54,33 @@ final class StatsAndDatesTest extends TestCase
     {
         $chart = ChartData::daily([new DebtEntry('2026-11-09', 40559796589243.37)]);
 
-        self::assertSame(['11/9/26'], $chart['labels']);
-        self::assertSame([40.559797], $chart['values']);
-        self::assertSame('[40.559797]', json_encode($chart['values']));
+        self::assertSame('daily', $chart['type']);
+        self::assertSame('debt', $chart['series'][0]['key']);
+        self::assertSame([['2026-11-09', 40.559797]], $chart['series'][0]['points']);
+        self::assertSame('[["2026-11-09",40.559797]]', json_encode($chart['series'][0]['points']));
+    }
+
+    public function testCompareChartDataKeepsTermStarts(): void
+    {
+        $chart = ChartData::compare([
+            ['label' => 'A (2017-2021, 2025-2029)', 'president' => 'A', 'term_starts' => [49], 'data' => [[1, 0.0], [49, 7.5]]],
+            ['label' => 'B (2021-2025)', 'president' => 'B', 'term_starts' => [], 'data' => [[1, 0.0]]],
+        ]);
+
+        self::assertSame('compare', $chart['type']);
+        self::assertSame(['term1', 'term2'], array_column($chart['series'], 'key'));
+        self::assertSame([49], $chart['series'][0]['term_starts']);
+        self::assertSame([[1, 0.0], [49, 7.5]], $chart['series'][0]['points']);
+        self::assertArrayNotHasKey('color', $chart['series'][0], 'colors come from the stylesheet, not the data');
+    }
+
+    public function testCompactMoney(): void
+    {
+        self::assertSame('$38.12 trillion', Html::compactMoney(38_123_456_789_012.0));
+        self::assertSame('+$6.04 billion', Html::compactMoney(6_041_000_000.0, true));
+        self::assertSame('-$1.50 million', Html::compactMoney(-1_500_000.0, true));
+        self::assertSame('+$950.00', Html::compactMoney(950.0, true));
+        self::assertSame('$0.00', Html::compactMoney(0.0, true));
     }
 
     public function testStrictDateValidation(): void
