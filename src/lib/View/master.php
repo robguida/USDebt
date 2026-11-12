@@ -9,6 +9,8 @@
  * @var string $controls         Already-rendered HTML (date range + term strip).
  * @var string $results_heading  Plain text heading for the results card, or '' for the default.
  * @var string $results          Already-rendered HTML (chart, stats, table, or a message).
+ * @var bool   $trend_toggle     Show the "Trend line" button (the chart has a trend line).
+ * @var bool   $show_trend       Trend line on (false when the URL says trend=0).
  */
 
 use USDebt\Service\Html;
@@ -20,6 +22,8 @@ $asset = static function (string $path) use ($public_dir): string {
     return Html::e($path . ($mtime ? '?r=' . $mtime : ''));
 };
 $treasury_url = 'https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/';
+/* links on the page keep the trend switch; the page script updates them when it changes */
+$home_href = $show_trend ? './' : './?trend=0';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -38,7 +42,7 @@ $treasury_url = 'https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/';
 <a class="skip-link" href="#results">Skip to the chart</a>
 <header class="topbar">
     <div class="wrap topbar-inner">
-        <a class="brand" href="./"><?php echo Html::e(\USDebt\Controller\USDebtController::SITE_TITLE); ?></a>
+        <a class="brand" href="<?php echo Html::e($home_href); ?>" data-trend-link><?php echo Html::e(\USDebt\Controller\USDebtController::SITE_TITLE); ?></a>
         <nav class="topnav" aria-label="Site">
             <a href="#terms">Compare terms</a>
             <a href="#about">About the data</a>
@@ -52,7 +56,13 @@ $treasury_url = 'https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/';
     <?php echo $controls; ?>
 
     <section class="card results" id="results" aria-labelledby="results-title" tabindex="-1">
-        <h2 id="results-title" class="card-title"><?php echo Html::e($results_heading !== '' ? $results_heading : 'The debt over time'); ?></h2>
+        <div class="card-head">
+            <h2 id="results-title" class="card-title"><?php echo Html::e($results_heading !== '' ? $results_heading : 'The debt over time'); ?></h2>
+            <?php if ($trend_toggle) { ?>
+            <?php /* hidden until the page script runs: without it there is no chart to switch */ ?>
+            <button type="button" class="btn btn-quiet btn-toggle" id="trend_toggle" aria-pressed="<?php echo $show_trend ? 'true' : 'false'; ?>" hidden>Trend line<span class="toggle-state" aria-hidden="true">: <?php echo $show_trend ? 'On' : 'Off'; ?></span></button>
+            <?php } ?>
+        </div>
         <?php echo $results; ?>
     </section>
 </main>

@@ -53,6 +53,8 @@ final class FrontController
     {
         $input = $post + $query;
         $request = new RequestModel();
+        // The trend switch lives in the URL (?trend=0), so a shared link opens the same view.
+        $request->setShowTrend(($query['trend'] ?? null) !== '0');
         try {
             $action = is_string($input['submit'] ?? null) ? strtolower($input['submit']) : '';
             if ($action === 'compare') {

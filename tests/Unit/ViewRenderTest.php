@@ -156,8 +156,128 @@ final class ViewRenderTest extends TestCase
         $html = self::app()->handle([], ['submit' => 'Compare', 'compare_pres' => $all])->body;
 
         foreach (['Bill Clinton', 'George W. Bush', 'Barack Obama', 'Joseph Biden', 'Donald Trump'] as $name) {
-            self::assertMatchesRegularExpression('#<li>' . preg_quote($name, '#') . ' \([^)]*\): [+-]?\$[0-9.,]+ [a-z]+ after [0-9]+ months? in office\.</li>#', $html);
+            self::assertMatchesRegularExpression(
+                '#<li>' . preg_quote($name, '#') . ' \([^)]*\): [+-]?\$[0-9.,]+ [a-z]+ after [0-9]+ months? in office\.'
+                . ' Trend: about [+-]?\$[0-9.,]+ [a-z]+ per month \(straight line\)\.</li>#',
+                $html
+            );
         }
+        self::assertStringContainsString("Each dashed line is that term's trend (straight line), in the same color.", $html);
+    }
+
+    public function testTrendButtonIsOnByDefaultAndDailyChartHasTrendAndProjection(): void
+    {
+        $html = self::app()->handle(['start_date' => '2026-01-01', 'end_date' => '2026-11-09'], [])->body;
+
+        // A real toggle button, hidden until the page script runs; its name stays "Trend line".
+        self::assertStringContainsString(
+            '<button type="button" class="btn btn-quiet btn-toggle" id="trend_toggle" aria-pressed="true" hidden>'
+            . 'Trend line<span class="toggle-state" aria-hidden="true">: On</span></button>',
+            $html
+        );
+
+        $chart = FrontControllerTest::chartJson($html);
+        self::assertSame(['debt', 'trend', 'projection'], array_column($chart['series'], 'key'));
+        self::assertSame('Trend (straight line)', $chart['series'][1]['label']);
+        self::assertTrue($chart['series'][2]['projection']);
+        $lastDay = $chart['series'][0]['points'][count($chart['series'][0]['points']) - 1][0];
+        self::assertGreaterThan($lastDay, $chart['series'][2]['points'][0][0], 'the projection starts after the last data day');
+
+        // Text summary for screen readers and for anyone who cannot tell the lines apart.
+        self::assertMatchesRegularExpression(
+            '#<p class="trend-summary">Trend: about \+\$[0-9.,]+ [a-z]+ per day \(straight line\)\.'
+            . ' Projection to [A-Z][a-z]{2} \d{1,2}, \d{4}: about \$[0-9.,]+ trillion\.'
+            . '<span class="trend-off-note" hidden> \(trend line hidden\)</span></p>#',
+            $html
+        );
+
+        // Trend on: links carry no trend parameter, the hidden form field is not sent.
+        self::assertStringNotContainsString('trend=0', $html);
+        self::assertStringContainsString('<input type="hidden" name="trend" value="0" id="trend_field" disabled>', $html);
+        self::assertStringContainsString('<form id="compare" method="post" action="./#results" data-trend-link>', $html);
+    }
+
+    public function testTrendOffInTheUrlIsKeptByEveryLinkAndForm(): void
+    {
+        $html = self::app()->handle(['start_date' => '2026-01-01', 'end_date' => '2026-11-09', 'trend' => '0'], [])->body;
+
+        self::assertStringContainsString('id="trend_toggle" aria-pressed="false" hidden>Trend line<span class="toggle-state" aria-hidden="true">: Off</span>', $html);
+        self::assertStringContainsString('<span class="trend-off-note"> (trend line hidden)</span>', $html, 'the summary says the line is hidden');
+
+        // The data is still sent, so the switch can turn it back on without a reload.
+        self::assertContains('trend', array_column(FrontControllerTest::chartJson($html)['series'], 'key'));
+
+        // Links and forms keep trend=0.
+        self::assertStringContainsString('<a class="brand" href="./?trend=0" data-trend-link>', $html);
+        self::assertStringContainsString('<input type="hidden" name="trend" value="0" id="trend_field">', $html);
+        self::assertStringContainsString('<form id="compare" method="post" action="./?trend=0#results" data-trend-link>', $html);
+        preg_match_all('#<a class="(?:chip|term-link)" href="([^"]+)" data-trend-link#', $html, $links);
+        self::assertNotEmpty($links[1]);
+        foreach ($links[1] as $href) {
+            self::assertStringContainsString('&amp;trend=0#results', $href);
+        }
+    }
+
+    public function testOnlyTrendZeroTurnsTheTrendOff(): void
+    {
+        foreach (['1', 'off', 'false', ''] as $value) {
+            $html = self::app()->handle(['trend' => $value], [])->body;
+            self::assertStringContainsString('id="trend_toggle" aria-pressed="true"', $html, 'trend=' . $value);
+        }
+        $html = self::app()->handle(['trend' => ['0']], [])->body;
+        self::assertStringContainsString('id="trend_toggle" aria-pressed="true"', $html, 'an array is ignored');
+    }
+
+    public function testCompareHasTheTrendButtonAndKeepsTrendOffFromTheUrl(): void
+    {
+        $all = array_map('strval', array_keys(PresidentService::getPresidentConfig()));
+
+        $html = self::app()->handle([], ['submit' => 'Compare', 'compare_pres' => $all])->body;
+        self::assertStringContainsString('id="trend_toggle" aria-pressed="true"', $html);
+        foreach (FrontControllerTest::chartJson($html)['series'] as $s) {
+            self::assertIsArray($s['trend']);
+        }
+
+        // The Compare form posts to ./?trend=0 when the trend is off.
+        $html = self::app()->handle(['trend' => '0'], ['submit' => 'Compare', 'compare_pres' => $all])->body;
+        self::assertStringContainsString('id="trend_toggle" aria-pressed="false"', $html);
+        self::assertStringContainsString('<span class="trend-off-note"> (trend lines hidden)</span>', $html);
+    }
+
+    public function testNoTrendButtonWithoutATrendLine(): void
+    {
+        // One day: no line can be drawn, so nothing to switch and no trend sentence.
+        $html = self::app()->handle(['start_date' => '2026-11-09', 'end_date' => '2026-11-09'], [])->body;
+        self::assertStringNotContainsString('trend_toggle', $html);
+        self::assertStringNotContainsString('trend-summary', $html);
+
+        // Error page: no chart at all.
+        $html = self::app()->handle(['start_date' => '2026-02-30'], [])->body;
+        self::assertStringNotContainsString('trend_toggle', $html);
+    }
+
+    public function testScriptDrawsTrendRedSolidAndProjectionRedDashed(): void
+    {
+        $js = $this->script();
+
+        self::assertStringContainsString("if (key === 'trend' || key === 'projection')", $js, 'both use the reserved red');
+        self::assertStringContainsString("cssVar('--trend'", $js);
+        self::assertStringContainsString('borderDash: isProjection ? TREND_DASH : []', $js, 'projection dashed, trend solid');
+        self::assertStringContainsString('points.unshift(lastTrendPoint)', $js, 'no gap between trend and projection');
+        // Compare: dashed, in the term's own color.
+        self::assertStringContainsString("label: 'Trend: ' + s.label", $js);
+        self::assertSame(1, substr_count($js, 'borderDash: TREND_DASH'), 'only the compare trend dataset');
+
+        // The switch: aria-pressed, remembered in storage (guarded) and in the URL.
+        self::assertStringContainsString("button.setAttribute('aria-pressed'", $js);
+        self::assertStringContainsString('window.localStorage.setItem(TREND_STORAGE_KEY', $js);
+        self::assertStringContainsString('window.localStorage.getItem(TREND_STORAGE_KEY', $js);
+        self::assertStringContainsString("url.searchParams.set('trend', '0')", $js);
+        self::assertStringContainsString('window.history.replaceState', $js);
+        self::assertStringContainsString('chart.setDatasetVisibility(i, trendOn)', $js, 'no reload');
+
+        // Short ranges step by whole days, so a date is not shown twice.
+        self::assertStringContainsString('x.stepSize = DAY_MS * Math.max(1, Math.ceil(spanDays / (x.maxTicks - 1)))', $js);
     }
 
     public function testVendoredChartJsMatchesThePublishedChecksum(): void

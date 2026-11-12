@@ -13,12 +13,15 @@
  * @var list<int> $compare_pres
  * @var list<array{label: string, title: string, start: string, end: string, current: bool}> $quick_ranges
  * @var string    $today       Y-m-d.
+ * @var bool      $show_trend  Trend line on. When off, every link and form here keeps trend=0.
  */
 
 use USDebt\Service\Html;
 
+$trend_param = $show_trend ? [] : ['trend' => '0'];
 $range_href = static fn (string $start, string $end): string
-    => '?' . http_build_query(['start_date' => $start, 'end_date' => $end]) . '#results';
+    => '?' . http_build_query(['start_date' => $start, 'end_date' => $end] + $trend_param) . '#results';
+$compare_action = './' . ($show_trend ? '' : '?trend=0') . '#results';
 ?>
 <section class="card controls" aria-labelledby="controls-title">
     <h2 id="controls-title" class="card-title">Pick a date range</h2>
@@ -33,11 +36,13 @@ $range_href = static fn (string $start, string $end): string
             <input type="date" id="end_date" name="end_date" min="1993-01-04" max="<?php echo Html::e($today); ?>"
                    value="<?php echo Html::e($end_date); ?>" required>
         </div>
+        <?php /* a disabled field is not sent, so this carries trend=0 only while the trend is off */ ?>
+        <input type="hidden" name="trend" value="0" id="trend_field"<?php echo $show_trend ? ' disabled' : ''; ?>>
         <button type="submit" class="btn btn-primary">Show range</button>
     </form>
     <nav class="chips" aria-label="Quick ranges">
         <?php foreach ($quick_ranges as $range) { ?>
-        <a class="chip" href="<?php echo Html::e($range_href($range['start'], $range['end'])); ?>"
+        <a class="chip" href="<?php echo Html::e($range_href($range['start'], $range['end'])); ?>" data-trend-link
            title="<?php echo Html::e($range['title']); ?>"<?php echo $range['current'] ? ' aria-current="true"' : ''; ?>><?php echo Html::e($range['label']); ?></a>
         <?php } ?>
     </nav>
@@ -49,7 +54,7 @@ $range_href = static fn (string $start, string $end): string
         <button type="button" class="btn btn-quiet" id="select_all" hidden>Select all</button>
     </div>
     <p class="caption">Congress sets spending and taxes. Presidential terms are shown for reference only.</p>
-    <form id="compare" method="post" action="./#results">
+    <form id="compare" method="post" action="<?php echo Html::e($compare_action); ?>" data-trend-link>
         <ul class="term-strip">
             <?php foreach ($pres_array as $key => $pres) {
                 $pres_start = new DateTimeImmutable($pres['start']);
@@ -60,7 +65,7 @@ $range_href = static fn (string $start, string $end): string
                 $box_id = 'pres_' . $key;
                 ?>
             <li class="term">
-                <a class="term-link" href="<?php echo Html::e($range_href($pres_start->format('Y-m-d'), $link_end)); ?>">
+                <a class="term-link" href="<?php echo Html::e($range_href($pres_start->format('Y-m-d'), $link_end)); ?>" data-trend-link>
                     <img src="images/<?php echo Html::e($pres['img']); ?>" alt="" width="56" height="72" loading="lazy">
                     <span class="term-name"><?php echo Html::e($pres['pres']); ?></span>
                     <span class="term-years num"><?php echo Html::e($years); ?></span>
