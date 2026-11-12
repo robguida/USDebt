@@ -18,7 +18,7 @@ use USDebt\Exception\HttpException;
  */
 final class NativeHttpFetcher implements HttpFetcher
 {
-    private const USER_AGENT = 'UsDebt/1.0 (+https://usdebt.bengusa.pro)';
+    private const USER_AGENT = 'UsDebt/1.0 (+https://bengusa.pro/ourusdebt)';
 
     /** One page of the full history is under 1 MB; 20 MB is a generous ceiling. */
     public const MAX_BYTES = 20 * 1024 * 1024;

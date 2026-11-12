@@ -40,7 +40,7 @@ final class ShareTest extends TestCase
 {
     use TempDir;
 
-    private const BASE = 'https://usdebt.bengusa.pro';
+    private const BASE = 'https://bengusa.pro/ourusdebt';
     private const CLINTON = '727506000';
     private const BUSH = '979966800';
     private const PNG_SIGNATURE = "\x89PNG\r\n\x1a\n";
@@ -68,7 +68,7 @@ final class ShareTest extends TestCase
         return new CardController(
             $source ?? FrontControllerTest::source(),
             new CompareService(),
-            new CardRenderer('usdebt.bengusa.pro'),
+            new CardRenderer('bengusa.pro/ourusdebt'),
             $this->cardCache($cacheDir ?? $this->makeTempDir() . '/cards'),
         );
     }
@@ -343,7 +343,7 @@ final class ShareTest extends TestCase
         self::assertMatchesRegularExpression('/^U\.S\. debt grew \$[0-9.]+ trillion from ' . preg_quote($span, '/') . '\.$/', $text);
         self::assertSame('U.S. debt, ' . $span, $share['attrs']['data-subject']);
         self::assertSame(ShareLinks::networks($meta['og:url'], $text, $share['attrs']['data-subject']), $share['links']);
-        $encodedUrl = 'https%3A%2F%2Fusdebt.bengusa.pro%2F%3Fstart_date%3D2009-01-20%26end_date%3D2017-01-19';
+        $encodedUrl = 'https%3A%2F%2Fbengusa.pro%2Fourusdebt%2F%3Fstart_date%3D2009-01-20%26end_date%3D2017-01-19';
         self::assertSame('https://x.com/intent/tweet?text=' . rawurlencode($text) . '&url=' . $encodedUrl, $share['links']['x']);
         self::assertSame('https://www.facebook.com/sharer/sharer.php?u=' . $encodedUrl, $share['links']['facebook']);
         self::assertSame('https://www.linkedin.com/sharing/share-offsite/?url=' . $encodedUrl, $share['links']['linkedin']);
@@ -562,25 +562,25 @@ final class ShareTest extends TestCase
     {
         putenv(ShareLinks::ENV_BASE_URL);
         self::assertSame(self::BASE, ShareLinks::fromEnvironment()->baseUrl());
-        self::assertSame('usdebt.bengusa.pro', ShareText::siteAddress(self::BASE));
+        self::assertSame('bengusa.pro/ourusdebt', ShareText::siteAddress(self::BASE));
     }
 
     /** @return array<string, array{0: string, 1: string|null}> */
     public static function baseUrls(): array
     {
         return [
-            'plain' => ['https://usdebt.bengusa.pro', 'https://usdebt.bengusa.pro'],
-            'trailing slash' => ['https://usdebt.bengusa.pro/', 'https://usdebt.bengusa.pro'],
-            'upper case' => ['HTTPS://UsDebt.Bengusa.PRO', 'https://usdebt.bengusa.pro'],
+            'plain' => ['https://bengusa.pro/ourusdebt', 'https://bengusa.pro/ourusdebt'],
+            'trailing slash' => ['https://bengusa.pro/ourusdebt/', 'https://bengusa.pro/ourusdebt'],
+            'upper case' => ['HTTPS://Bengusa.PRO/ourusdebt', 'https://bengusa.pro/ourusdebt'],
             'port and path' => ['http://localhost:8000/app/', 'http://localhost:8000/app'],
-            'no scheme' => ['usdebt.bengusa.pro', null],
+            'no scheme' => ['bengusa.pro/ourusdebt', null],
             'protocol relative' => ['//evil.example', null],
             'javascript' => ['javascript:alert(1)', null],
-            'other scheme' => ['ftp://usdebt.bengusa.pro', null],
-            'query' => ['https://usdebt.bengusa.pro/?x=1', null],
-            'fragment' => ['https://usdebt.bengusa.pro/#x', null],
+            'other scheme' => ['ftp://bengusa.pro/ourusdebt', null],
+            'query' => ['https://bengusa.pro/ourusdebt/?x=1', null],
+            'fragment' => ['https://bengusa.pro/ourusdebt/#x', null],
             'user' => ['https://user@evil.example', null],
-            'quote in path' => ['https://usdebt.bengusa.pro/"><script>', null],
+            'quote in path' => ['https://bengusa.pro/ourusdebt/"><script>', null],
             'bad host' => ['https://evil_example.com', null],
         ];
     }
@@ -685,7 +685,7 @@ final class ShareTest extends TestCase
             $terms[1001 + 2 * $i] = ['pres' => $name, 'start' => 'January 20, ' . ($start + 2), 'end' => 'January 19, ' . ($start + 3), 'img' => 'x.jpg'];
         }
         $compare = new CompareService($terms);
-        $renderer = new CardRenderer('usdebt.bengusa.pro');
+        $renderer = new CardRenderer('bengusa.pro/ourusdebt');
 
         // Six terms: the most rows the card draws, all of them real rows.
         $six = array_slice(array_keys($terms), 0, 12);
@@ -741,7 +741,7 @@ final class ShareTest extends TestCase
 
         // Words and layout: the per words are drawn, the site name comes from its one place, and it all fits.
         $source = FrontControllerTest::source();
-        $renderer = new CardRenderer('usdebt.bengusa.pro');
+        $renderer = new CardRenderer('bengusa.pro/ourusdebt');
         $builder = new ShareCardBuilder(new CompareService());
         $card = $builder->forRange($source->load(), new DateTimeImmutable('2009-01-20'), new DateTimeImmutable('2017-01-19'), true, true, Per::Person);
         self::assertNotNull($card);
@@ -947,7 +947,7 @@ final class ShareTest extends TestCase
         $cards = new CardController(
             FrontControllerTest::source(),
             new CompareService(),
-            new CardRenderer('usdebt.bengusa.pro', $this->makeTempDir() . '/no-fonts-here'),
+            new CardRenderer('bengusa.pro/ourusdebt', $this->makeTempDir() . '/no-fonts-here'),
             null,
         );
         $response = $cards->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09']);

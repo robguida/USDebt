@@ -16,15 +16,21 @@ use USDebt\Model\Per;
  */
 final class ShareLinks
 {
-    public const DEFAULT_BASE_URL = 'https://usdebt.bengusa.pro';
+    /** The real address: the site lives under /ourusdebt on bengusa.pro. */
+    public const DEFAULT_BASE_URL = 'https://bengusa.pro/ourusdebt';
     public const ENV_BASE_URL = 'USDEBT_BASE_URL';
     public const CARD_PATH = 'card.php';
 
     private readonly string $baseUrl;
 
-    public function __construct(string $baseUrl = self::DEFAULT_BASE_URL)
+    /** False when no address was configured: the card link then starts at the site root, so local development at "/" works. */
+    private readonly bool $configured;
+
+    public function __construct(?string $baseUrl = null)
     {
-        $this->baseUrl = self::normalize($baseUrl) ?? self::DEFAULT_BASE_URL;
+        $normalized = $baseUrl === null ? null : self::normalize($baseUrl);
+        $this->baseUrl = $normalized ?? self::DEFAULT_BASE_URL;
+        $this->configured = $normalized !== null;
     }
 
     /** From USDEBT_BASE_URL, or the default. A bad value is logged and the default is used. */
@@ -97,7 +103,8 @@ final class ShareLinks
      */
     public function localCard(string $query): string
     {
-        $path = (string) parse_url($this->baseUrl, PHP_URL_PATH);
+        // No configured address (local development at "/"): start at the root.
+        $path = $this->configured ? (string) parse_url($this->baseUrl, PHP_URL_PATH) : '';
         return $path . '/' . self::CARD_PATH . ($query === '' ? '' : '?' . $query);
     }
 
