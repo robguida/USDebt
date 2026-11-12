@@ -48,7 +48,7 @@ class USDebtController
             $requestModel->setEndDate($today);
         }
         if ($requestModel->getStartDate() === null) {
-            $requestModel->setStartDate($requestModel->getEndDate()->modify('-1 month'));
+            $requestModel->setStartDate(self::monthsBefore($requestModel->getEndDate(), 1));
         }
         if ($requestModel->getStartDate() > $requestModel->getEndDate()) {
             throw new UserFacingException('The start date must be on or before the end date.');
@@ -169,7 +169,7 @@ class USDebtController
         $today = self::today();
         // Compare and error pages have no range of their own: prefill the default (last month).
         $end = $requestModel->getEndDate()?->format('Y-m-d') ?? $today->format('Y-m-d');
-        $start = $requestModel->getStartDate()?->format('Y-m-d') ?? $today->modify('-1 month')->format('Y-m-d');
+        $start = $requestModel->getStartDate()?->format('Y-m-d') ?? self::monthsBefore($today, 1)->format('Y-m-d');
         return $this->loadFile('search_form.php', [
             'pres_array' => PresidentService::getPresidentConfig(),
             'start_date' => $start,
@@ -190,9 +190,9 @@ class USDebtController
     {
         $to = $today->format('Y-m-d');
         $ranges = [
-            ['label' => '1M', 'title' => 'Last month', 'start' => $today->modify('-1 month')->format('Y-m-d')],
-            ['label' => '1Y', 'title' => 'Last year', 'start' => $today->modify('-1 year')->format('Y-m-d')],
-            ['label' => '5Y', 'title' => 'Last 5 years', 'start' => $today->modify('-5 years')->format('Y-m-d')],
+            ['label' => '1M', 'title' => 'Last month', 'start' => self::monthsBefore($today, 1)->format('Y-m-d')],
+            ['label' => '1Y', 'title' => 'Last year', 'start' => self::monthsBefore($today, 12)->format('Y-m-d')],
+            ['label' => '5Y', 'title' => 'Last 5 years', 'start' => self::monthsBefore($today, 60)->format('Y-m-d')],
         ];
         foreach (PresidentService::getPresidentConfig() as $term) {
             $termStart = new DateTimeImmutable($term['start']);
@@ -208,6 +208,18 @@ class USDebtController
             $out[] = $range;
         }
         return $out;
+    }
+
+    /**
+     * The same day of the month, $months months earlier. When that month is
+     * shorter, use its last day: Mar 31 -> Feb 28 (Feb 29 in a leap year),
+     * never Mar 3. PHP's modify('-1 month') rolls over into the next month.
+     */
+    public static function monthsBefore(DateTimeImmutable $date, int $months): DateTimeImmutable
+    {
+        $target = $date->modify('first day of this month')->modify('-' . $months . ' months');
+        $day = min((int) $date->format('j'), (int) $target->format('t'));
+        return $target->setDate((int) $target->format('Y'), (int) $target->format('n'), $day);
     }
 
     private static function today(): DateTimeImmutable

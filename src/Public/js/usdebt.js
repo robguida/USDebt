@@ -50,6 +50,8 @@
         return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
     }
 
+    var DAY_MS = 864e5;
+
     var fullDate = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
     var monthYear = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
     var monthDay = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -131,8 +133,23 @@
             }
         });
 
-        var spanYears = (maxX - minX) / (365.25 * 864e5);
-        var tickDate = spanYears > 2 ? monthYear : monthDay;
+        /*
+         * Fit the x-axis to the data. A one-day range has min == max, which
+         * Chart.js cannot draw, so pad it by a day on each side. With no
+         * points at all (min/max still +-Infinity) leave the axis to Chart.js.
+         */
+        var x = {};
+        if (isFinite(minX) && isFinite(maxX)) {
+            if (maxX > minX) {
+                x = { min: minX, max: maxX };
+            } else {
+                x = { min: minX - DAY_MS, max: maxX + DAY_MS, stepSize: DAY_MS };
+            }
+        }
+        var spanYears = x.min === undefined ? 0 : (x.max - x.min) / (365.25 * DAY_MS);
+        var crossesYear = x.min !== undefined && new Date(x.min).getUTCFullYear() !== new Date(x.max).getUTCFullYear();
+        /* long ranges: "Nov 2026"; a range across New Year (1Y, or Dec-Jan): "Nov 9, 2026"; else "Nov 9" */
+        var tickDate = spanYears > 2 ? monthYear : (crossesYear ? fullDate : monthDay);
         var opts = base.options;
         opts.parsing = false;
         opts.plugins.decimation = { enabled: true, algorithm: 'lttb', samples: 600 };
@@ -144,11 +161,12 @@
         opts.scales = {
             x: {
                 type: 'linear',
-                min: minX,
-                max: maxX,
+                min: x.min,
+                max: x.max,
                 grid: { color: base.grid },
                 ticks: {
                     color: base.text,
+                    stepSize: x.stepSize,
                     maxRotation: 0,
                     autoSkip: true,
                     maxTicksLimit: window.innerWidth < 640 ? 4 : 8,
@@ -172,9 +190,12 @@
             try {
                 var style = seriesStyle(s.key, i);
                 var starts = Array.isArray(s.term_starts) ? s.term_starts : [];
+                var points = s.points.map(function (p) { return { x: p[0], y: p[1] }; });
+                /* a line with one point has nothing to connect, so show the point */
+                var plainRadius = points.length === 1 ? 4 : 0;
                 datasets.push({
                     label: s.label,
-                    data: s.points.map(function (p) { return { x: p[0], y: p[1] }; }),
+                    data: points,
                     termStarts: starts,
                     borderColor: style.color,
                     backgroundColor: style.color,
@@ -182,7 +203,7 @@
                     tension: 0,
                     /* a diamond marks where a second, non-consecutive term begins */
                     pointStyle: function (ctx) { return ctx.raw && starts.indexOf(ctx.raw.x) !== -1 ? 'rectRot' : 'circle'; },
-                    pointRadius: function (ctx) { return ctx.raw && starts.indexOf(ctx.raw.x) !== -1 ? 7 : 0; },
+                    pointRadius: function (ctx) { return ctx.raw && starts.indexOf(ctx.raw.x) !== -1 ? 7 : plainRadius; },
                     pointHoverRadius: 5
                 });
             } catch (e) {

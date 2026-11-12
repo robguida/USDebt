@@ -29,6 +29,7 @@ $treasury_url = 'https://fiscaldata.treasury.gov/datasets/debt-to-the-penny/';
     <meta name="color-scheme" content="light dark">
     <title><?php echo Html::e($title); ?></title>
     <meta name="description" content="The U.S. national debt from U.S. Treasury data, as a chart, stats and a table. Compare how the debt changed during each presidential term.">
+    <link rel="icon" href="<?php echo $asset('favicon.svg'); ?>" type="image/svg+xml">
     <link rel="stylesheet" href="<?php echo $asset('css/usdebt.css'); ?>">
     <script src="<?php echo $asset('lib/chart.umd.min.js'); ?>" defer></script>
     <script src="<?php echo $asset('js/usdebt.js'); ?>" defer></script>

@@ -176,7 +176,9 @@ final class ViewRenderTest extends TestCase
         }
 
         $css = (string) file_get_contents($public . '/css/usdebt.css');
-        self::assertStringContainsString('--trend:', $css, 'red is defined once, for the trend line');
+        self::assertSame(1, substr_count($css, '#c62828'), 'red is defined once, for the trend line');
+        self::assertSame(2, substr_count($css, '--trend:'), 'the trend color is defined once for light and once for dark mode');
+        self::assertSame(1, preg_match_all('/--trend:\s*#c62828;/', $css), 'the one red is the trend color');
         self::assertStringContainsString('@media (prefers-color-scheme: dark)', $css);
         self::assertMatchesRegularExpression('/font-variant-numeric:\s*tabular-nums/', $css);
 
@@ -184,6 +186,43 @@ final class ViewRenderTest extends TestCase
         self::assertStringNotContainsString('innerHTML', $js, 'the script never writes raw HTML');
         self::assertStringContainsString("cssVar('--series-'", $js, 'term colors come from CSS variables');
         self::assertStringContainsString("cssVar('--trend'", $js, 'the trend color comes from CSS');
+    }
+
+    public function testOneDayRangeSendsOneChartPoint(): void
+    {
+        // 2026-11-09 is a reported day in the test data.
+        $html = self::app()->handle(['start_date' => '2026-11-09', 'end_date' => '2026-11-09'], [])->body;
+
+        $chart = FrontControllerTest::chartJson($html);
+        self::assertSame('daily', $chart['type']);
+        self::assertCount(1, $chart['series']);
+        self::assertSame('2026-11-09', $chart['series'][0]['points'][0][0]);
+        self::assertCount(1, $chart['series'][0]['points']);
+    }
+
+    public function testScriptDrawsOnePointChartsAndDatesWithYears(): void
+    {
+        $js = $this->script();
+
+        // One-day range: min == max would leave the chart blank, so the axis is padded a day each side.
+        self::assertStringContainsString('if (maxX > minX)', $js);
+        self::assertStringContainsString('min: minX - DAY_MS, max: maxX + DAY_MS', $js);
+        self::assertStringContainsString('isFinite(minX) && isFinite(maxX)', $js, 'no points: the axis is left alone');
+        // A line with one point shows the point, on both charts.
+        self::assertSame(2, substr_count($js, 'length === 1 ? 4 : 0'));
+        // Tick labels carry the year when the range crosses New Year.
+        self::assertStringContainsString('crossesYear ? fullDate : monthDay', $js);
+    }
+
+    public function testFaviconIsLocalAndUnusedImagesAreGone(): void
+    {
+        $public = dirname(__DIR__, 2) . '/src/Public';
+        self::assertFileDoesNotExist($public . '/images/home.png');
+        self::assertFileExists($public . '/favicon.svg');
+        self::assertStringStartsWith('<svg xmlns="http://www.w3.org/2000/svg"', (string) file_get_contents($public . '/favicon.svg'));
+
+        $html = self::app()->handle([], [])->body;
+        self::assertMatchesRegularExpression('#<link rel="icon" href="favicon\.svg(\?r=\d+)?" type="image/svg\+xml">#', $html);
     }
 
     private function script(): string
