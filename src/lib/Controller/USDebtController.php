@@ -16,21 +16,32 @@ use Throwable;
 use USDebt\Exception\UserFacingException;
 use USDebt\Model\DebtDataset;
 use USDebt\Model\RequestModel;
+use USDebt\Model\ShareCard;
 use USDebt\Service\ChartData;
 use USDebt\Service\CompareService;
 use USDebt\Service\DebtSource;
 use USDebt\Service\Html;
 use USDebt\Service\PresidentService;
+use USDebt\Service\ShareCardBuilder;
+use USDebt\Service\ShareLinks;
+use USDebt\Service\ShareText;
 use USDebt\Service\StatsCalculator;
 
 class USDebtController
 {
-    public const SITE_TITLE = 'Our U.S. Debt';
+    public const SITE_TITLE = ShareText::SITE_NAME;
 
+    private readonly ShareCardBuilder $shareCards;
+
+    /**
+     * @param ShareLinks $shareLinks  Absolute links for the link preview tags. Defaults to the production address.
+     */
     public function __construct(
         private readonly DebtSource $debtSource,
         private readonly CompareService $compareService,
+        private readonly ShareLinks $shareLinks = new ShareLinks(),
     ) {
+        $this->shareCards = new ShareCardBuilder($compareService);
     }
 
     public function compareService(): CompareService
@@ -39,13 +50,15 @@ class USDebtController
     }
 
     /**
-     * Date-range view: headline numbers, then chart, stats and table. Defaults to the last month.
+     * Fill in the default range (the last month, ending today) and check the
+     * order. Shared by the page and the share card.
+     *
+     * @throws UserFacingException  The start date is after the end date.
      */
-    public function defaultView(RequestModel $requestModel): string
+    public static function resolveRange(RequestModel $requestModel): void
     {
-        $today = self::today();
         if ($requestModel->getEndDate() === null) {
-            $requestModel->setEndDate($today);
+            $requestModel->setEndDate(self::today());
         }
         if ($requestModel->getStartDate() === null) {
             $requestModel->setStartDate(self::monthsBefore($requestModel->getEndDate(), 1));
@@ -53,6 +66,16 @@ class USDebtController
         if ($requestModel->getStartDate() > $requestModel->getEndDate()) {
             throw new UserFacingException('The start date must be on or before the end date.');
         }
+    }
+
+    /**
+     * Date-range view: headline numbers, then chart, stats and table. Defaults to the last month.
+     */
+    public function defaultView(RequestModel $requestModel): string
+    {
+        // The home page (no dates picked) shares as the home page, not as fixed dates.
+        $explicitDates = $requestModel->getStartDate() !== null || $requestModel->getEndDate() !== null;
+        self::resolveRange($requestModel);
 
         $dataset = $this->debtSource->load();
         $entries = $dataset->between($requestModel->getStartDate(), $requestModel->getEndDate());
@@ -95,7 +118,14 @@ class USDebtController
             ]);
         }
 
-        return $this->page($requestModel, $results, $dataset, $cards, '', $hasTrend);
+        $share = $this->shareCards->forRange(
+            $dataset,
+            $requestModel->getStartDate(),
+            $requestModel->getEndDate(),
+            $requestModel->showTrend(),
+            $explicitDates,
+        );
+        return $this->page($requestModel, $results, $dataset, $cards, '', $hasTrend, $share);
     }
 
     /**
@@ -118,7 +148,8 @@ class USDebtController
             ]);
         }
 
-        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset), 'Compare presidential terms', $hasTrend);
+        $share = $this->shareCards->forCompare($dataset, $requestModel->getComparePres(), $requestModel->showTrend());
+        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset), 'Compare presidential terms', $hasTrend, $share);
     }
 
     /**
@@ -139,6 +170,7 @@ class USDebtController
         array $cards = [],
         string $heading = '',
         bool $trendToggle = false,
+        ?ShareCard $share = null,
     ): string {
         $notice = '';
         if ($dataset !== null && $dataset->isStale()) {
@@ -157,7 +189,60 @@ class USDebtController
             // The trend button shows only when the chart has a trend line to switch.
             'trend_toggle' => $trendToggle,
             'show_trend' => $requestModel->showTrend(),
+            'share' => $this->shareMeta($share),
+            // A page with something to share gets the Share button and menu.
+            'share_menu' => $share === null ? '' : $this->loadFile('share_menu.php', $this->shareMenu($share)),
         ]);
+    }
+
+    /**
+     * Link preview tags (Open Graph and Twitter) for this view. Every link is
+     * absolute and built from the configured site address. A page with nothing
+     * to share (an error, a range with no data) gets the site-wide preview.
+     *
+     * @return array{title: string, description: string, url: string, image: string, image_alt: string}
+     */
+    private function shareMeta(?ShareCard $share): array
+    {
+        if ($share === null) {
+            return [
+                'title' => ShareText::HOME_TITLE,
+                'description' => ShareText::HOME_DESCRIPTION,
+                'url' => $this->shareLinks->page(''),
+                'image' => $this->shareLinks->card(''),
+                'image_alt' => ShareText::HOME_ALT,
+            ];
+        }
+        return [
+            'title' => $share->title,
+            'description' => $share->description,
+            'url' => $this->shareLinks->page($share->pageQuery),
+            'image' => $this->shareLinks->card($share->cardQuery),
+            'image_alt' => $share->imageAlt,
+        ];
+    }
+
+    /**
+     * Everything the Share menu shows. The page link is the same as og:url;
+     * the card links are root-relative (no host) so "Download picture" stays on
+     * this site, and do not depend on the page's own path.
+     *
+     * @return array<string, mixed>
+     */
+    private function shareMenu(ShareCard $share): array
+    {
+        $url = $this->shareLinks->page($share->pageQuery);
+        return [
+            'url' => $url,
+            'card_href' => $this->shareLinks->localCard($share->cardQuery),
+            'card_trend' => $share->cardTrendMatters,
+            'download_name' => $share->downloadName,
+            'image_alt' => $share->imageAlt,
+            'share_text' => $share->shareText,
+            'email_subject' => $share->emailSubject,
+            'email_note' => ShareText::EMAIL_NOTE,
+            'networks' => ShareLinks::networks($url, $share->shareText, $share->emailSubject),
+        ];
     }
 
     /**

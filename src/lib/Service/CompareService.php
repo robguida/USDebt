@@ -19,6 +19,13 @@ use USDebt\Model\DebtDataset;
  *   second term's months continue on the x-axis right after the first term's, and
  *   its debt change is added on top of the change at the end of the first term.
  *   The years in between (another president's term) are left out.
+ * - Each series also carries its exact total change ('change', in dollars):
+ *   for every picked term, its last data day minus its first data day, added
+ *   up over the president's picked terms (the same sum the joined line ends
+ *   on). The chart points are one per month (the first data day of each
+ *   month), so the last point can be up to a month short of the term's end.
+ *   Stated totals (the Compare page summary and the share card) use 'change',
+ *   never the last chart point.
  */
 final class CompareService
 {
@@ -67,9 +74,11 @@ final class CompareService
 
     /**
      * @param list<int> $keys  Validated term ids (see validateSelection).
-     * @return list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>}>
+     * @return list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>, change: float, months: int}>
      *   term_starts = x values where a later term begins (empty for one term).
      *   The Compare chart draws a diamond at each one (js/usdebt.js).
+     *   change = exact debt change in dollars, first to last data day of each
+     *   picked term, summed. months = months in office with data (the last x).
      */
     public function buildSeries(array $keys, DebtDataset $dataset): array
     {
@@ -120,9 +129,38 @@ final class CompareService
                 'president' => $name,
                 'term_starts' => $termStarts,
                 'data' => $points,
+                'change' => $carried,
+                'months' => $x,
             ];
         }
         return $series;
+    }
+
+    /**
+     * First and last year that has data in the picked terms, for the share
+     * card ("1993 to 2026"). A term still running ends at the latest data.
+     *
+     * @param list<int> $keys  Validated term ids.
+     * @return array{0: int, 1: int}|null  Null when no picked term has data.
+     */
+    public function dataYears(array $keys, DebtDataset $dataset): ?array
+    {
+        $first = null;
+        $last = null;
+        foreach ($keys as $key) {
+            if (!isset($this->terms[$key])) {
+                continue;
+            }
+            $entries = $dataset->between($this->start($key), $this->end($key));
+            if ($entries === []) {
+                continue;
+            }
+            $from = (int) substr($entries[0]->effectiveDate, 0, 4);
+            $to = (int) substr($entries[count($entries) - 1]->effectiveDate, 0, 4);
+            $first = $first === null ? $from : min($first, $from);
+            $last = $last === null ? $to : max($last, $to);
+        }
+        return $first === null || $last === null ? null : [$first, $last];
     }
 
     private function start(int $key): DateTimeImmutable

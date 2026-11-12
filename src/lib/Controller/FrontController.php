@@ -13,6 +13,7 @@ use USDebt\Service\CompareService;
 use USDebt\Service\DebtRepository;
 use USDebt\Service\FiscalDataClient;
 use USDebt\Service\Html;
+use USDebt\Service\ShareLinks;
 
 /**
  * Turns one web request into one HTML page. Visitors only ever see messages we
@@ -27,19 +28,33 @@ final class FrontController
     }
 
     /**
-     * Production wiring. The cache folder comes from USDEBT_CACHE_DIR, or
-     * defaults to src/var/cache (outside the web root, gitignored).
+     * Production wiring. The site address for share links comes from
+     * USDEBT_BASE_URL (see ShareLinks), never from the request.
      */
     public static function create(): self
     {
-        $libDir = dirname(__DIR__);
-        $cacheDir = getenv('USDEBT_CACHE_DIR') ?: dirname($libDir) . '/var/cache';
-        $repository = new DebtRepository(
+        return new self(new USDebtController(self::repository(), new CompareService(), ShareLinks::fromEnvironment()));
+    }
+
+    /**
+     * The daily Treasury cache, shared by the page and the share card.
+     */
+    public static function repository(): DebtRepository
+    {
+        return new DebtRepository(
             new FiscalDataClient(new NativeHttpFetcher()),
-            $cacheDir,
-            $libDir . '/Data/debt_seed_1993.json',
+            self::cacheDir(),
+            dirname(__DIR__) . '/Data/debt_seed_1993.json',
         );
-        return new self(new USDebtController($repository, new CompareService()));
+    }
+
+    /**
+     * The cache folder: USDEBT_CACHE_DIR, or src/var/cache (outside the web
+     * root, gitignored).
+     */
+    public static function cacheDir(): string
+    {
+        return getenv('USDEBT_CACHE_DIR') ?: dirname(__DIR__, 2) . '/var/cache';
     }
 
     /**
@@ -51,24 +66,13 @@ final class FrontController
      */
     public function handle(array $query, array $post): Response
     {
-        $input = $post + $query;
         $request = new RequestModel();
         // The trend switch lives in the URL (?trend=0), so a shared link opens the same view.
         $request->setShowTrend(($query['trend'] ?? null) !== '0');
         try {
-            $action = is_string($input['submit'] ?? null) ? strtolower($input['submit']) : '';
-            if ($action === 'compare') {
-                $keys = $this->controller->compareService()->validateSelection($input['compare_pres'] ?? []);
-                $request->setComparePres($keys);
+            self::readRequest($request, $query, $post, $this->controller->compareService());
+            if ($request->isCompare()) {
                 return new Response(200, $this->controller->compareView($request));
-            }
-            $start = self::text($input['start_date'] ?? null);
-            $end = self::text($input['end_date'] ?? null);
-            if ($start !== '') {
-                $request->setStartDate($start);
-            }
-            if ($end !== '') {
-                $request->setEndDate($end);
             }
             return new Response(200, $this->controller->defaultView($request));
         } catch (UserFacingException $e) {
@@ -78,6 +82,60 @@ final class FrontController
                 . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString());
             return $this->errorPage(500, self::GENERIC_ERROR, $request);
         }
+    }
+
+    /**
+     * Read the view from the request: Compare picks, or a date range.
+     * Shared by the page and the share card, so both accept exactly the same input.
+     *
+     * - Compare by form post: submit=Compare and compare_pres[]=<term id>, ...
+     * - Compare by link (the share link): ?compare=<term id>,<term id>,...
+     *   Both go through CompareService::validateSelection: unknown and
+     *   duplicate ids are ignored, there is no cap, and fewer than 2 valid
+     *   picks is a 400 ("Please pick at least 2 presidents to compare.").
+     *   A posted Compare wins over ?compare= in the address.
+     * - Otherwise start_date and end_date (YYYY-MM-DD), both optional.
+     *
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $post
+     * @throws UserFacingException  Input we cannot use.
+     */
+    public static function readRequest(RequestModel $request, array $query, array $post, CompareService $compareService): void
+    {
+        $input = $post + $query;
+        $action = is_string($input['submit'] ?? null) ? strtolower($input['submit']) : '';
+        $picks = null;
+        if ($action === 'compare') {
+            $picks = $input['compare_pres'] ?? [];
+        } elseif (array_key_exists('compare', $query)) {
+            $picks = self::pickList($query['compare']);
+        }
+        if ($picks !== null) {
+            $request->setComparePres($compareService->validateSelection($picks));
+            return;
+        }
+        $start = self::text($input['start_date'] ?? null);
+        $end = self::text($input['end_date'] ?? null);
+        if ($start !== '') {
+            $request->setStartDate($start);
+        }
+        if ($end !== '') {
+            $request->setEndDate($end);
+        }
+    }
+
+    /**
+     * "1,2,3" (the share link form) or a list (compare[]=1&compare[]=2).
+     * Anything else picks nothing.
+     *
+     * @return array<mixed>
+     */
+    private static function pickList(mixed $value): array
+    {
+        if (is_string($value)) {
+            return explode(',', $value);
+        }
+        return is_array($value) ? $value : [];
     }
 
     private function errorPage(int $status, string $message, RequestModel $request): Response

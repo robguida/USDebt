@@ -113,6 +113,18 @@ final class StatsAndDatesTest extends TestCase
         self::assertSame('$0.00', Html::compactMoney(0.0, true));
     }
 
+    public function testSignedPercentNeverShowsASignOnZero(): void
+    {
+        self::assertSame('+8.1%', Html::signedPercent(8.06));
+        self::assertSame('-2.3%', Html::signedPercent(-2.26));
+        self::assertSame('0.0%', Html::signedPercent(0.0));
+        self::assertSame('0.0%', Html::signedPercent(-0.0));
+        self::assertSame('0.0%', Html::signedPercent(0.04), 'not +0.0%');
+        self::assertSame('0.0%', Html::signedPercent(-0.04), 'not -0.0%');
+        self::assertSame('+0.1%', Html::signedPercent(0.05));
+        self::assertSame('+1,234.5%', Html::signedPercent(1234.5));
+    }
+
     public function testStrictDateValidation(): void
     {
         self::assertTrue(ValidateDateTime::isValid('2024-02-29'));

@@ -59,6 +59,22 @@ final class FrontControllerTest extends TestCase
         };
     }
 
+    /** A source that serves exactly these entries. */
+    public static function sourceOf(DebtEntry ...$entries): DebtSource
+    {
+        $dataset = new DebtDataset(array_values($entries), '2026-11-12');
+        return new class ($dataset) implements DebtSource {
+            public function __construct(private readonly DebtDataset $dataset)
+            {
+            }
+
+            public function load(): DebtDataset
+            {
+                return $this->dataset;
+            }
+        };
+    }
+
     /** @return array<string, mixed> The chart JSON data block on the page. */
     public static function chartJson(string $html): array
     {
@@ -239,6 +255,35 @@ final class FrontControllerTest extends TestCase
                 (string) file_get_contents($file),
                 $file
             );
+        }
+    }
+
+    public function testATinyValueOnAShortRangeStillShowsThePageWithoutACurve(): void
+    {
+        $app = self::app(self::sourceOf(
+            new DebtEntry('2026-01-01', 1e-300),
+            new DebtEntry('2026-01-02', 10.0e12),
+        ));
+        $response = $app->handle(['start_date' => '2026-01-01', 'end_date' => '2026-01-02'], []);
+
+        self::assertSame(200, $response->status);
+        self::assertSame(['debt', 'trend', 'projection'], array_column(self::chartJson($response->body)['series'], 'key'));
+        self::assertStringNotContainsString('Growth curve', $response->body);
+    }
+
+    public function testNearZeroGrowthShowsZeroPercentWithoutASign(): void
+    {
+        foreach ([1.0, -1.0] as $nudge) {
+            $app = self::app(self::sourceOf(
+                new DebtEntry('2026-01-01', 10.0e12),
+                new DebtEntry('2026-01-31', 10.0e12 + $nudge * 1e6),
+            ));
+            $html = $app->handle(['start_date' => '2026-01-01', 'end_date' => '2026-01-31'], [])->body;
+
+            self::assertStringContainsString('Growth curve: about 0.0% per year.', $html);
+            self::assertMatchesRegularExpression('#<dt>Growth curve</dt>\s*<dd class="num">About 0\.0% per year</dd>#', $html);
+            self::assertStringNotContainsString('+0.0%', $html);
+            self::assertStringNotContainsString('-0.0%', $html);
         }
     }
 

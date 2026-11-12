@@ -327,6 +327,24 @@ final class TrendServiceTest extends TestCase
         self::assertNull(TrendService::growthPctPerYear([new DebtEntry('2026-11-09', 38.0 * self::T)]));
     }
 
+    public function testACurveThatWouldBeInfiniteIsLeftOutNotAnError(): void
+    {
+        // A tiny value then a normal one the next day: the yearly % and the
+        // projection overflow to infinity. No curve, and the straight line stays.
+        $entries = [
+            new DebtEntry('2026-01-01', 1e-300),
+            new DebtEntry('2026-01-02', 10.0 * self::T),
+        ];
+
+        self::assertNull(TrendService::growth($entries));
+        self::assertNull(TrendService::growthPctPerYear($entries));
+        self::assertNotNull(TrendService::daily($entries));
+
+        $chart = ChartData::daily($entries);
+        self::assertSame(['debt', 'trend', 'projection'], array_column($chart['series'], 'key'));
+        json_encode($chart, JSON_THROW_ON_ERROR); // every number can go to the page
+    }
+
     public function testTwoDaysGiveTheCurveThroughThem(): void
     {
         // Doubles in 365 days: +100% a year.

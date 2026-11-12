@@ -651,6 +651,7 @@ final class DebtRepositoryTest extends TestCase
 
     private static function forgetWhatThisProcessLogged(): void
     {
-        (new \ReflectionProperty(DebtRepository::class, 'logged'))->setValue(null, []);
+        // The per-process memory lives in LogOnce, shared with the share card cache.
+        (new \ReflectionProperty(\USDebt\Service\LogOnce::class, 'logged'))->setValue(null, []);
     }
 }

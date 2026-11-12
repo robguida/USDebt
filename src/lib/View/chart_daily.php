@@ -44,11 +44,9 @@ if (isset($by_key['trend'])) {
     ) . $projection_text($by_key['projection'] ?? null, 'Projection');
 }
 if (isset($by_key['curve'])) {
-    $growth = (float) $by_key['curve']['growth_pct_per_year'];
     $trend_texts[] = sprintf(
-        'Growth curve: about %s%s%% per year.',
-        $growth > 0 ? '+' : '',
-        number_format($growth, 1)
+        'Growth curve: about %s per year.',
+        Html::signedPercent((float) $by_key['curve']['growth_pct_per_year'])
     ) . $projection_text($by_key['curve_projection'] ?? null, 'Growth projection');
 }
 $last_text = count($trend_texts) - 1;

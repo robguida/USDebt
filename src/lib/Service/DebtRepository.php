@@ -39,7 +39,8 @@ use USDebt\Model\DebtEntry;
  *   full disk, where a written timestamp would come out as an empty file.
  * - If the download fails and there is no copy, DataUnavailableException is thrown.
  * - Lasting problems (broken cache folder or lock) are logged once per back-off
- *   window, not once per page view (see logOnce for the limits).
+ *   window, not once per page view (LogOnce, with a marker file shared by all
+ *   PHP processes).
  */
 final class DebtRepository implements DebtSource
 {
@@ -52,14 +53,11 @@ final class DebtRepository implements DebtSource
     public const DIR_MODE = 0750;
     public const FILE_MODE = 0640;
     /** The "already logged" marker folder: only the app's own user may use it. */
-    public const MARKER_DIR_MODE = 0700;
+    public const MARKER_DIR_MODE = LogOnce::MARKER_DIR_MODE;
     /** Default marker folder name, next to the cache folder (src/var/log-markers by default). */
-    public const MARKER_DIR_NAME = 'log-markers';
+    public const MARKER_DIR_NAME = LogOnce::MARKER_DIR_NAME;
     private const FORMAT_VERSION = 1;
     private const LOCK_POLL_SECONDS = 0.1;
-
-    /** @var array<string, int> When this PHP process last logged each problem (Unix time). */
-    private static array $logged = [];
 
     /** @var Closure(): DateTimeImmutable */
     private Closure $clock;
@@ -67,7 +65,7 @@ final class DebtRepository implements DebtSource
     /** @var Closure(float): void */
     private Closure $sleep;
 
-    private string $logMarkerDir;
+    private LogOnce $log;
 
     /**
      * @param string                              $cacheDir        Folder for the cache file. Created if missing. Must not be web-served.
@@ -75,10 +73,10 @@ final class DebtRepository implements DebtSource
      * @param (Closure(): DateTimeImmutable)|null $clock           "Now"; tests pass a fixed time.
      * @param float                               $lockWaitSeconds Longest wait for another request's download when there is no saved copy.
      * @param (Closure(float): void)|null         $sleep           Pause between lock checks; tests pass their own.
-     * @param string|null                         $logMarkerDir    Folder for the "already logged" markers. Default: MARKER_DIR_NAME
-     *                                                             next to the cache folder (src/var/log-markers), not inside it,
-     *                                                             because the cache folder may be the thing that is broken. Never
-     *                                                             the shared system temp folder.
+     * @param string|null                         $logMarkerDir    Folder for the "already logged" markers. Default:
+     *                                                             LogOnce::defaultMarkerDir (src/var/log-markers, next to the
+     *                                                             cache folder, not inside it, because the cache folder may be
+     *                                                             the thing that is broken). Never the shared system temp folder.
      */
     public function __construct(
         private readonly FiscalDataClient $client,
@@ -94,8 +92,11 @@ final class DebtRepository implements DebtSource
         $this->sleep = $sleep ?? static function (float $seconds): void {
             usleep((int) ($seconds * 1_000_000));
         };
-        $this->logMarkerDir = $logMarkerDir
-            ?? dirname(rtrim($cacheDir, '/\\')) . DIRECTORY_SEPARATOR . self::MARKER_DIR_NAME;
+        $this->log = new LogOnce(
+            $logMarkerDir ?? LogOnce::defaultMarkerDir($cacheDir),
+            $retryAfterSeconds,
+            fn (): int => $this->now(),
+        );
     }
 
     public function load(): DebtDataset
@@ -389,75 +390,11 @@ final class DebtRepository implements DebtSource
     }
 
     /**
-     * Log a lasting problem at most once per back-off window (retryAfterSeconds).
-     *
-     * - Shared limit: the window is kept as a marker file's modified time in a
-     *   private folder (logMarkerDir, mode 0700), so every PHP process sees it.
-     * - Fallback: if that folder cannot be used safely (see markerDir), no marker
-     *   is written and the shared system temp folder is never used instead. The
-     *   only limit left is a static variable, which lasts as long as the PHP
-     *   process state: under the CLI or a long-running worker that is still once
-     *   per window, but under PHP-FPM (and mod_php) static state is reset after
-     *   every request, so the line is logged once per page view until the marker
-     *   folder is fixed.
+     * Log a lasting problem at most once per back-off window (retryAfterSeconds),
+     * across PHP processes. See LogOnce for how and for its limits.
      */
     private function logOnce(string $message): void
     {
-        $now = $this->now();
-        $key = sha1($this->cacheDir . "\0" . $message);
-        $last = self::$logged[$key] ?? null;
-        if ($last !== null && $now - $last >= 0 && $now - $last < $this->retryAfterSeconds) {
-            return;
-        }
-        $markerDir = $this->markerDir();
-        if ($markerDir !== null) {
-            $marker = $markerDir . DIRECTORY_SEPARATOR . $key;
-            clearstatcache(true, $marker);
-            $seen = @filemtime($marker);
-            if ($seen !== false && $now - $seen >= 0 && $now - $seen < $this->retryAfterSeconds) {
-                self::$logged[$key] = $seen; // another process logged it in this window
-                return;
-            }
-            @touch($marker, $now);
-        }
-        self::$logged[$key] = $now;
-        error_log($message);
-    }
-
-    /**
-     * The marker folder, created with mode 0700 if missing. Null when it cannot
-     * be used safely: it is (or sits directly in) the shared system temp folder,
-     * it is a symlink, it cannot be created or written, or (on POSIX) it belongs
-     * to another user or is open to other users.
-     */
-    private function markerDir(): ?string
-    {
-        $dir = rtrim($this->logMarkerDir, '/\\');
-        if ($dir === '' || is_link($dir)) {
-            return null;
-        }
-        $temp = realpath(sys_get_temp_dir());
-        $parent = realpath(dirname($dir));
-        if ($temp !== false && ($parent === $temp || realpath($dir) === $temp)) {
-            return null;
-        }
-        if (!is_dir($dir) && !@mkdir($dir, self::MARKER_DIR_MODE, true) && !is_dir($dir)) {
-            return null;
-        }
-        if (is_link($dir) || !is_writable($dir)) {
-            return null;
-        }
-        if (DIRECTORY_SEPARATOR === '/') {
-            if (function_exists('posix_geteuid') && @fileowner($dir) !== posix_geteuid()) {
-                return null;
-            }
-            @chmod($dir, self::MARKER_DIR_MODE);
-            clearstatcache(true, $dir);
-            $perms = @fileperms($dir);
-            if ($perms === false || ($perms & 0077) !== 0) {
-                return null;
-            }
-        }
-        return $dir;
+        $this->log->log($this->cacheDir, $message);
     }
 }

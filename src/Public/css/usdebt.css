@@ -262,6 +262,103 @@ main.wrap {
 }
 .btn-toggle[aria-pressed="false"] { color: var(--muted); }
 
+/* ---- Chart card buttons: Trend line + Share ---- */
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px; /* same gap below as the card title */
+}
+.card-actions .btn-toggle { margin-bottom: 0; }
+
+/* ---- Share menu (a <details>, so it opens and closes without JavaScript) ---- */
+/* The menu hangs from the card header's right edge, so it stays on screen on phones too. */
+.results > .card-head { position: relative; }
+.share { position: static; }
+.share-button {
+    display: inline-flex;
+    align-items: center;
+    list-style: none;
+}
+.share-button::-webkit-details-marker { display: none; }
+.share-button::marker { content: ""; }
+.share[open] > .share-button {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+}
+.share-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% - 6px);
+    z-index: 20;
+    box-sizing: border-box;
+    width: 20rem;
+    max-width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+    padding: 12px;
+}
+/* phones: the buttons wrap under the title, so the menu takes the card's full width */
+@media (max-width: 639px) {
+    .share-panel { left: 0; width: auto; }
+}
+.share-title {
+    margin: 0 0 8px;
+    font-weight: 650;
+}
+.share-native { width: 100%; margin-bottom: 10px; }
+.share-thumb {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1200 / 630;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    margin-bottom: 10px;
+}
+.share-copy {
+    display: flex;
+    gap: 6px;
+}
+.share-url {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+.share-status {
+    min-height: 1.2em;
+    margin: 6px 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+.share-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+}
+.share-item {
+    display: block;
+    padding: 10px 4px;
+    min-height: 44px;
+    box-sizing: border-box;
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+}
+.share-list li:last-child .share-item { border-bottom: 0; }
+.share-item:hover { background: var(--accent-soft); }
+
 /* ---- Date range controls ---- */
 .range-form {
     display: grid;
