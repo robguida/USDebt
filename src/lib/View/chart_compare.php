@@ -25,19 +25,13 @@ $has_trend = false;
 foreach ($series as $i => $s) {
     // The exact change to the last data day (the same number as the share card),
     // not the last monthly chart point.
-    $line = sprintf(
-        '%s: %s after %d %s in office.',
-        $s['label'],
-        Html::compactMoney($s['change'], true),
-        $s['months'],
-        $s['months'] === 1 ? 'month' : 'months'
-    );
+    $line = ShareText::compareLine($per, $s['label'], Html::compactMoney($s['change'], true), $s['months']);
     $trend = $chart['series'][$i]['trend'] ?? null;
     if ($trend !== null) {
         $has_trend = true;
         $line .= sprintf(
-            ' Trend: about %s per month (straight line).',
-            Html::compactMoney(ChartData::toDollars($chart, (float) $trend['slope_per_month']), true)
+            ' Trend: %s (straight line).',
+            ShareText::trendAmount($per, Html::compactMoney(ChartData::toDollars($chart, (float) $trend['slope_per_month']), true), 'month')
         );
     }
     $lines[] = $line;

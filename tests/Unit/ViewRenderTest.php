@@ -291,7 +291,7 @@ final class ViewRenderTest extends TestCase
         self::assertStringContainsString("button.setAttribute('aria-pressed'", $js);
         self::assertStringContainsString('window.localStorage.setItem(TREND_STORAGE_KEY', $js);
         self::assertStringContainsString('window.localStorage.getItem(TREND_STORAGE_KEY', $js);
-        self::assertStringContainsString("url.searchParams.set('trend', '0')", $js);
+        self::assertStringContainsString("params.push('trend=0')", $js);
         self::assertStringContainsString('window.history.replaceState', $js);
         self::assertStringContainsString('chart.setDatasetVisibility(i, trendOn)', $js, 'no reload');
 
@@ -313,8 +313,9 @@ final class ViewRenderTest extends TestCase
         // and collapses leading slashes so "//evil.example/" cannot come back out.
         $js = $this->script();
         self::assertStringContainsString('if (url.origin !== origin) {', $js);
-        self::assertStringContainsString("return url.pathname.replace(/^[\\/\\\\]+/, '/') + url.search + url.hash;", $js);
+        self::assertStringContainsString("return url.pathname.replace(/^[\\/\\\\]+/, '/') + (params.length ? '?' + params.join('&') : '') + url.hash;", $js);
         self::assertStringNotContainsString('return url.pathname + url.search', $js);
+        self::assertStringNotContainsString('url.searchParams.set', $js, 'the query is edited as text, so commas are not re-encoded');
         self::assertStringContainsString('if (next !== null) {', $js, 'a link withTrend refuses is not rewritten');
 
         // Behaviour check in Node, when it is installed.

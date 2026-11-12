@@ -65,7 +65,7 @@ final class CardController
         $cacheDir = FrontController::cacheDir();
         return new self(
             FrontController::repository(),
-            new CompareService(),
+            FrontController::compareService(),
             new CardRenderer(ShareText::siteAddress($links->baseUrl())),
             new CardCache(
                 rtrim($cacheDir, '/\\') . DIRECTORY_SEPARATOR . CardCache::DIR_NAME,

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace USDebt\Service;
 
+use USDebt\Model\Per;
+
 /**
  * Absolute links for sharing: the page link (og:url) and the card image
  * link (og:image).
@@ -107,7 +109,7 @@ final class ShareLinks
      *
      * @return array{x: string, facebook: string, linkedin: string, reddit: string, email: string}
      */
-    public static function networks(string $url, string $text, string $subject): array
+    public static function networks(string $url, string $text, string $subject, Per $per = Per::Total): array
     {
         $u = rawurlencode($url);
         return [
@@ -115,7 +117,7 @@ final class ShareLinks
             'facebook' => 'https://www.facebook.com/sharer/sharer.php?u=' . $u,
             'linkedin' => 'https://www.linkedin.com/sharing/share-offsite/?url=' . $u,
             'reddit' => 'https://www.reddit.com/submit?url=' . $u . '&title=' . rawurlencode($text),
-            'email' => 'mailto:?subject=' . rawurlencode($subject) . '&body=' . rawurlencode(ShareText::emailBody($text, $url)),
+            'email' => 'mailto:?subject=' . rawurlencode($subject) . '&body=' . rawurlencode(ShareText::emailBody($text, $url, $per)),
         ];
     }
 }

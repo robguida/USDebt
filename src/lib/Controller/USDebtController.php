@@ -124,12 +124,12 @@ class USDebtController
                     'last' => $last,
                     'show_trend' => $requestModel->showTrend(),
                     'per' => $per,
-                    'footnote' => $this->censusFootnote($per),
+                    'footnote' => $this->censusFootnote($per, $first->effectiveDate),
                 ]),
                 'stats' => $this->loadFile('tab_stats.php', [
                     'stats' => $stats,
                     'per' => $per,
-                    'method_note' => ShareText::method($per, $this->population()->latest($per)),
+                    'method_note' => ShareText::method($per, $this->population()->latest($per), $this->earlyHeldYear($per, $first->effectiveDate)),
                 ]),
                 'data' => $this->loadFile('tab_data.php', [
                     'datas' => array_reverse($entries),
@@ -174,7 +174,7 @@ class USDebtController
                 'chart' => $chart,
                 'show_trend' => $requestModel->showTrend(),
                 'per' => $per,
-                'footnote' => $this->censusFootnote($per),
+                'footnote' => $this->censusFootnote($per, $this->compareService->firstDataDate($requestModel->getComparePres(), $dataset)),
             ]);
         }
 
@@ -281,7 +281,7 @@ class USDebtController
             'share_text' => $share->shareText,
             'email_subject' => $share->emailSubject,
             'email_note' => ShareText::emailNote($share->per),
-            'networks' => ShareLinks::networks($url, $share->shareText, $share->emailSubject),
+            'networks' => ShareLinks::networks($url, $share->shareText, $share->emailSubject, $share->per),
         ];
     }
 
@@ -360,9 +360,29 @@ class USDebtController
      * Footnote under the chart for per person and per household: the Census
      * counts and the year of the latest one ('' for the total).
      */
-    private function censusFootnote(Per $per): string
+    private function censusFootnote(Per $per, ?string $firstDate): string
     {
-        return ShareText::censusFootnote($per, $per->isTotal() ? null : ($this->population()->latest($per)['year'] ?? null));
+        return ShareText::censusFootnote(
+            $per,
+            $per->isTotal() ? null : ($this->population()->latest($per)['year'] ?? null),
+            $this->earlyHeldYear($per, $firstDate)
+        );
+    }
+
+    /**
+     * The year of the first Census figure when the view starts before it (so
+     * that figure is used for the early days), else null.
+     *
+     * @param string|null $firstDate  The first day the view uses (Y-m-d).
+     */
+    private function earlyHeldYear(Per $per, ?string $firstDate): ?int
+    {
+        if ($per->isTotal() || $firstDate === null) {
+            return null;
+        }
+        return $this->population()->held($per, $firstDate) === PopulationService::HELD_EARLIEST
+            ? ($this->population()->earliest($per)['year'] ?? null)
+            : null;
     }
 
     /**

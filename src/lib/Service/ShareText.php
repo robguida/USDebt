@@ -402,7 +402,7 @@ final class ShareText
     }
 
     /** After an amount: " per person", " per household", or '' for the total. */
-    private static function perWords(Per $per): string
+    public static function perWords(Per $per): string
     {
         return self::PER_WORDS[$per->value];
     }
@@ -455,7 +455,7 @@ final class ShareText
      * Footnote under the chart, per person and per household ('' for the total):
      * where the counts come from and how days between yearly counts are filled.
      */
-    public static function censusFootnote(Per $per, ?int $latestYear): string
+    public static function censusFootnote(Per $per, ?int $latestYear, ?int $earliestYear = null): string
     {
         if ($per->isTotal()) {
             return '';
@@ -463,7 +463,17 @@ final class ShareText
         return 'Per-person and per-household figures divide the debt by U.S. Census Bureau population and household counts.'
             . ' Counts are yearly; days between years are estimated in straight-line steps, and the latest Census figure'
             . ($latestYear === null ? '' : sprintf(' (%d)', $latestYear))
-            . ' is used for recent dates.';
+            . ' is used for recent dates.'
+            . self::earlyNote($earliestYear);
+    }
+
+    /**
+     * Said when the view uses days before the first Census figure: "The 1993
+     * Census figure is used for dates before it." ('' when it does not).
+     */
+    private static function earlyNote(?int $earliestYear): string
+    {
+        return $earliestYear === null ? '' : sprintf(' The %d Census figure is used for dates before it.', $earliestYear);
     }
 
     /** Headline card label: "Debt today", "Debt per person today". */
@@ -505,6 +515,46 @@ final class ShareText
         return $per->isTotal() ? 'Total debt' : self::debtWord($per);
     }
 
+    /**
+     * The straight trend, in words, for the chart summary and the Stats tab:
+     * "about +$14.2 billion per day", "about +$41.20 per person per day".
+     *
+     * @param string $money  The amount, already formatted and signed.
+     * @param string $unit   "day" or "month".
+     */
+    public static function trendAmount(Per $per, string $money, string $unit): string
+    {
+        return 'about ' . $money . self::perWords($per) . ' per ' . $unit;
+    }
+
+    /** Compare summary line: "+$1.42 trillion after 48 months in office", "+$4,100.00 per person after ...". */
+    public static function compareLine(Per $per, string $label, string $money, int $months): string
+    {
+        return sprintf(
+            '%s: %s%s after %d %s in office.',
+            $label,
+            $money,
+            self::perWords($per),
+            $months,
+            $months === 1 ? 'month' : 'months'
+        );
+    }
+
+    /**
+     * The debt line's name on the chart. The legend shows the label with its
+     * unit; the tooltip shows the name (the unit is in the tooltip's amount).
+     *
+     * @return array{label: string, name: string}
+     */
+    public static function debtSeries(Per $per): array
+    {
+        return match ($per) {
+            Per::Total => ['label' => 'Total debt (trillions USD)', 'name' => 'Total debt'],
+            Per::Person => ['label' => 'Debt per person (USD)', 'name' => 'Debt per person'],
+            Per::Household => ['label' => 'Debt per household (USD)', 'name' => 'Debt per household'],
+        };
+    }
+
     /** Compare chart, the y axis words. */
     public static function compareAxis(Per $per): string
     {
@@ -518,7 +568,7 @@ final class ShareText
      *
      * @param array{year: int, date: string, value: float}|null $latest  PopulationService::latest()
      */
-    public static function method(Per $per, ?array $latest): string
+    public static function method(Per $per, ?array $latest, ?int $earliestYear = null): string
     {
         if ($per->isTotal()) {
             return '';
@@ -530,7 +580,7 @@ final class ShareText
         if ($latest !== null) {
             $text .= sprintf(' Days after %s use the %d figure.', Html::shortDate($latest['date']), $latest['year']);
         }
-        return $text;
+        return $text . self::earlyNote($earliestYear);
     }
 
     /** 341784857 -> "341.8 million". */

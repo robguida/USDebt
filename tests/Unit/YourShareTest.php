@@ -93,10 +93,181 @@ final class YourShareTest extends TestCase
         self::assertNotEmpty($data['sources']);
     }
 
-    public function testBadPopulationDataIsAnErrorNotAWrongNumber(): void
+    /** Run $work with PHP's error log pointed at a scratch file; returns the logged lines. */
+    private static function loggedWhile(callable $work): array
     {
-        $this->expectException(\RuntimeException::class);
-        PopulationService::fromYears([2003 => 0], [2003 => 1]);
+        $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'usdebt-log-' . bin2hex(random_bytes(6)) . '.log';
+        $before = ini_set('error_log', $file);
+        try {
+            $work();
+        } finally {
+            ini_set('error_log', (string) $before);
+        }
+        $lines = is_file($file) ? (file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: []) : [];
+        @unlink($file);
+        return $lines;
+    }
+
+    public function testABadYearIsSkippedAndLoggedOnceAndTheLineSpansTheGap(): void
+    {
+        $lines = self::loggedWhile(function (): void {
+            $pop = PopulationService::fromYears(
+                [2003 => 100_000_000, 'abc' => 5, 2004 => 136_600_000, 2005 => 0],
+                [2003 => 50_000_000, 2004 => 50_366_000],
+            );
+            self::assertTrue($pop->available());
+            self::assertTrue($pop->available(), 'asking again does not log again');
+            self::assertSame(100_000_000.0, $pop->population('2003-07-01'));
+            self::assertEqualsWithDelta(118_300_000.0, $pop->population('2003-12-31'), 100_000.0, 'the good years still interpolate');
+            self::assertSame(136_600_000.0, $pop->population('2010-01-01'), 'the last good year is held');
+        });
+        self::assertCount(1, $lines, 'one log line for the bad entries, not one per entry or per call');
+        self::assertStringContainsString('skipped 2 bad population entries (abc, 2005)', $lines[0]);
+    }
+
+    public function testFewerThanTwoGoodYearsMakesPerModesUnavailableWithAWarning(): void
+    {
+        $lines = self::loggedWhile(function (): void {
+            $pop = PopulationService::fromYears([2003 => 0], [2003 => 1, 2004 => 2]);
+            self::assertFalse($pop->available());
+            self::assertFalse($pop->available());
+        });
+        self::assertCount(2, $lines, 'one line for the skipped entry, one warning about falling back');
+        self::assertStringContainsString('skipped 1 bad population entry (2003)', $lines[0]);
+        self::assertStringContainsString('fewer than 2 good years of population', $lines[1]);
+        self::assertStringContainsString('fall back to the total', $lines[1]);
+    }
+
+    public function testThePageFallsBackToTheTotalWhenThereIsNoUsableCensusData(): void
+    {
+        $html = '';
+        self::loggedWhile(function () use (&$html): void {
+            $pop = PopulationService::fromYears([2003 => 0], [2003 => 1]);
+            $app = new FrontController(new \USDebt\Controller\USDebtController(FrontControllerTest::source(), new CompareService(null, $pop)));
+            $html = $app->handle(['start_date' => '2000-01-04', 'end_date' => '2026-11-09', 'per' => 'person'], [])->body;
+        });
+        $chart = FrontControllerTest::chartJson($html);
+        self::assertSame(['total', 'trillion_usd'], [$chart['per'], $chart['unit']], 'the total is shown, not an error page');
+        self::assertStringContainsString('Debt today', $html);
+        self::assertStringNotContainsString('Census', $html);
+    }
+
+    public function testMissingCensusFileAlsoFallsBackToTheTotal(): void
+    {
+        $pop = new PopulationService(sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'usdebt-no-such-file.json');
+        self::loggedWhile(function () use ($pop): void {
+            self::assertFalse($pop->available());
+        });
+    }
+
+    // ---------- Fix round: one rounding, per words, early hold, series names ----------
+
+    /** The chart summary and the Stats tab show the same growth rate, rounded once from the raw value. */
+    public function testGrowthRateIsTheSameStringUnderTheChartAndInStats(): void
+    {
+        foreach (self::modes() as [$mode]) {
+            foreach ([['2000-01-04', '2026-11-09'], ['2008-03-03', '2019-09-30'], ['1993-01-04', '2026-11-09']] as [$start, $end]) {
+                $query = ['start_date' => $start, 'end_date' => $end] + ($mode === 'total' ? [] : ['per' => $mode]);
+                $text = html_entity_decode(FrontControllerTest::app(FrontControllerTest::source())->handle($query, [])->body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                self::assertSame(1, preg_match('#Growth curve: about ([^ ]+) per year#', $text, $chart), "$mode $start chart");
+                self::assertSame(1, preg_match('#<dt>Growth curve</dt>\s*<dd class="num">About ([^ ]+) per year</dd>#', $text, $stats), "$mode $start stats");
+                self::assertSame($chart[1], $stats[1], "$mode $start");
+            }
+        }
+
+        // The same raw number reaches both places, so the one rounding cannot differ.
+        $entries = [];
+        foreach (['2024-01-01', '2024-06-03', '2025-01-01', '2025-09-15'] as $date) {
+            $t = (new DateTimeImmutable('2024-01-01'))->diff(new DateTimeImmutable($date))->days;
+            $entries[] = new DebtEntry($date, 30_000_000_000_000.0 * 1.083496 ** ($t / 365));
+        }
+        $curve = array_values(array_filter(ChartData::daily($entries)['series'], static fn (array $s): bool => $s['key'] === 'curve'))[0];
+        self::assertSame(StatsCalculator::summarize($entries)['growth_pct_per_year'], $curve['growth_pct_per_year']);
+        self::assertSame('+8.3%', \USDebt\Service\Html::signedPercent($curve['growth_pct_per_year']), 'a raw 8.3496 rounds once, down (rounding to 8.35 first would give 8.4)');
+    }
+
+    #[DataProvider('modes')]
+    public function testTrendAndCompareLinesKeepThePerWords(string $mode): void
+    {
+        $per = Per::from($mode);
+        $words = $per->isTotal() ? '' : ' per ' . $mode;
+        $app = FrontControllerTest::app(FrontControllerTest::source());
+        $range = $app->handle(['start_date' => '2000-01-04', 'end_date' => '2026-11-09'] + ($per->isTotal() ? [] : ['per' => $mode]), [])->body;
+        $text = html_entity_decode($range, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        self::assertSame(1, preg_match('#Trend: about [^(]*?' . preg_quote($words, '#') . ' per day \(straight line\)#', $text), 'chart summary');
+        self::assertSame(1, preg_match('#<dt>Trend \(straight line\)</dt>\s*<dd class="num">About [^<]*?' . preg_quote($words, '#') . ' per day</dd>#', $text), 'Stats row');
+
+        $picks = implode(',', array_keys(\USDebt\Service\PresidentService::getPresidentConfig()));
+        $compare = html_entity_decode($app->handle(['compare' => $picks] + ($per->isTotal() ? [] : ['per' => $mode]), [])->body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $lines = preg_match_all('#<li>[^<]*: [+-]\$[0-9.,]+(?: [a-z]+)?' . preg_quote($words, '#') . ' after [0-9]+ months? in office\.'
+            . ' Trend: about [+-]\$[0-9.,]+(?: [a-z]+)?' . preg_quote($words, '#') . ' per month \(straight line\)\.#', $compare);
+        $all = preg_match_all('#<li>[^<]* after [0-9]+ months? in office\.#', $compare);
+        self::assertGreaterThan(0, $all);
+        self::assertSame($all, $lines, 'every Compare line says what it is per');
+    }
+
+    #[DataProvider('modes')]
+    public function testTheEmailLinkCarriesTheCensusSourceInPerModes(string $mode): void
+    {
+        $per = Per::from($mode);
+        $html = FrontControllerTest::app(FrontControllerTest::source())->handle(['start_date' => '2000-01-04', 'end_date' => '2026-11-09'] + ($per->isTotal() ? [] : ['per' => $mode]), [])->body;
+        self::assertSame(1, preg_match('#data-share="email" href="(mailto:[^"]*)"#', $html, $m));
+        $body = rawurldecode(explode('&body=', html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'))[1]);
+        self::assertStringEndsWith(\USDebt\Service\ShareText::emailNote($per), $body);
+        self::assertSame(!$per->isTotal(), str_contains($body, 'Census'), 'the Census line is there in per modes only');
+
+        // The link builder agrees with the page.
+        $links = \USDebt\Service\ShareLinks::networks('https://x.test/', 'Text.', 'Subject', $per);
+        self::assertSame('mailto:?subject=Subject&body=' . rawurlencode(\USDebt\Service\ShareText::emailBody('Text.', 'https://x.test/', $per)), $links['email']);
+    }
+
+    #[DataProvider('modes')]
+    public function testEarlyHoldIsSaidWhenTheViewStartsBeforeTheFirstCensusFigure(string $mode): void
+    {
+        $per = Per::from($mode);
+        $app = FrontControllerTest::app(FrontControllerTest::source());
+        $say = 'The 1993 Census figure is used for dates before it.';
+        $extra = $per->isTotal() ? [] : ['per' => $mode];
+        $early = html_entity_decode($app->handle(['start_date' => '1993-01-04', 'end_date' => '1993-12-31'] + $extra, [])->body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $late = html_entity_decode($app->handle(['start_date' => '2000-01-04', 'end_date' => '2001-12-31'] + $extra, [])->body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $picks = implode(',', array_keys(\USDebt\Service\PresidentService::getPresidentConfig()));
+        $compare = html_entity_decode($app->handle(['compare' => $picks] + $extra, [])->body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $laterTerms = html_entity_decode($app->handle(['compare' => '3,4'] + $extra, [])->body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        if ($per->isTotal()) {
+            foreach ([$early, $compare] as $html) {
+                self::assertStringNotContainsString('Census figure is used for dates before it', $html);
+            }
+            return;
+        }
+        // Under the chart (footnote) and in the Stats method note.
+        self::assertSame(2, substr_count($early, $say), 'footnote and Stats note');
+        self::assertStringNotContainsString('dates before it', $late);
+        // Compare (Clinton starts in January 1993): the footnote says it.
+        self::assertSame(1, substr_count($compare, $say));
+        self::assertStringNotContainsString('dates before it', $laterTerms);
+        // The words come from one place.
+        self::assertStringContainsString($say, \USDebt\Service\ShareText::censusFootnote($per, 2025, 1993));
+        self::assertStringContainsString($say, \USDebt\Service\ShareText::method($per, null, 1993));
+        self::assertStringNotContainsString('dates before it', \USDebt\Service\ShareText::censusFootnote($per, 2025));
+    }
+
+    #[DataProvider('modes')]
+    public function testTheDebtSeriesNamesComeFromTheServerAndTheScriptDoesNotStripLabels(string $mode): void
+    {
+        $per = Per::from($mode);
+        $debt = ChartData::daily([new DebtEntry('2026-01-02', 38.0e12), new DebtEntry('2026-01-05', 38.1e12)], $per)['series'][0];
+        $names = ['total' => ['Total debt (trillions USD)', 'Total debt'], 'person' => ['Debt per person (USD)', 'Debt per person'], 'household' => ['Debt per household (USD)', 'Debt per household']];
+        self::assertSame($names[$mode], [$debt['label'], $debt['name']]);
+        self::assertSame($names[$mode][0], \USDebt\Service\ShareText::debtSeries($per)['label']);
+
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Public/js/usdebt.js');
+        self::assertStringNotContainsString('trillions USD', $js, 'no unit text in the script');
+        self::assertStringNotContainsString('(?:trillions', $js);
+        self::assertStringContainsString('item.dataset.name || item.dataset.label', $js);
+        $chartData = (string) file_get_contents(dirname(__DIR__, 2) . '/src/lib/Service/ChartData.php');
+        self::assertStringNotContainsString('(USD)', $chartData, 'the labels live in ShareText');
+        self::assertStringNotContainsString('trillions USD', $chartData);
     }
 
     // ---------- Scaling, change, trend ----------
@@ -483,7 +654,7 @@ final class YourShareTest extends TestCase
             preg_match_all('#<li>([^<]*) after [0-9]+ months? in office\.#', $text, $lines);
             self::assertCount(count(array_unique(array_column(\USDebt\Service\PresidentService::getPresidentConfig(), 'pres'))), $lines[1], $how);
             foreach ($lines[1] as $line) {
-                self::assertMatchesRegularExpression('/: [+-]?\$[0-9]{1,3}(,[0-9]{3})*\.[0-9]{2}$/', $line, $how);
+                self::assertMatchesRegularExpression('/: [+-]?\$[0-9]{1,3}(,[0-9]{3})*\.[0-9]{2} per person$/', $line, $how);
             }
         }
 

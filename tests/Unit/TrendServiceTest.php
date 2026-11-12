@@ -456,7 +456,7 @@ final class TrendServiceTest extends TestCase
         self::assertSame('Trend (growth curve)', $curve['label']);
         self::assertSame('Growth projection', $curveProjection['label']);
         self::assertSame(array_column($debt['points'], 0), array_column($curve['points'], 0), 'curve points line up 1:1 with the data');
-        self::assertSame(6.0, $curve['growth_pct_per_year']);
+        self::assertEqualsWithDelta(6.0, $curve['growth_pct_per_year'], 1e-9);
         self::assertSame(1.0, $curve['r2']);
         self::assertArrayNotHasKey('projection', $curve);
         self::assertTrue($curveProjection['projection']);

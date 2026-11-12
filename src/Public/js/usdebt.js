@@ -278,6 +278,8 @@
                 }
                 datasets.push({
                     label: s.label,
+                    /* the tooltip's name, from the server (the legend keeps the label with its unit) */
+                    name: s.name,
                     data: points,
                     borderColor: style.color,
                     backgroundColor: style.fill,
@@ -329,7 +331,7 @@
         var unit = chartUnit(data);
         opts.plugins.tooltip.callbacks = {
             title: function (items) { return items.length ? fullDate.format(items[0].parsed.x) : ''; },
-            label: function (item) { return ' ' + item.dataset.label.replace(/ \((?:trillions USD|USD)\)$/, '') + ': ' + formatAmount(item.parsed.y, unit, false); }
+            label: function (item) { return ' ' + (item.dataset.name || item.dataset.label) + ': ' + formatAmount(item.parsed.y, unit, false); }
         };
         opts.scales = {
             x: {
@@ -532,12 +534,17 @@
         if (url.origin !== origin) {
             return null;
         }
-        if (on) {
-            url.searchParams.delete('trend');
-        } else {
-            url.searchParams.set('trend', '0');
+        /*
+         * The query is edited as text, not through searchParams, so it is not
+         * re-encoded: "compare=1,2" keeps its commas (as the server writes it).
+         */
+        var params = url.search.replace(/^\?/, '').split('&').filter(function (p) {
+            return p !== '' && p.split('=')[0] !== 'trend';
+        });
+        if (!on) {
+            params.push('trend=0');
         }
-        return url.pathname.replace(/^[\/\\]+/, '/') + url.search + url.hash;
+        return url.pathname.replace(/^[\/\\]+/, '/') + (params.length ? '?' + params.join('&') : '') + url.hash;
     }
 
     function initialTrend() {

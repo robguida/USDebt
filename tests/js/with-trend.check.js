@@ -62,6 +62,16 @@ if (plain !== '/?start_date=2024-01-01&trend=0#results') {
     failures.push('plain link changed shape: ' + plain);
 }
 
+// Commas in a Compare link stay commas (the query is not re-encoded).
+const compareOff = withTrendOn('http://localhost:8000/')('./?compare=1,2&per=person', false);
+if (compareOff !== '/?compare=1,2&per=person&trend=0') {
+    failures.push('compare commas changed: ' + compareOff);
+}
+const compareOn = withTrendOn('http://localhost:8000/')('./?compare=1,2,5&trend=0#results', true);
+if (compareOn !== '/?compare=1,2,5#results') {
+    failures.push('compare commas changed (trend on): ' + compareOn);
+}
+
 if (failures.length) {
     console.error(failures.join('\n'));
     process.exit(1);

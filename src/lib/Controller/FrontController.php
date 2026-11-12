@@ -14,6 +14,8 @@ use USDebt\Service\CompareService;
 use USDebt\Service\DebtRepository;
 use USDebt\Service\FiscalDataClient;
 use USDebt\Service\Html;
+use USDebt\Service\LogOnce;
+use USDebt\Service\PopulationService;
 use USDebt\Service\ShareLinks;
 use USDebt\SiteConfig;
 
@@ -35,7 +37,18 @@ final class FrontController
      */
     public static function create(): self
     {
-        return new self(new USDebtController(self::repository(), new CompareService(), ShareLinks::fromEnvironment()));
+        return new self(new USDebtController(self::repository(), self::compareService(), ShareLinks::fromEnvironment()));
+    }
+
+    /**
+     * The Compare terms and the Census data, with Census data problems logged
+     * once per window (same marker folder as the Treasury cache). The page and
+     * the share card both use it.
+     */
+    public static function compareService(): CompareService
+    {
+        $log = new LogOnce(LogOnce::defaultMarkerDir(self::cacheDir()), DebtRepository::RETRY_AFTER_SECONDS);
+        return new CompareService(null, new PopulationService(null, $log));
     }
 
     /**
@@ -107,7 +120,11 @@ final class FrontController
     public static function readRequest(RequestModel $request, array $query, array $post, CompareService $compareService): void
     {
         $input = $post + $query;
-        $request->setPer(Per::fromInput($input['per'] ?? null));
+        $per = Per::fromInput($input['per'] ?? null);
+        if (!$per->isTotal() && !$compareService->population()->available()) {
+            $per = Per::Total; // no usable Census data (logged once): show the total
+        }
+        $request->setPer($per);
         $action = is_string($input['submit'] ?? null) ? strtolower($input['submit']) : '';
         $picks = null;
         if ($action === 'compare') {

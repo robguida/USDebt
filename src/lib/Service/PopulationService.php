@@ -32,6 +32,12 @@ use USDebt\Model\Per;
  *   2019 and 2020 (about 3.2 million instead of the usual 1.5 to 2.5 million).
  *   It is kept as published.
  *
+ * A bad year entry (a year that is not a year, or a value that is not a
+ * number above zero) is skipped and logged once, and the straight line spans
+ * the gap. If fewer than 2 good years remain for people or households, the
+ * per person and per household views are not available (available()): the
+ * page shows the total instead, with a logged warning.
+ *
  * The file is read the first time it is needed, so the total view never
  * reads it.
  */
@@ -48,10 +54,16 @@ final class PopulationService
     /** @var array{population: list<array{0: int, 1: float, 2: int}>, households: list<array{0: int, 1: float, 2: int}>}|null [day number, value, year] */
     private ?array $series = null;
 
+    private ?bool $available = null;
+
+    /** @var array<string, true> Problems already logged by this object when there is no LogOnce. */
+    private array $warned = [];
+
     /**
-     * @param string|null $file  The JSON file (default: Data/us_population_households.json).
+     * @param string|null  $file  The JSON file (default: Data/us_population_households.json).
+     * @param LogOnce|null $log   Logs a lasting data problem once per window across PHP processes. Without it, once per object.
      */
-    public function __construct(private readonly ?string $file = null)
+    public function __construct(private readonly ?string $file = null, private readonly ?LogOnce $log = null)
     {
     }
 
@@ -61,14 +73,55 @@ final class PopulationService
      * @param array<int|string, int|float> $population  year => people
      * @param array<int|string, int|float> $households  year => households
      */
-    public static function fromYears(array $population, array $households): self
+    public static function fromYears(array $population, array $households, ?LogOnce $log = null): self
     {
-        $service = new self();
+        $service = new self(null, $log);
         $service->series = [
-            'population' => self::anchors($population, self::POPULATION_ANCHOR, 'population'),
-            'households' => self::anchors($households, self::HOUSEHOLDS_ANCHOR, 'households'),
+            'population' => $service->anchors($population, self::POPULATION_ANCHOR, 'population'),
+            'households' => $service->anchors($households, self::HOUSEHOLDS_ANCHOR, 'households'),
         ];
         return $service;
+    }
+
+    /**
+     * Whether the per person and per household views can be worked out: the
+     * data loads and has at least 2 good years of people and of households.
+     * When not, a warning is logged (once) and the caller shows the total.
+     * Call this before using any other method with a per mode.
+     */
+    public function available(): bool
+    {
+        if ($this->available !== null) {
+            return $this->available;
+        }
+        try {
+            $series = $this->load();
+        } catch (RuntimeException $e) {
+            $this->warn('unavailable', 'UsDebt: ' . $e->getMessage() . '. Per person and per household views fall back to the total.');
+            return $this->available = false;
+        }
+        foreach ($series as $name => $points) {
+            if (count($points) < 2) {
+                $this->warn('few-' . $name, "UsDebt: Population data: fewer than 2 good years of {$name}. Per person and per household views fall back to the total.");
+                return $this->available = false;
+            }
+        }
+        return $this->available = true;
+    }
+
+    /**
+     * The first Census figure for this mode: its year, anchor day (Y-m-d) and value.
+     * Days before that day use this figure (held).
+     *
+     * @return array{year: int, date: string, value: float}|null  Null for the total view.
+     */
+    public function earliest(Per $per): ?array
+    {
+        if ($per->isTotal()) {
+            return null;
+        }
+        [$day, $value, $year] = $this->load()[self::measure($per)][0];
+        return ['year' => $year, 'date' => gmdate('Y-m-d', $day * self::DAY_SECONDS), 'value' => $value];
     }
 
     public static function defaultFile(): string
@@ -212,35 +265,57 @@ final class PopulationService
             throw new RuntimeException("Population data has no population or households: {$file}");
         }
         return $this->series = [
-            'population' => self::anchors($data['population'], self::POPULATION_ANCHOR, 'population'),
-            'households' => self::anchors($data['households'], self::HOUSEHOLDS_ANCHOR, 'households'),
+            'population' => $this->anchors($data['population'], self::POPULATION_ANCHOR, 'population'),
+            'households' => $this->anchors($data['households'], self::HOUSEHOLDS_ANCHOR, 'households'),
         ];
     }
 
     /**
      * Year => value to sorted [day number of the anchor, value, year].
+     * A bad entry is skipped (not fatal; loop rule) and the skipped years are
+     * logged once. The list can end up short or empty: available() says
+     * whether it is usable.
      *
      * @param array<mixed> $years
      * @return list<array{0: int, 1: float, 2: int}>
      */
-    private static function anchors(array $years, string $monthDay, string $name): array
+    private function anchors(array $years, string $monthDay, string $name): array
     {
         $points = [];
+        $skipped = [];
         foreach ($years as $year => $value) {
             $text = (string) $year;
-            if (!ctype_digit($text) || (int) $text < 1900 || (int) $text > 2200) {
-                throw new RuntimeException("Population data: {$name} has a bad year: {$text}");
-            }
-            if ((!is_int($value) && !is_float($value)) || !is_finite((float) $value) || $value <= 0) {
-                throw new RuntimeException("Population data: {$name} {$text} is not a number above zero");
+            if (!ctype_digit($text) || (int) $text < 1900 || (int) $text > 2200
+                || (!is_int($value) && !is_float($value)) || !is_finite((float) $value) || $value <= 0) {
+                $skipped[] = $text;
+                continue;
             }
             $points[] = [self::dayNumber($text . '-' . $monthDay), (float) $value, (int) $text];
         }
-        if ($points === []) {
-            throw new RuntimeException("Population data: {$name} is empty");
+        if ($skipped !== []) {
+            $this->warn('skipped-' . $name, sprintf(
+                'UsDebt: Population data: skipped %d bad %s %s (%s); the straight line spans the gap.',
+                count($skipped),
+                $name,
+                count($skipped) === 1 ? 'entry' : 'entries',
+                implode(', ', array_slice($skipped, 0, 10))
+            ));
         }
         usort($points, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
         return $points;
+    }
+
+    /** Log a lasting data problem once: across PHP processes with a LogOnce, else once per object. */
+    private function warn(string $scope, string $message): void
+    {
+        if ($this->log !== null) {
+            $this->log->log('population:' . $scope, $message);
+            return;
+        }
+        if (!isset($this->warned[$scope])) {
+            $this->warned[$scope] = true;
+            error_log($message);
+        }
     }
 
     /** Whole days since 1970-01-01 for a Y-m-d date (UTC). */

@@ -31,7 +31,7 @@ $rows = [
 ];
 if ($stats['trend_per_day'] !== null) {
     // Slope of the straight trend line on the chart, in dollars per calendar day.
-    $rows[] = ['Trend (straight line)', 'About ' . Html::compactMoney((float) $stats['trend_per_day'], true) . ' per day'];
+    $rows[] = ['Trend (straight line)', ucfirst(ShareText::trendAmount($per, Html::compactMoney((float) $stats['trend_per_day'], true), 'day'))];
 }
 if (($stats['growth_pct_per_year'] ?? null) !== null) {
     // Yearly growth of the growth curve on the chart, in percent.

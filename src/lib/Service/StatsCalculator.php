@@ -18,7 +18,8 @@ use USDebt\Model\DebtEntry;
  * per calendar day; null when the range has fewer than 2 days.
  *
  * growth_pct_per_year = yearly growth of the growth curve (TrendService::growth),
- * in percent; null when there is no curve.
+ * in percent, not rounded (the page rounds once, when it shows it, so the
+ * chart summary and this tab always agree); null when there is no curve.
  *
  * Per person and per household views pass their scaled entries
  * (PopulationService::scale: each day's debt divided by that day's people or
@@ -75,7 +76,7 @@ final class StatsCalculator
             'days_below_start' => $below,
             'pct_below_start' => round($below / $workingDays * 100, 2),
             'trend_per_day' => $trendSlope === null ? null : round($trendSlope * $unit, 2),
-            'growth_pct_per_year' => $growthPct === null ? null : round($growthPct, 2),
+            'growth_pct_per_year' => $growthPct,
         ];
     }
 }

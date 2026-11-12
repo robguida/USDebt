@@ -183,6 +183,26 @@ final class CompareService
         return $first === null || $last === null ? null : [$first, $last];
     }
 
+    /**
+     * The first day with data in the picked terms (Y-m-d), or null when none has any.
+     *
+     * @param list<int> $keys  Validated term ids.
+     */
+    public function firstDataDate(array $keys, DebtDataset $dataset): ?string
+    {
+        $first = null;
+        foreach ($keys as $key) {
+            if (!isset($this->terms[$key])) {
+                continue;
+            }
+            $entries = $dataset->between($this->start($key), $this->end($key));
+            if ($entries !== [] && ($first === null || $entries[0]->effectiveDate < $first)) {
+                $first = $entries[0]->effectiveDate;
+            }
+        }
+        return $first;
+    }
+
     private function start(int $key): DateTimeImmutable
     {
         return new DateTimeImmutable($this->terms[$key]['start']);

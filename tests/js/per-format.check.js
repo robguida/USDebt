@@ -84,7 +84,7 @@ const range = 'start_date=2000-01-04&end_date=2026-11-09';
 same(wt('./?' + range, false), '/?' + range + '&trend=0', 'Total option, trend off');
 same(wt('./?' + range + '&per=person', false), '/?' + range + '&per=person&trend=0', 'Per person option, trend off');
 same(wt('./?' + range + '&per=household&trend=0', true), '/?' + range + '&per=household', 'Per household option, trend back on');
-same(wt('./?compare=1,2&per=person', false), '/?compare=1%2C2&per=person&trend=0', 'Compare option, trend off');
+same(wt('./?compare=1,2&per=person', false), '/?compare=1,2&per=person&trend=0', 'Compare option, trend off');
 same(wt('./', false), '/?trend=0', 'home Total option, trend off');
 for (const [href, per] of [['./?' + range + '&per=person', 'person'], ['./?' + range + '&per=household&trend=0', 'household']]) {
     for (const on of [true, false]) {

@@ -44,8 +44,8 @@ $projection_text = static function (?array $projection, string $name) use ($char
 $trend_texts = [];
 if (isset($by_key['trend'])) {
     $trend_texts[] = sprintf(
-        'Trend: about %s per day (straight line).',
-        Html::compactMoney(ChartData::toDollars($chart, (float) $by_key['trend']['slope_per_day']), true)
+        'Trend: %s (straight line).',
+        ShareText::trendAmount($per, Html::compactMoney(ChartData::toDollars($chart, (float) $by_key['trend']['slope_per_day']), true), 'day')
     ) . $projection_text($by_key['projection'] ?? null, 'Projection');
 }
 if (isset($by_key['curve'])) {

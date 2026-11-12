@@ -32,13 +32,6 @@ use USDebt\Model\Per;
  */
 final class ChartData
 {
-    /** Series labels per mode: the debt line, and the Compare axis words. */
-    private const DEBT_LABELS = [
-        'total' => 'Total debt (trillions USD)',
-        'person' => 'Debt per person (USD)',
-        'household' => 'Debt per household (USD)',
-    ];
-
     /**
      * Date-range chart.
      *
@@ -56,8 +49,11 @@ final class ChartData
         foreach ($entries as $entry) {
             $points[] = [$entry->effectiveDate, round($entry->totalDebt / $unit, $per->isTotal() ? 6 : 2)];
         }
+        // The words come from ShareText: "label" (with the unit) is the legend's,
+        // "name" (without it) is the tooltip's.
+        $debt = ShareText::debtSeries($per);
         $series = [
-            ['key' => 'debt', 'label' => self::DEBT_LABELS[$per->value], 'points' => $points],
+            ['key' => 'debt', 'label' => $debt['label'], 'name' => $debt['name'], 'points' => $points],
         ];
 
         $trend = TrendService::daily($entries, $unit);
@@ -82,7 +78,8 @@ final class ChartData
             $series[] = [
                 'key' => 'curve',
                 'label' => 'Trend (growth curve)',
-                'growth_pct_per_year' => round($curve['annual_growth_pct'], 4),
+                // Not rounded here: the page rounds once, when it shows the percent.
+                'growth_pct_per_year' => $curve['annual_growth_pct'],
                 'r2' => round($curve['r2'], 4),
                 'points' => $curve['fitted'],
             ];

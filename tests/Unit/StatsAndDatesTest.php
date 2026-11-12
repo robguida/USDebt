@@ -43,7 +43,8 @@ final class StatsAndDatesTest extends TestCase
             $entries[] = new DebtEntry($date, 30_000_000_000_000.0 * 1.05 ** ($t / 365));
         }
 
-        self::assertSame(5.0, StatsCalculator::summarize($entries)['growth_pct_per_year']);
+        // Not rounded in the stats: the page rounds once, when it shows the percent.
+        self::assertEqualsWithDelta(5.0, StatsCalculator::summarize($entries)['growth_pct_per_year'], 1e-9);
     }
 
     public function testStatsTrendIsTheStraightLineSlopeInDollarsPerDay(): void
