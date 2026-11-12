@@ -15,31 +15,43 @@
 
 use USDebt\Service\Html;
 
-/* the trend and projection series, when the range has at least 2 days */
-$trend = null;
-$projection = null;
+/* the trend lines and their projections, when the range has at least 2 days */
+$by_key = [];
 foreach ($chart['series'] as $s) {
-    if ($s['key'] === 'trend') {
-        $trend = $s;
-    } elseif ($s['key'] === 'projection') {
-        $projection = $s;
-    }
+    $by_key[$s['key']] = $s;
 }
-$trend_text = '';
-if ($trend !== null) {
-    $trend_text = sprintf(
-        'Trend: about %s per day (straight line).',
-        Html::compactMoney($trend['slope_per_day'] * 1_000_000_000_000, true)
+
+/* " Projection to Nov 9, 2027: about $45.12 trillion." from a projection series */
+$projection_text = static function (?array $projection, string $name): string {
+    if ($projection === null || $projection['points'] === []) {
+        return '';
+    }
+    $end_point = $projection['points'][count($projection['points']) - 1];
+    return sprintf(
+        ' %s to %s: about %s.',
+        $name,
+        Html::shortDate($end_point[0]),
+        Html::compactMoney($end_point[1] * 1_000_000_000_000)
     );
-    if ($projection !== null && $projection['points'] !== []) {
-        $end_point = $projection['points'][count($projection['points']) - 1];
-        $trend_text .= sprintf(
-            ' Projection to %s: about %s.',
-            Html::shortDate($end_point[0]),
-            Html::compactMoney($end_point[1] * 1_000_000_000_000)
-        );
-    }
+};
+
+/* one sentence pair per line, so anyone who cannot see the chart gets the same numbers */
+$trend_texts = [];
+if (isset($by_key['trend'])) {
+    $trend_texts[] = sprintf(
+        'Trend: about %s per day (straight line).',
+        Html::compactMoney($by_key['trend']['slope_per_day'] * 1_000_000_000_000, true)
+    ) . $projection_text($by_key['projection'] ?? null, 'Projection');
 }
+if (isset($by_key['curve'])) {
+    $growth = (float) $by_key['curve']['growth_pct_per_year'];
+    $trend_texts[] = sprintf(
+        'Growth curve: about %s%s%% per year.',
+        $growth > 0 ? '+' : '',
+        number_format($growth, 1)
+    ) . $projection_text($by_key['curve_projection'] ?? null, 'Growth projection');
+}
+$last_text = count($trend_texts) - 1;
 
 $change = $last->totalDebt - $first->totalDebt;
 $summary = sprintf(
@@ -57,8 +69,8 @@ $summary = sprintf(
     </div>
     <figcaption id="chart_summary" class="chart-summary num">
         <p><?php echo Html::e($summary); ?></p>
-        <?php if ($trend_text !== '') { ?>
-        <p class="trend-summary"><?php echo Html::e($trend_text); ?><span class="trend-off-note"<?php echo $show_trend ? ' hidden' : ''; ?>> (trend line hidden)</span></p>
+        <?php foreach ($trend_texts as $i => $text) { ?>
+        <p class="trend-summary"><?php echo Html::e($text); ?><?php if ($i === $last_text) { ?><span class="trend-off-note"<?php echo $show_trend ? ' hidden' : ''; ?>> (<?php echo count($trend_texts) > 1 ? 'trend lines' : 'trend line'; ?> hidden)</span><?php } ?></p>
         <?php } ?>
     </figcaption>
 </figure>

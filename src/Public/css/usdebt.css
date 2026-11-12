@@ -1,7 +1,7 @@
 /*
  * Our U.S. Debt - site styles.
  * Mobile first. Colors live in variables; dark mode swaps them.
- * Red (--trend) is reserved for the trend line only. Term lines use the
+ * Red (--trend, --trend-curve) is reserved for the trend lines only. Term lines use the
  * neutral --series-* colors (no party blue or red).
  */
 
@@ -25,7 +25,8 @@
     --error-border: #e0a3a3;
     --grid: rgba(15, 23, 42, 0.08);
     --zero-line: rgba(15, 23, 42, 0.45);
-    --trend: #c62828;           /* reserved for the trend line */
+    --trend: #c62828;           /* reserved: the straight trend line and its projection */
+    --trend-curve: #7f1d1d;     /* reserved: the growth curve and its projection (darker red) */
 
     /* Neutral term colors, one per line on the Compare chart */
     --series-1: #0f766e;
@@ -63,6 +64,7 @@
         --grid: rgba(230, 235, 243, 0.08);
         --zero-line: rgba(230, 235, 243, 0.45);
         --trend: #f26b6b;
+        --trend-curve: #ffb3b3;
 
         --series-1: #2dd4bf;
         --series-2: #fbbf24;
