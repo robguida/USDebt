@@ -4,14 +4,17 @@
  * User: robert
  * Date: 6/5/18
  * Time: 10:17 PM
+ *
+ * @var list<\USDebt\Model\DebtEntry> $datas  Newest first.
  */
-$data = '';
 
+use USDebt\Service\Html;
+
+$data = '';
 foreach ($datas as $d) {
-    $dateDt = new DateTime($d->effectiveDate);
-    $debt_amount = '$' . number_format($d->totalDebt, 2);
-    $data .= "<tr><td class=\"date\">{$dateDt->format('m/d/Y')}</td>" .
-        "<td class=\"currency\">{$debt_amount}</td></tr>";
+    $dateDt = new DateTimeImmutable($d->effectiveDate);
+    $data .= '<tr><td class="date">' . Html::e($dateDt->format('m/d/Y')) . '</td>'
+        . '<td class="currency">' . Html::e(Html::money($d->totalDebt)) . '</td></tr>';
 }
 ?>
 <table class="main_content">
