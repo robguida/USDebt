@@ -8,12 +8,16 @@ use Throwable;
 use USDebt\Exception\UserFacingException;
 use USDebt\Http\NativeHttpFetcher;
 use USDebt\Http\Response;
+use USDebt\Model\Per;
 use USDebt\Model\RequestModel;
 use USDebt\Service\CompareService;
 use USDebt\Service\DebtRepository;
 use USDebt\Service\FiscalDataClient;
 use USDebt\Service\Html;
+use USDebt\Service\LogOnce;
+use USDebt\Service\PopulationService;
 use USDebt\Service\ShareLinks;
+use USDebt\SiteConfig;
 
 /**
  * Turns one web request into one HTML page. Visitors only ever see messages we
@@ -33,7 +37,18 @@ final class FrontController
      */
     public static function create(): self
     {
-        return new self(new USDebtController(self::repository(), new CompareService(), ShareLinks::fromEnvironment()));
+        return new self(new USDebtController(self::repository(), self::compareService(), ShareLinks::fromEnvironment()));
+    }
+
+    /**
+     * The Compare terms and the Census data, with Census data problems logged
+     * once per window (same marker folder as the Treasury cache). The page and
+     * the share card both use it.
+     */
+    public static function compareService(): CompareService
+    {
+        $log = new LogOnce(LogOnce::defaultMarkerDir(self::cacheDir()), DebtRepository::RETRY_AFTER_SECONDS);
+        return new CompareService(null, new PopulationService(null, $log));
     }
 
     /**
@@ -95,6 +110,8 @@ final class FrontController
      *   picks is a 400 ("Please pick at least 2 presidents to compare.").
      *   A posted Compare wins over ?compare= in the address.
      * - Otherwise start_date and end_date (YYYY-MM-DD), both optional.
+     * - Either way, per=person or per=household ("Your Share"). Anything else
+     *   is the total, never an error. Read first, so an error page keeps it.
      *
      * @param array<string, mixed> $query
      * @param array<string, mixed> $post
@@ -103,6 +120,11 @@ final class FrontController
     public static function readRequest(RequestModel $request, array $query, array $post, CompareService $compareService): void
     {
         $input = $post + $query;
+        $per = Per::fromInput($input['per'] ?? null);
+        if (!$per->isTotal() && !$compareService->population()->available()) {
+            $per = Per::Total; // no usable Census data (logged once): show the total
+        }
+        $request->setPer($per);
         $action = is_string($input['submit'] ?? null) ? strtolower($input['submit']) : '';
         $picks = null;
         if ($action === 'compare') {
@@ -145,7 +167,7 @@ final class FrontController
         } catch (Throwable $e) {
             error_log('UsDebt: error page failed: ' . get_class($e) . ': ' . $e->getMessage());
             return new Response(500, '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
-                . '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Our U.S. Debt</title></head><body><p>'
+                . '<meta name="viewport" content="width=device-width, initial-scale=1"><title>' . Html::e(SiteConfig::NAME) . '</title></head><body><p>'
                 . Html::e(self::GENERIC_ERROR) . '</p></body></html>');
         }
     }

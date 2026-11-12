@@ -14,14 +14,18 @@
  * @var list<array{label: string, title: string, start: string, end: string, current: bool}> $quick_ranges
  * @var string    $today       Y-m-d.
  * @var bool      $show_trend  Trend line on. When off, every link and form here keeps trend=0.
+ * @var \USDebt\Model\Per $per  Total, per person or per household. Every link and form here keeps per (none for the total).
+ *      The "Show numbers as" switch itself is per_switch.php, at the top of the page.
  */
 
 use USDebt\Service\Html;
 
+$per_param = $per->isTotal() ? [] : ['per' => $per->value];
 $trend_param = $show_trend ? [] : ['trend' => '0'];
 $range_href = static fn (string $start, string $end): string
-    => '?' . http_build_query(['start_date' => $start, 'end_date' => $end] + $trend_param) . '#results';
-$compare_action = './' . ($show_trend ? '' : '?trend=0') . '#results';
+    => '?' . http_build_query(['start_date' => $start, 'end_date' => $end] + $per_param + $trend_param) . '#results';
+$compare_query = http_build_query($per_param + $trend_param);
+$compare_action = './' . ($compare_query === '' ? '' : '?' . $compare_query) . '#results';
 ?>
 <section class="card controls" aria-labelledby="controls-title">
     <h2 id="controls-title" class="card-title">Pick a date range</h2>
@@ -37,6 +41,9 @@ $compare_action = './' . ($show_trend ? '' : '?trend=0') . '#results';
                    value="<?php echo Html::e($end_date); ?>" required>
         </div>
         <?php /* a disabled field is not sent, so this carries trend=0 only while the trend is off */ ?>
+        <?php if (!$per->isTotal()) { ?>
+        <input type="hidden" name="per" value="<?php echo Html::e($per->value); ?>">
+        <?php } ?>
         <input type="hidden" name="trend" value="0" id="trend_field"<?php echo $show_trend ? ' disabled' : ''; ?>>
         <button type="submit" class="btn btn-primary">Show range</button>
     </form>

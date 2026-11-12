@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12. Owner of decisions: Rob Guida.
 
-Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on branch USD-6-share-card (which also carries USD-1 to USD-5); not merged into `development` yet. **open** = still waiting on an answer. **next** = approved, not started.
+Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on branch USD-7-your-share (which also carries USD-1 to USD-6); not merged into `development` yet. **open** = still waiting on an answer. **next** = approved, not started.
 
 ## Purpose
 
@@ -17,14 +17,14 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 3. **USD-2** — look and feel, one chart library (Chart.js 4), neutral term colors. Done.
 4. **USD-3** — trend line. Built (straight line and projection). Waiting on Rob's review stop.
     - **a.** **USD-5** — growth curve beside the straight line, each with its own projection. Built.
-5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, waiting on Rob's review stop). Next: Your Share, then Since you were born.
+5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, waiting on Rob's review stop). **USD-7** Your Share (built, waiting on Rob's review stop). Next: Since you were born.
 6. **USD-4** — deploy to `usdebt.bengusa.pro`. Not started. Going live waits for Rob's direct go.
 
 Rob's review stops, in build order (the build runs all day and stops only here):
 
 1. When the red trend line is implemented. Reached.
 2. When "Share link + picture card" is done. Reached.
-3. When "Your Share" is done.
+3. When "Your Share" is done. Reached.
 4. When "Since you were born" is done.
 
 ## Requirements
@@ -69,7 +69,12 @@ Rob's review stops, in build order (the build runs all day and stops only here):
         - **v.** No third-party scripts. Share wording lives in `ShareText.php`: the card, the preview tags, the share and email text, the menu's labels, the "Link copied" lines and the card's two error lines. Two card errors are not share wording and use the site's own messages: bad input (for example too few Compare picks) and an unexpected failure.
         - **vi.** The server needs PHP gd with FreeType. Without it the card returns a short plain-text error, and the rest of the site works.
         - **vii.** Compare totals on the card and on the Compare page are the same numbers: each term from its first data day to its last data day. Two terms of one president add up both terms' changes. Example, live data on 2026-11-12: Joseph Biden +$8.45 trillion (an earlier build showed +$8.42 trillion, because it stopped at the first day of the term's last month).
-    - **b.** Your Share. Status: next. Review stop when done.
+    - **b.** Your Share. Status: BUILT (USD-7). Review stop reached. Next: "Since you were born".
+        - **i.** A "Show numbers as: Total / Per person / Per household" switch at the top of the page. The choice is `per=` in the link (left out for Total) and carries through every page link, the share links, the picture card and Compare.
+        - **ii.** Population and households come from Census figures, 1993 to 2025, kept in `src/lib/Data/us_population_households.json` with its sources and notes. Population is pinned to July 1 and households to March 15 of each year. Between two years the number moves in a straight line, day by day. For dates after the latest figure (2025), the latest figure is held. No guessing ahead.
+        - **iii.** The change is the end value per person (or household) minus the start value per person. Per day is that change divided by the calendar days. The trend line and growth curve are fitted on the per-person series. Compare works in each mode. Charts and cards show dollars.
+        - **iv.** The Census population series has a step between 2019 and 2020 (different Census estimate releases). It is kept as published, not smoothed. The page carries a Census footnote.
+        - **v.** Example, data of Nov 9, 2026: $118,670.55 per person, $300,911.02 per household.
     - **c.** Since you were born. Review stop when done.
         - **i.** Treasury data does not go back to every birth year. If the birth year is too early, show a funny, friendly alert. Example: "You are too old! Sorry!"
         - **ii.** The joke is about the data being young, not the person. Neutral, never mean.
@@ -91,8 +96,8 @@ Rob's review stops, in build order (the build runs all day and stops only here):
 
 1. **R1:** any look Rob likes (a site to copy, colors, logo)?
 2. **R4:** public with no login, or behind a password for now?
-3. **Site name:** the page header says "Our U.S. Debt", but the home page share preview title says "U.S. Debt Tracker". Which one should it be everywhere? Rob decides.
 
+Answered 2026-11-12: **Site name is "Our U.S. Debt"** (Rob). It is written in one place only, `SiteConfig::NAME`, and used for the page header, the page title, the share preview, the picture cards and the share text. The old "U.S. Debt Tracker" wording is dropped.
 Answered 2026-11-12: Curved trend line is in version 1 (Rob: "Q2, Sure"). User-picked chart colors wait for version 2 (Rob: "Q3, Wait").
 Decision 2026-11-12: no AI-tool attribution in commits or PR descriptions (no co-author line, no "generated with" line). Rob: "No drop it ... I pay the bill, and I do not pay [the tool maker] to advertise for them."
 Answered 2026-11-12: Compare list stays uncapped. Projection into the future: yes. Address: `usdebt.bengusa.pro`. Treasury calls are cached daily (one full-dataset copy). PHP 8.5, no Docker. Gap-between-terms run is in version 1. Phone support: built and checked.

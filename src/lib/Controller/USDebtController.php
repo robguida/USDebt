@@ -15,21 +15,23 @@ use DateTimeZone;
 use Throwable;
 use USDebt\Exception\UserFacingException;
 use USDebt\Model\DebtDataset;
+use USDebt\Model\Per;
 use USDebt\Model\RequestModel;
 use USDebt\Model\ShareCard;
 use USDebt\Service\ChartData;
 use USDebt\Service\CompareService;
 use USDebt\Service\DebtSource;
 use USDebt\Service\Html;
+use USDebt\Service\PopulationService;
 use USDebt\Service\PresidentService;
 use USDebt\Service\ShareCardBuilder;
 use USDebt\Service\ShareLinks;
 use USDebt\Service\ShareText;
 use USDebt\Service\StatsCalculator;
+use USDebt\SiteConfig;
 
 class USDebtController
 {
-    public const SITE_TITLE = ShareText::SITE_NAME;
 
     private readonly ShareCardBuilder $shareCards;
 
@@ -77,9 +79,14 @@ class USDebtController
         $explicitDates = $requestModel->getStartDate() !== null || $requestModel->getEndDate() !== null;
         self::resolveRange($requestModel);
 
+        $per = $requestModel->per();
         $dataset = $this->debtSource->load();
-        $entries = $dataset->between($requestModel->getStartDate(), $requestModel->getEndDate());
-        $cards = $this->debtTodayCard($dataset);
+        // Per person or per household: each day's debt divided by that day's people or households.
+        $entries = $this->population()->scale(
+            $dataset->between($requestModel->getStartDate(), $requestModel->getEndDate()),
+            $per,
+        );
+        $cards = $this->debtTodayCard($dataset, $per);
         $hasTrend = false;
 
         if ($entries === []) {
@@ -89,22 +96,26 @@ class USDebtController
                 $dataset->lastDate() ?? '?'
             ));
         } else {
-            $stats = StatsCalculator::summarize($entries);
+            $stats = StatsCalculator::summarize($entries, $per->unitDollars());
             $first = $entries[0];
             $last = $entries[count($entries) - 1];
             if ($stats !== null) {
+                // Per person: D_end/P_end - D_start/P_start, the change in the line the chart draws.
                 $cards[] = [
-                    'label' => 'Change in this range',
+                    'label' => ShareText::changeLabel($per),
                     'value' => Html::compactMoney($stats['delta'], true),
                     'detail' => Html::shortDate($first->effectiveDate) . ' to ' . Html::shortDate($last->effectiveDate),
                 ];
                 $cards[] = [
-                    'label' => 'Per day',
+                    'label' => ShareText::perDayLabel($per),
                     'value' => Html::compactMoney($stats['average_per_day'], true),
                     'detail' => 'Average over ' . number_format($stats['total_days']) . ' calendar days',
                 ];
             }
-            $chart = ChartData::daily($entries);
+            $chart = ChartData::daily($entries, $per);
+            if (!$per->isTotal()) {
+                $chart['divisor'] = $this->divisorInfo($per);
+            }
             $hasTrend = in_array('trend', array_column($chart['series'], 'key'), true);
             $results = $this->loadFile('tabs.php', [
                 'graph' => $this->loadFile('chart_daily.php', [
@@ -112,9 +123,18 @@ class USDebtController
                     'first' => $first,
                     'last' => $last,
                     'show_trend' => $requestModel->showTrend(),
+                    'per' => $per,
+                    'footnote' => $this->censusFootnote($per, $first->effectiveDate),
                 ]),
-                'stats' => $this->loadFile('tab_stats.php', ['stats' => $stats]),
-                'data' => $this->loadFile('tab_data.php', ['datas' => array_reverse($entries)]),
+                'stats' => $this->loadFile('tab_stats.php', [
+                    'stats' => $stats,
+                    'per' => $per,
+                    'method_note' => ShareText::method($per, $this->population()->latest($per), $this->earlyHeldYear($per, $first->effectiveDate)),
+                ]),
+                'data' => $this->loadFile('tab_data.php', [
+                    'datas' => array_reverse($entries),
+                    'header' => ShareText::summarySubject($per),
+                ]),
             ]);
         }
 
@@ -124,8 +144,12 @@ class USDebtController
             $requestModel->getEndDate(),
             $requestModel->showTrend(),
             $explicitDates,
+            $per,
         );
-        return $this->page($requestModel, $results, $dataset, $cards, '', $hasTrend, $share);
+        $viewQuery = $explicitDates
+            ? 'start_date=' . $requestModel->getStartDate()->format('Y-m-d') . '&end_date=' . $requestModel->getEndDate()->format('Y-m-d')
+            : '';
+        return $this->page($requestModel, $results, $dataset, $cards, '', $hasTrend, $share, $viewQuery);
     }
 
     /**
@@ -133,23 +157,30 @@ class USDebtController
      */
     public function compareView(RequestModel $requestModel): string
     {
+        $per = $requestModel->per();
         $dataset = $this->debtSource->load();
-        $series = $this->compareService->buildSeries($requestModel->getComparePres(), $dataset);
+        $series = $this->compareService->buildSeries($requestModel->getComparePres(), $dataset, $per);
         $hasTrend = false;
         if ($series === []) {
             $results = $this->message('There is no Treasury data yet for the presidents you picked.');
         } else {
-            $chart = ChartData::compare($series);
+            $chart = ChartData::compare($series, $per);
+            if (!$per->isTotal()) {
+                $chart['divisor'] = $this->divisorInfo($per);
+            }
             $hasTrend = array_filter(array_column($chart['series'], 'trend')) !== [];
             $results = $this->loadFile('chart_compare.php', [
                 'series' => $series,
                 'chart' => $chart,
                 'show_trend' => $requestModel->showTrend(),
+                'per' => $per,
+                'footnote' => $this->censusFootnote($per, $this->compareService->firstDataDate($requestModel->getComparePres(), $dataset)),
             ]);
         }
 
-        $share = $this->shareCards->forCompare($dataset, $requestModel->getComparePres(), $requestModel->showTrend());
-        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset), 'Compare presidential terms', $hasTrend, $share);
+        $share = $this->shareCards->forCompare($dataset, $requestModel->getComparePres(), $requestModel->showTrend(), $per);
+        $viewQuery = 'compare=' . implode(',', $requestModel->getComparePres());
+        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset, $per), 'Compare presidential terms', $hasTrend, $share, $viewQuery);
     }
 
     /**
@@ -171,6 +202,7 @@ class USDebtController
         string $heading = '',
         bool $trendToggle = false,
         ?ShareCard $share = null,
+        string $viewQuery = '',
     ): string {
         $notice = '';
         if ($dataset !== null && $dataset->isStale()) {
@@ -180,11 +212,19 @@ class USDebtController
             );
         }
         return $this->loadFile('master.php', [
-            'title' => $heading === '' ? self::SITE_TITLE : $heading . ' - ' . self::SITE_TITLE,
+            'title' => $heading === '' ? SiteConfig::NAME : $heading . ' - ' . SiteConfig::NAME,
+            'site_name' => SiteConfig::NAME,
+            'per_query' => $requestModel->per()->query(),
             'notice' => $notice,
+            'per_switch' => $this->loadFile('per_switch.php', [
+                'options' => self::perLinks($requestModel, $viewQuery),
+                'label' => ShareText::PER_SWITCH_LABEL,
+                'aria' => ShareText::PER_SWITCH_ARIA,
+                'help' => ShareText::perHelp($requestModel->per()),
+            ]),
             'cards' => $cards === [] ? '' : $this->loadFile('headline.php', ['cards' => $cards]),
-            'controls' => $this->getSearchForm($requestModel),
-            'results_heading' => $heading,
+            'controls' => $this->getSearchForm($requestModel, $viewQuery),
+            'results_heading' => $heading !== '' ? $heading : ShareText::resultsHeading($requestModel->per()),
             'results' => $results,
             // The trend button shows only when the chart has a trend line to switch.
             'trend_toggle' => $trendToggle,
@@ -240,25 +280,53 @@ class USDebtController
             'image_alt' => $share->imageAlt,
             'share_text' => $share->shareText,
             'email_subject' => $share->emailSubject,
-            'email_note' => ShareText::EMAIL_NOTE,
-            'networks' => ShareLinks::networks($url, $share->shareText, $share->emailSubject),
+            'email_note' => ShareText::emailNote($share->per),
+            'networks' => ShareLinks::networks($url, $share->shareText, $share->emailSubject, $share->per),
         ];
     }
 
     /**
      * @return list<array{label: string, value: string, detail: string}>
      */
-    private function debtTodayCard(DebtDataset $dataset): array
+    private function debtTodayCard(DebtDataset $dataset, Per $per): array
     {
         $latest = $dataset->latest();
         if ($latest === null) {
             return [];
         }
+        $divisor = $this->population()->divisor($per, $latest->effectiveDate);
+        $held = $this->population()->held($per, $latest->effectiveDate) === PopulationService::HELD_LATEST
+            ? ($this->population()->latest($per)['year'] ?? null)
+            : null;
         return [[
-            'label' => 'Debt today',
-            'value' => Html::compactMoney($latest->totalDebt),
-            'detail' => Html::money($latest->totalDebt) . ' on ' . Html::shortDate($latest->effectiveDate),
+            'label' => ShareText::todayLabel($per),
+            'value' => Html::compactMoney($latest->totalDebt / $divisor),
+            'detail' => ShareText::todayDetail($per, $latest->totalDebt, $divisor, $latest->effectiveDate, $held),
         ]];
+    }
+
+    private function population(): PopulationService
+    {
+        return $this->compareService->population();
+    }
+
+    /**
+     * What the per person (or household) numbers are divided by, for the
+     * page script: which Census figure, the day each yearly figure is pinned
+     * to (MM-DD), and the last figure (after its day it is held, not projected).
+     *
+     * @return array{kind: string, anchor: string, latest_year: int|null, latest_date: string|null, latest_value: float|null}
+     */
+    private function divisorInfo(Per $per): array
+    {
+        $latest = $this->population()->latest($per);
+        return [
+            'kind' => $per === Per::Household ? 'households' : 'population',
+            'anchor' => $per === Per::Household ? PopulationService::HOUSEHOLDS_ANCHOR : PopulationService::POPULATION_ANCHOR,
+            'latest_year' => $latest['year'] ?? null,
+            'latest_date' => $latest['date'] ?? null,
+            'latest_value' => $latest['value'] ?? null,
+        ];
     }
 
     private function message(string $text, string $class = 'message'): string
@@ -266,7 +334,10 @@ class USDebtController
         return '<p class="' . Html::e($class) . '">' . Html::e($text) . '</p>';
     }
 
-    private function getSearchForm(RequestModel $requestModel): string
+    /**
+     * @param string $viewQuery  This view's own link without per or trend: dates, compare picks, or '' (home).
+     */
+    private function getSearchForm(RequestModel $requestModel, string $viewQuery): string
     {
         $today = self::today();
         // Compare and error pages have no range of their own: prefill the default (last month).
@@ -281,7 +352,64 @@ class USDebtController
             'quick_ranges' => self::quickRanges($today, $requestModel->getStartDate() === null ? '' : $start, $end),
             'today' => $today->format('Y-m-d'),
             'show_trend' => $requestModel->showTrend(),
+            'per' => $requestModel->per(),
         ]);
+    }
+
+    /**
+     * Footnote under the chart for per person and per household: the Census
+     * counts and the year of the latest one ('' for the total).
+     */
+    private function censusFootnote(Per $per, ?string $firstDate): string
+    {
+        return ShareText::censusFootnote(
+            $per,
+            $per->isTotal() ? null : ($this->population()->latest($per)['year'] ?? null),
+            $this->earlyHeldYear($per, $firstDate)
+        );
+    }
+
+    /**
+     * The year of the first Census figure when the view starts before it (so
+     * that figure is used for the early days), else null.
+     *
+     * @param string|null $firstDate  The first day the view uses (Y-m-d).
+     */
+    private function earlyHeldYear(Per $per, ?string $firstDate): ?int
+    {
+        if ($per->isTotal() || $firstDate === null) {
+            return null;
+        }
+        return $this->population()->held($per, $firstDate) === PopulationService::HELD_EARLIEST
+            ? ($this->population()->earliest($per)['year'] ?? null)
+            : null;
+    }
+
+    /**
+     * The "Show numbers as" switch: this same view as the total, per person
+     * and per household. Plain links, so they work without JavaScript. They
+     * keep the dates (or Compare picks) and trend=0; the page script keeps
+     * them in step with the trend switch. No #results jump: the switch sits
+     * at the top, right above the headline numbers it changes.
+     *
+     * @return list<array{label: string, href: string, current: bool, value: string}>
+     */
+    private static function perLinks(RequestModel $requestModel, string $viewQuery): array
+    {
+        $links = [];
+        foreach (Per::cases() as $per) {
+            $query = implode('&', array_filter(
+                [$viewQuery, $per->query(), $requestModel->showTrend() ? '' : 'trend=0'],
+                static fn (string $p): bool => $p !== ''
+            ));
+            $links[] = [
+                'label' => ShareText::PER_OPTIONS[$per->value],
+                'href' => './' . ($query === '' ? '' : '?' . $query),
+                'current' => $per === $requestModel->per(),
+                'value' => $per->value,
+            ];
+        }
+        return $links;
     }
 
     /**

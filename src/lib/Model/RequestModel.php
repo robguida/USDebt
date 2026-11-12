@@ -26,6 +26,19 @@ class RequestModel
     /** Trend line on the charts. Off only when the URL says trend=0. */
     private bool $showTrend = true;
 
+    /** Total, per person or per household (?per=). Anything unknown is the total. */
+    private Per $per = Per::Total;
+
+    public function setPer(Per $per): void
+    {
+        $this->per = $per;
+    }
+
+    public function per(): Per
+    {
+        return $this->per;
+    }
+
     public function setShowTrend(bool $show): void
     {
         $this->showTrend = $show;

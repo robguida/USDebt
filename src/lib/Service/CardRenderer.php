@@ -9,6 +9,7 @@ use RuntimeException;
 use USDebt\Exception\CardUnavailableException;
 use USDebt\Model\DebtEntry;
 use USDebt\Model\ShareCard;
+use USDebt\SiteConfig;
 
 /**
  * Draws the share picture card: a 1200x630 PNG (the size social sites use for
@@ -21,7 +22,7 @@ use USDebt\Model\ShareCard;
  * Footer: the data source and the site address.
  *
  * Colours are neutral greys and slate blue. Red is used only for a trend line.
- * Every word comes from ShareText.
+ * Every word comes from ShareText, except the site name (SiteConfig::NAME).
  */
 final class CardRenderer
 {
@@ -101,7 +102,7 @@ final class CardRenderer
 
         // Thin top band, site name.
         imagefilledrectangle($img, 0, 0, self::WIDTH - 1, 9, self::color($img, self::LINE));
-        $this->text($img, $this->bold, 22, self::PAD, 72, self::MUTED, ShareText::SITE_NAME, 'site');
+        $this->text($img, $this->bold, 22, self::PAD, 72, self::MUTED, SiteConfig::NAME, 'site');
 
         // Headline: as large as fits in two lines.
         $size = 40;
@@ -135,7 +136,7 @@ final class CardRenderer
         $ruleY = $footerY - 38;
         imageline($img, self::PAD, $ruleY, self::WIDTH - self::PAD, $ruleY, self::color($img, self::RULE));
         $this->record('footer-rule', '', self::PAD, $ruleY, self::WIDTH - self::PAD, $ruleY);
-        $this->text($img, $this->regular, 15, self::PAD, $footerY, self::MUTED, ShareText::SOURCE, 'footer');
+        $this->text($img, $this->regular, 15, self::PAD, $footerY, self::MUTED, ShareText::source($card->per), 'footer');
         $address = $this->fit($this->siteAddress, $this->bold, 15, 420);
         $this->text($img, $this->bold, 15, self::WIDTH - self::PAD - $this->textWidth($address, $this->bold, 15), $footerY, self::MUTED, $address, 'footer');
 
@@ -145,7 +146,7 @@ final class CardRenderer
         if ($card->kind === ShareCard::KIND_COMPARE) {
             $this->drawRows($img, $card->rows, $top, $bottom);
         } else {
-            $this->drawRange($img, $card->entries, $card->drawTrend, $top, $bottom);
+            $this->drawRange($img, $card->entries, $card->drawTrend, $card->per->unitDollars(), $top, $bottom);
         }
 
         ob_start();
@@ -160,9 +161,10 @@ final class CardRenderer
     /**
      * Line chart of the range, with first and last date under it.
      *
-     * @param list<DebtEntry> $entries  Oldest first.
+     * @param list<DebtEntry> $entries  Oldest first (per person or household: already scaled, in dollars).
+     * @param float           $unit     Dollars per trend unit (1e12 for the total, 1 per person or household).
      */
-    private function drawRange(GdImage $img, array $entries, bool $drawTrend, int $top, int $bottom): void
+    private function drawRange(GdImage $img, array $entries, bool $drawTrend, float $unit, int $top, int $bottom): void
     {
         $labelSize = 14;
         $chartBottom = $bottom - 30;
@@ -175,13 +177,13 @@ final class CardRenderer
         $firstDay = self::day($entries[0]->effectiveDate);
         $span = max(1, self::day($entries[count($entries) - 1]->effectiveDate) - $firstDay);
         $values = array_map(static fn (DebtEntry $e): float => $e->totalDebt, $entries);
-        $trend = $drawTrend ? TrendService::daily($entries) : null;
+        $trend = $drawTrend ? TrendService::daily($entries, $unit) : null;
         $min = min($values);
         $max = max($values);
         if ($trend !== null) {
             foreach ([$trend['fitted'][0][1], $trend['fitted'][count($trend['fitted']) - 1][1]] as $t) {
-                $min = min($min, $t * 1e12);
-                $max = max($max, $t * 1e12);
+                $min = min($min, $t * $unit);
+                $max = max($max, $t * $unit);
             }
         }
         $pad = ($max - $min) * 0.08;
@@ -242,9 +244,9 @@ final class CardRenderer
             imageline(
                 $chart,
                 (int) round($px(self::day($a[0]))),
-                (int) round($py($a[1] * 1e12)),
+                (int) round($py($a[1] * $unit)),
                 (int) round($px(self::day($b[0]))),
-                (int) round($py($b[1] * 1e12)),
+                (int) round($py($b[1] * $unit)),
                 self::color($chart, self::TREND)
             );
         }

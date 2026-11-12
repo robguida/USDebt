@@ -1,5 +1,5 @@
 /*
- * Our U.S. Debt - site styles.
+ * UsDebt site styles.
  * Mobile first. Colors live in variables; dark mode swaps them.
  * Red (--trend, --trend-curve) is reserved for the trend lines only. Term lines use the
  * neutral --series-* colors (no party blue or red).
@@ -407,6 +407,59 @@ main.wrap {
     color: var(--on-accent);
 }
 
+/* ---- "Show numbers as": Total / Per person / Per household (plain links) ---- */
+.per-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+.per-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.per-switch {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 4px;
+    padding: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+}
+.per-option {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.per-option:hover { color: var(--accent); background: var(--accent-soft); }
+.per-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.per-option[aria-current="true"],
+.per-option[aria-current="true"]:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+.per-help {
+    flex: 1 1 100%;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+.chart-source { margin: 12px 0 0; font-size: 0.85rem; }
+
 /* ---- Presidential term strip: scrolls sideways on phones ---- */
 .term-strip {
     list-style: none;
@@ -585,6 +638,9 @@ main.wrap {
 /* ---- Tablet ---- */
 @media (min-width: 640px) {
     .headline { grid-template-columns: repeat(3, 1fr); }
+    .per-switch { flex: 0 1 auto; }
+    .per-option { flex: 0 0 auto; padding: 4px 18px; }
+    .per-help { flex: 1 1 220px; }
     .range-form { grid-template-columns: 1fr 1fr auto; }
     .range-form .btn { grid-column: auto; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }

@@ -6,9 +6,13 @@
  * Time: 9:43 PM
  *
  * @var array<string, int|float|null>|null $stats  From StatsCalculator::summarize(); null when there is no data.
+ * @var string $method_note  How per person (or household) is worked out, or '' for the total.
+ * @var \USDebt\Model\Per $per  Total, per person or per household: the row labels follow it,
+ *      and for per person (or household) every amount is already per person, in dollars.
  */
 
 use USDebt\Service\Html;
+use USDebt\Service\ShareText;
 
 if ($stats === null) {
     echo '<p class="message">There is no data for this date range.</p>';
@@ -17,17 +21,17 @@ if ($stats === null) {
 
 $delta = (float) $stats['delta'];
 $rows = [
-    ['Starting debt amount', Html::money((float) $stats['first_debt'])],
-    ['Last debt amount of date range', Html::money((float) $stats['last_debt'])],
-    ['Change during the date range', ($delta > 0 ? '+' : '') . Html::money($delta)],
-    ['Average change per day', ($stats['average_per_day'] > 0 ? '+' : '') . Html::money((float) $stats['average_per_day'])],
+    [ShareText::label($per, 'stats_start'), Html::money((float) $stats['first_debt'])],
+    [ShareText::label($per, 'stats_end'), Html::money((float) $stats['last_debt'])],
+    [ShareText::label($per, 'stats_change'), ($delta > 0 ? '+' : '') . Html::money($delta)],
+    [ShareText::label($per, 'stats_per_day'), ($stats['average_per_day'] > 0 ? '+' : '') . Html::money((float) $stats['average_per_day'])],
     ['Days with reported data*', number_format((int) $stats['working_days']) . ' of ' . number_format((int) $stats['total_days']) . ' calendar days'],
-    ['Days the debt was above the start*', number_format((int) $stats['days_above_start']) . ' (' . $stats['pct_above_start'] . '%)'],
-    ['Days the debt was below the start*', number_format((int) $stats['days_below_start']) . ' (' . $stats['pct_below_start'] . '%)'],
+    [ShareText::label($per, 'stats_above'), number_format((int) $stats['days_above_start']) . ' (' . $stats['pct_above_start'] . '%)'],
+    [ShareText::label($per, 'stats_below'), number_format((int) $stats['days_below_start']) . ' (' . $stats['pct_below_start'] . '%)'],
 ];
 if ($stats['trend_per_day'] !== null) {
     // Slope of the straight trend line on the chart, in dollars per calendar day.
-    $rows[] = ['Trend (straight line)', 'About ' . Html::compactMoney((float) $stats['trend_per_day'], true) . ' per day'];
+    $rows[] = ['Trend (straight line)', ucfirst(ShareText::trendAmount($per, Html::compactMoney((float) $stats['trend_per_day'], true), 'day'))];
 }
 if (($stats['growth_pct_per_year'] ?? null) !== null) {
     // Yearly growth of the growth curve on the chart, in percent.
@@ -43,3 +47,6 @@ if (($stats['growth_pct_per_year'] ?? null) !== null) {
     <?php } ?>
 </dl>
 <p class="footnote">* Counts only days when the Treasury reported data (business days).</p>
+<?php if ($method_note !== '') { ?>
+<p class="footnote"><?php echo Html::e($method_note); ?></p>
+<?php } ?>
