@@ -12,8 +12,8 @@ namespace USDebt;
  * the share words (ShareText) and the picture card all read it from here.
  * A test checks that no other file under src/ spells out a site name.
  *
- * The name is not final yet ("Our U.S. Debt" or "U.S. Debt Tracker"):
- * change it here and nowhere else.
+ * Rob chose "Our U.S. Debt" on 2026-11-12. This constant is its only home:
+ * to rename the site, change it here and nowhere else.
  */
 final class SiteConfig
 {

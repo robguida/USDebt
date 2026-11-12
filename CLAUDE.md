@@ -37,7 +37,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **f.** `images/` — president photos. `favicon.svg` — site icon.
 2. `src/lib/` — app code, outside the web root.
     - **a.** `bootstrap.php` — error settings, timezone (America/New_York), class autoloader. No session.
-        - **i.** `SiteConfig.php` — the site's name (`SiteConfig::NAME`), in this one place. The header, page title, link preview tags, share words and picture card all read it. Not final yet ("Our U.S. Debt" or "U.S. Debt Tracker"); change it only here.
+        - **i.** `SiteConfig.php` — the site's name (`SiteConfig::NAME` = "Our U.S. Debt", Rob's decision 2026-11-12), in this one place. The header, page title, link preview tags, share words and picture card all read it. Change it only here; a test checks no other file spells it out.
     - **b.** `Controller/FrontController.php` — turns one request into one page. Visitors only see friendly messages.
     - **c.** `Controller/USDebtController.php` — builds the date-range view, compare view and error view, and the share tags and Share menu for each. Loads view files.
     - **d.** `Controller/CardController.php` — the picture card: same input checks as the page, the cached PNG or a fresh one, plain-text errors (400, 503, 500).
@@ -50,7 +50,8 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **k.** `Service/StatsCalculator.php`, `Service/ChartData.php`, `Service/Html.php` — stats, chart data shaping, safe HTML output.
     - **l.** `Service/PresidentService.php` — fixed list of presidents (term dates, photo, chart colour).
     - **m.** `Service/ValidateDateTime.php` — date checks.
-        - **i.** `Service/PopulationService.php` — Your Share: U.S. population and households for any day (straight line between yearly Census figures), and the debt divided by them.
+        - **i.** `Service/PopulationService.php` — Your Share: U.S. population and households for any day (straight line between yearly Census figures), and the debt divided by them. The latest figure (2025) is held for later dates.
+        - **ii.** The `per` parameter (`?per=person` or `?per=household`; anything else, or missing, is Total and is never written in a link) is read by `RequestModel` into `Model/Per.php`. It rides in every page link, share link, card link and Compare. Trend and curve are fitted on the per-person series; chart values are dollars (Total stays in trillions).
     - **n.** Sharing:
         - **i.** `Service/ShareText.php` — every share word (see §5.6.c).
         - **ii.** `Service/ShareLinks.php` — the share links: absolute page and card links from `USDEBT_BASE_URL`, the root-relative card link for the menu, and the plain links to each social site.
@@ -60,7 +61,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **o.** `Http/` — `HttpFetcher.php` (the interface), `NativeHttpFetcher.php`, `Response.php`.
     - **p.** `Exception/` — `UserFacingException.php` (a message safe to show the visitor: 400 by default), `DataUnavailableException.php` (no download and no saved copy: 503), `HttpException.php` (a Treasury request failed), `IncompleteDownloadException.php` (a page or rows are missing, so nothing is saved), `CardUnavailableException.php` (this server cannot draw cards: 503).
     - **q.** `Data/debt_seed_1993.json` — debt for 1993-01-04 to 1993-03-31, before the API's first day.
-        - **i.** `Data/us_population_households.json` — Census population (July 1) and households (March), 1993 to 2025, one figure per year, with its sources and notes inside. Public domain.
+        - **i.** `Data/us_population_households.json` — Census population (July 1 anchor) and households (March 15 anchor), 1993 to 2025, one figure per year, with its sources and notes inside. Public domain. The 2019 to 2020 population step is kept as published.
     - **r.** `Assets/fonts/` — `DejaVuSans.ttf`, `DejaVuSans-Bold.ttf` and their license, for the card. Self-hosted; their checksums are pinned in a test.
     - **s.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`, `share_menu.php` (Share button and menu), `per_switch.php` (the "Show numbers as: Total / Per person / Per household" switch at the top of the page: plain links, so it works without JavaScript).
 3. `src/var/cache/` — the saved Treasury copy. `src/var/cache/cards/` — the saved picture cards. `src/var/log-markers/` — private (0700) "already logged" markers, next to the cache folder. All gitignored. Never web-served.
@@ -125,7 +126,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 
 1. Install: `php composer.phar install`. Run: `php vendor/bin/phpunit`.
 2. Tests live in `tests/` (outside `./src`): trend, cache, compare, client, front controller, views, stats and dates, presidents, share links and picture card, and the docs check (the §3 file map). Run with gd loaded (`php -d extension=gd vendor/bin/phpunit`) so the card tests run instead of skipping.
-    - **a.** `tests/js/*.check.js` (for example `with-trend.check.js`, `trend-lines.check.js`) check the page script in Node. The view tests run it when Node is installed, and skip that part when it is not.
+    - **a.** `tests/js/*.check.js` (for example `with-trend.check.js`, `trend-lines.check.js`, `per-format.check.js` for the dollar formatting) check the page script in Node. The view tests run it when Node is installed, and skip that part when it is not.
 3. New or changed behaviour needs tests.
 
 ## 9. Errors
