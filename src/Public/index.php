@@ -7,6 +7,4 @@ require __DIR__ . '/../lib/bootstrap.php';
 use USDebt\Controller\FrontController;
 
 header_remove('X-Powered-By');
-$response = FrontController::create()->handle($_GET, $_POST);
-http_response_code($response->status);
-echo $response->body;
+FrontController::create()->handle($_GET, $_POST)->send();

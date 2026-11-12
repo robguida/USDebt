@@ -11,6 +11,8 @@
  * @var string $results          Already-rendered HTML (chart, stats, table, or a message).
  * @var bool   $trend_toggle     Show the "Trend line" button (the chart has a trend line).
  * @var bool   $show_trend       Trend line on (false when the URL says trend=0).
+ * @var array{title: string, description: string, url: string, image: string, image_alt: string} $share
+ *        Link preview tags: plain text and absolute links from the configured site address.
  */
 
 use USDebt\Service\Html;
@@ -32,7 +34,23 @@ $home_href = $show_trend ? './' : './?trend=0';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title><?php echo Html::e($title); ?></title>
-    <meta name="description" content="The U.S. national debt from U.S. Treasury data, as a chart, stats and a table. Compare how the debt changed during each presidential term.">
+    <meta name="description" content="<?php echo Html::e(\USDebt\Service\ShareText::SITE_DESCRIPTION); ?>">
+    <?php /* link preview for social sites and chat apps (Open Graph, Twitter) */ ?>
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="<?php echo Html::e(\USDebt\Service\ShareText::SITE_NAME); ?>">
+    <meta property="og:title" content="<?php echo Html::e($share['title']); ?>">
+    <meta property="og:description" content="<?php echo Html::e($share['description']); ?>">
+    <meta property="og:url" content="<?php echo Html::e($share['url']); ?>">
+    <meta property="og:image" content="<?php echo Html::e($share['image']); ?>">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="<?php echo Html::e($share['image_alt']); ?>">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="<?php echo Html::e($share['title']); ?>">
+    <meta name="twitter:description" content="<?php echo Html::e($share['description']); ?>">
+    <meta name="twitter:image" content="<?php echo Html::e($share['image']); ?>">
+    <meta name="twitter:image:alt" content="<?php echo Html::e($share['image_alt']); ?>">
     <link rel="icon" href="<?php echo $asset('favicon.svg'); ?>" type="image/svg+xml">
     <link rel="stylesheet" href="<?php echo $asset('css/usdebt.css'); ?>">
     <script src="<?php echo $asset('lib/chart.umd.min.js'); ?>" defer></script>

@@ -53,6 +53,12 @@ class RequestModel
         return $this->comparePres;
     }
 
+    /** True when this request is a Compare view (at least 2 valid picks). */
+    public function isCompare(): bool
+    {
+        return count($this->comparePres) >= 2;
+    }
+
     public function getStartDate(): ?DateTimeImmutable
     {
         return $this->startDate;

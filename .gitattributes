@@ -8,3 +8,8 @@ src/Public/lib/** -text
 # composer.phar is a binary PHP archive. Its SHA-256 is pinned in
 # composer.phar.sha256, so it must never be touched by line-ending conversion.
 composer.phar binary
+
+# Self-hosted fonts for the share card (DejaVu Sans 2.37). Binary, byte-exact,
+# so their pinned checksums still match.
+src/lib/Assets/fonts/*.ttf binary
+src/lib/Assets/fonts/DejaVu-LICENSE.txt -text
