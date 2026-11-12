@@ -2,14 +2,14 @@
 
 Source of truth for anyone (human or tool) working on this project.
 Owner: Rob Guida (RandBMedia, his own company; not a client project).
-Last updated: 2026-11-12 (matches branch USD-3-trend-line).
+Last updated: 2026-11-12 (matches branch USD-5-curved-trend).
 
 ## 1. What it is
 
 1. A small PHP web app that shows the US national debt as tables, charts and stats.
 2. Data comes from the U.S. Treasury (fiscaldata "Debt to the Penny"), downloaded once a day and saved.
 3. Presidential terms can be compared side by side (debt change during each term).
-4. Charts show a straight trend line and a dashed red projection, with an on/off button.
+4. Charts show a straight trend line and a growth curve, each with its own projection, with one on/off button.
 5. Goal now: a public demo on bengUSA.pro. See `docs/requirements.md`.
 
 ## 2. Stack
@@ -70,7 +70,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 
 1. Chart data goes to the page in one block: `<script type="application/json" id="chart-data">`. The page script reads it.
 2. CSP-ready: no inline scripts, no inline styles, no inline event handlers. The page script is a separate file.
-3. Colours come from CSS variables in `css/usdebt.css`. Term lines use neutral colours. Red (`--trend`) is reserved for the date-range trend line and its projection.
+3. Colours come from CSS variables in `css/usdebt.css`. Term lines use neutral colours. Red (`--trend`, and darker `--trend-curve`) is reserved for the date-range trend lines and their projections.
 4. Compare is labelled "View by presidential term", with the caption that Congress sets spending and taxes and terms are shown for reference only.
 5. Quick ranges (1M, 1Y, 5Y, This term) are plain links. They are month-end safe: Mar 31 minus one month gives Feb 28 or 29, never Mar 3.
 
@@ -78,10 +78,15 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 
 1. The trend is a straight least-squares line (`TrendService`). X is the calendar day, so weekends and holidays keep their true width.
 2. Date-range chart: a solid red trend line, plus a dashed red "Projection". The projection is 25% of the shown range, at least 3 days and at most 365 days. Fewer than 2 days of data gives no trend.
-3. Compare: each term gets its own dashed trend line in that term's colour. No projection.
-4. On/off button "Trend line": default on. The choice is remembered in the browser (localStorage) and in the URL (`trend=0`). The URL wins. Links and forms on the page keep the choice.
-5. The Stats tab has a row "Trend (straight line)": about +$X billion per day.
-6. A curved trend is NOT built. See `docs/requirements.md` (R2e).
+3. Compare: each term gets its own dashed trend line in that term's colour. Straight trends only: no curve and no projection in version 1.
+4. On/off button "Trend line": default on. The choice is remembered in the browser (localStorage) and in the URL (`trend=0`). The URL wins. Links and forms on the page keep the choice. One switch hides all four date-range lines (straight, its projection, curve, its projection).
+5. The Stats tab has a row "Trend (straight line)": about +$X billion per day. It also has "Growth curve: about +X% per year".
+6. The growth curve IS built (Rob approved it for version 1). It is drawn beside the straight line on the date-range chart.
+    - **a.** Method: least squares on ln(value) against calendar days. Days with a non-positive value are skipped.
+    - **b.** Annual growth % comes from the fitted slope. R² is measured on the dollar scale.
+    - **c.** Its own projection follows the same rules as the straight line: 25% of the range, at least 3 days, at most 365 days.
+    - **d.** Look: straight line solid red, its projection dashed red. Curve dark-red dotted, its projection dark-red dash-dot. CSS variable `--trend-curve` (light and dark mode).
+    - **e.** Test data: `tests/fixtures/debt_monthly_2000_2026.json`. Node checks: `tests/js/*.check.js`.
 
 ## 7. Run locally
 
@@ -94,7 +99,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 
 1. Install: `php composer.phar install`. Run: `php vendor/bin/phpunit`.
 2. Tests live in `tests/` (outside `./src`): trend, cache, compare, client, front controller, views, stats and dates, presidents.
-    - **a.** `tests/js/with-trend.check.js` checks the page script's link rewriting in Node. The view tests run it when Node is installed, and skip that part when it is not.
+    - **a.** `tests/js/*.check.js` (for example `with-trend.check.js`, `trend-lines.check.js`) check the page script in Node. The view tests run it when Node is installed, and skip that part when it is not.
 3. New or changed behaviour needs tests.
 
 ## 9. Errors
@@ -117,6 +122,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 2. Branch off the latest `development`; open a PR into `development`. `development` exists and is the GitHub default branch.
 3. After a PR is merged, delete its branch (local and remote).
 4. Commit messages: say what changed and why, every change covered. Never name AI tools, agents or reviewers in commits or docs. Use roles ("tests", "security review").
+5. No AI-tool attribution in commits or PRs: no Co-Authored-By line for an AI tool, no "generated with" line. Rob's decision 2026-11-12.
 
 ## 12. Conventions
 
