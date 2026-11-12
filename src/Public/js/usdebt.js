@@ -73,6 +73,36 @@
     var SHORT_SPAN_DAYS = 62;
     var TREND_DASH = [6, 4];
     var LEGEND_DASH = [3, 2];
+    /* growth curve: round dots; its projection: dash-dot (dashes = projection, dots = curve) */
+    var CURVE_DOTS = [1, 5];
+    var CURVE_PROJECTION_DASH = [9, 5, 1, 5];
+    /* date-range legend swatches are long enough to show each line's pattern */
+    var LEGEND_SWATCH = 30;
+
+    /*
+     * The trend lines on the date-range chart, told apart by pattern and not
+     * by color alone: straight trend solid, its projection dashed, growth
+     * curve dotted, its projection dash-dot. Each projection is joined to the
+     * last point of its own line ("joins").
+     */
+    var TREND_LOOKS = {
+        trend: { color: 'trend', dash: [], legendDash: [], straight: true },
+        projection: { color: 'trend', dash: TREND_DASH, legendDash: [5, 3], straight: true, joins: 'trend' },
+        curve: { color: 'curve', dash: CURVE_DOTS, legendDash: [1, 4], round: true },
+        curve_projection: { color: 'curve', dash: CURVE_PROJECTION_DASH, legendDash: [7, 3, 1, 3], round: true, joins: 'curve' }
+    };
+
+    /* The look of one date-range series, or null for a data line. */
+    function trendLook(s) {
+        if (Object.prototype.hasOwnProperty.call(TREND_LOOKS, s.key)) {
+            return TREND_LOOKS[s.key];
+        }
+        if (s.projection === true) {
+            /* a projection this script does not know: dashed red, joined to the line it is named after */
+            return { color: 'trend', dash: TREND_DASH, legendDash: [5, 3], joins: String(s.key).replace(/_projection$/, '') };
+        }
+        return null;
+    }
 
     var fullDate = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
     var monthYear = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -118,13 +148,20 @@
         };
     }
 
-    /* Line style per series key. Red (--trend) is reserved for the trend line and its projection. */
+    /*
+     * Line color per series key. The red family is reserved for the trend
+     * lines: --trend for the straight line and its projection, --trend-curve
+     * (a darker red) for the growth curve and its projection.
+     */
     function seriesStyle(key, index) {
         if (key === 'debt') {
             return { color: cssVar('--accent', '#1e3a8a'), fill: cssVar('--accent-soft', 'rgba(30,58,138,0.1)') };
         }
         if (key === 'trend' || key === 'projection') {
             return { color: cssVar('--trend', '#c62828'), fill: 'transparent' };
+        }
+        if (key === 'curve' || key === 'curve_projection') {
+            return { color: cssVar('--trend-curve', '#7f1d1d'), fill: 'transparent' };
         }
         var color = cssVar('--series-' + ((index % 6) + 1), '#475569');
         return { color: color, fill: 'transparent' };
@@ -167,41 +204,45 @@
         var dataMax = -Infinity;
         var allMin = Infinity;
         var allMax = -Infinity;
-        var lastTrendPoint = null;
+        /* last point of each trend line, by key, so its own projection can join it */
+        var lastPoints = {};
         data.series.forEach(function (s, i) {
             try {
-                var isTrend = s.key === 'trend';
-                var isProjection = s.key === 'projection' || s.projection === true;
-                var style = seriesStyle(isProjection ? 'projection' : s.key, i);
+                var look = trendLook(s);
+                var isTrendLine = look !== null;
+                var style = seriesStyle(isTrendLine ? (look.color === 'curve' ? 'curve' : 'trend') : s.key, i);
                 var points = s.points.map(function (p) {
                     return { x: isoToMs(p[0]), y: p[1] };
                 });
                 points.forEach(function (pt) {
                     if (pt.x < allMin) { allMin = pt.x; }
                     if (pt.x > allMax) { allMax = pt.x; }
-                    if (!isTrend && !isProjection) {
+                    if (!isTrendLine) {
                         if (pt.x < dataMin) { dataMin = pt.x; }
                         if (pt.x > dataMax) { dataMax = pt.x; }
                     }
                 });
-                if (isTrend || isProjection) {
-                    if (isTrend && points.length) {
-                        lastTrendPoint = points[points.length - 1];
+                if (isTrendLine) {
+                    /* a projection starts the day after the last data day: join it to its own line */
+                    if (look.joins && lastPoints[look.joins]) {
+                        points.unshift(lastPoints[look.joins]);
                     }
-                    /* the projection starts the day after the last data day: join it to the trend line */
-                    if (isProjection && lastTrendPoint) {
-                        points.unshift(lastTrendPoint);
+                    if (points.length) {
+                        lastPoints[s.key] = points[points.length - 1];
                     }
                     datasets.push({
                         label: s.label,
-                        data: ends(points),
+                        /* a straight line needs only its two ends; the curve needs its points */
+                        data: look.straight ? ends(points) : points,
                         trendLine: true,
+                        legendDash: look.legendDash,
                         hidden: !trendOn,
                         borderColor: style.color,
                         backgroundColor: style.color,
-                        borderDash: isProjection ? TREND_DASH : [],
+                        borderDash: look.dash,
+                        borderCapStyle: look.round ? 'round' : 'butt',
                         fill: false,
-                        borderWidth: 2,
+                        borderWidth: look.round ? 2.5 : 2,
                         pointStyle: 'line',
                         pointRadius: 0,
                         pointHoverRadius: 4,
@@ -237,16 +278,25 @@
             var ds = chartData.datasets[item.datasetIndex];
             return !(ds && ds.trendLine && !trendOn);
         };
+        /* every swatch is a short piece of its line, so the patterns show in the legend */
+        opts.plugins.legend.labels.pointStyleWidth = LEGEND_SWATCH;
         opts.plugins.legend.labels.generateLabels = function (c) {
             var labels = Chart.defaults.plugins.legend.labels.generateLabels(c);
             labels.forEach(function (l) {
                 /*
-                 * The projection's swatch is dashed too, so it is not told apart
-                 * by color alone. Chart.js takes swatch styles from the points,
-                 * which have no dash, so set it from the line here.
+                 * Each trend swatch carries its line's pattern (solid, dashed,
+                 * dotted, dash-dot), so no line is told apart by color alone.
+                 * Chart.js takes swatch styles from the points, which have no
+                 * pattern, so set it from the line here.
                  */
                 var ds = c.data.datasets[l.datasetIndex];
-                if (ds && ds.borderDash && ds.borderDash.length) { l.lineDash = LEGEND_DASH; }
+                l.pointStyle = 'line';
+                if (ds) {
+                    l.strokeStyle = ds.borderColor;
+                    l.lineWidth = ds.trendLine ? 2.5 : 3;
+                    l.lineDash = ds.legendDash || [];
+                    l.lineCap = ds.borderCapStyle === 'round' ? 'round' : 'butt';
+                }
             });
             return labels;
         };

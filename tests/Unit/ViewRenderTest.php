@@ -177,19 +177,26 @@ final class ViewRenderTest extends TestCase
         );
 
         $chart = FrontControllerTest::chartJson($html);
-        self::assertSame(['debt', 'trend', 'projection'], array_column($chart['series'], 'key'));
+        self::assertSame(['debt', 'trend', 'projection', 'curve', 'curve_projection'], array_column($chart['series'], 'key'));
         self::assertSame('Trend (straight line)', $chart['series'][1]['label']);
+        self::assertSame('Trend (growth curve)', $chart['series'][3]['label']);
+        self::assertSame('Growth projection', $chart['series'][4]['label']);
+        self::assertTrue($chart['series'][4]['projection']);
         self::assertTrue($chart['series'][2]['projection']);
         $lastDay = $chart['series'][0]['points'][count($chart['series'][0]['points']) - 1][0];
         self::assertGreaterThan($lastDay, $chart['series'][2]['points'][0][0], 'the projection starts after the last data day');
 
-        // Text summary for screen readers and for anyone who cannot tell the lines apart.
+        // Text summary for screen readers and for anyone who cannot tell the lines apart:
+        // one sentence pair per line; the "hidden" note once, after the last one.
         self::assertMatchesRegularExpression(
             '#<p class="trend-summary">Trend: about \+\$[0-9.,]+ [a-z]+ per day \(straight line\)\.'
-            . ' Projection to [A-Z][a-z]{2} \d{1,2}, \d{4}: about \$[0-9.,]+ trillion\.'
-            . '<span class="trend-off-note" hidden> \(trend line hidden\)</span></p>#',
+            . ' Projection to [A-Z][a-z]{2} \d{1,2}, \d{4}: about \$[0-9.,]+ trillion\.</p>\s*'
+            . '<p class="trend-summary">Growth curve: about \+[0-9]+\.[0-9]% per year\.'
+            . ' Growth projection to [A-Z][a-z]{2} \d{1,2}, \d{4}: about \$[0-9.,]+ trillion\.'
+            . '<span class="trend-off-note" hidden> \(trend lines hidden\)</span></p>#',
             $html
         );
+        self::assertSame(1, substr_count($html, 'trend-off-note'));
 
         // Trend on: links carry no trend parameter, the hidden form field is not sent.
         self::assertStringNotContainsString('trend=0', $html);
@@ -202,7 +209,7 @@ final class ViewRenderTest extends TestCase
         $html = self::app()->handle(['start_date' => '2026-01-01', 'end_date' => '2026-11-09', 'trend' => '0'], [])->body;
 
         self::assertStringContainsString('id="trend_toggle" aria-pressed="false" hidden>Trend line<span class="toggle-state" aria-hidden="true">: Off</span>', $html);
-        self::assertStringContainsString('<span class="trend-off-note"> (trend line hidden)</span>', $html, 'the summary says the line is hidden');
+        self::assertStringContainsString('<span class="trend-off-note"> (trend lines hidden)</span>', $html, 'the summary says the lines are hidden');
 
         // The data is still sent, so the switch can turn it back on without a reload.
         self::assertContains('trend', array_column(FrontControllerTest::chartJson($html)['series'], 'key'));
@@ -261,9 +268,19 @@ final class ViewRenderTest extends TestCase
         $js = $this->script();
 
         self::assertStringContainsString("if (key === 'trend' || key === 'projection')", $js, 'both use the reserved red');
+        self::assertStringContainsString("if (key === 'curve' || key === 'curve_projection')", $js, 'both use the darker reserved red');
         self::assertStringContainsString("cssVar('--trend'", $js);
-        self::assertStringContainsString('borderDash: isProjection ? TREND_DASH : []', $js, 'projection dashed, trend solid');
-        self::assertStringContainsString('points.unshift(lastTrendPoint)', $js, 'no gap between trend and projection');
+        self::assertStringContainsString("cssVar('--trend-curve'", $js);
+        // Four patterns, so no line is told apart by color alone; each projection joins its own line.
+        self::assertStringContainsString("trend: { color: 'trend', dash: [],", $js, 'straight trend solid');
+        self::assertStringContainsString("projection: { color: 'trend', dash: TREND_DASH,", $js, 'its projection dashed');
+        self::assertStringContainsString("curve: { color: 'curve', dash: CURVE_DOTS,", $js, 'growth curve dotted');
+        self::assertStringContainsString("curve_projection: { color: 'curve', dash: CURVE_PROJECTION_DASH,", $js, 'its projection dash-dot');
+        self::assertStringContainsString("joins: 'trend' }", $js);
+        self::assertStringContainsString("joins: 'curve' }", $js);
+        self::assertStringContainsString('points.unshift(lastPoints[look.joins])', $js, 'no gap between a line and its projection');
+        self::assertStringContainsString('data: look.straight ? ends(points) : points', $js, 'the curve keeps its points');
+        self::assertStringContainsString('l.lineDash = ds.legendDash || []', $js, 'legend swatches carry the pattern');
         // Compare: dashed, in the term's own color.
         self::assertStringContainsString("label: 'Trend: ' + s.label", $js);
         self::assertSame(1, substr_count($js, 'borderDash: TREND_DASH'), 'only the compare trend dataset');
@@ -308,6 +325,64 @@ final class ViewRenderTest extends TestCase
         self::assertSame(0, $code, implode("\n", $output));
     }
 
+    public function testScriptDrawsBothTrendLinesAndTheSwitchHidesAllOfThem(): void
+    {
+        // Behaviour check in Node: the curve keeps its points, each projection
+        // joins its own line, four patterns, and the switch hides all four.
+        $node = self::findNode();
+        if ($node === null) {
+            self::markTestSkipped('Node is not installed; the static checks in the other script tests still ran.');
+        }
+        $check = dirname(__DIR__) . '/js/trend-lines.check.js';
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($check) . ' 2>&1', $output, $code);
+        self::assertSame(0, $code, implode("\n", $output));
+    }
+
+    public function testSummaryWithOnlyTheStraightLineSaysLineNotLines(): void
+    {
+        // A chart without a growth curve keeps the one sentence and the singular note.
+        $chart = ['type' => 'daily', 'series' => [
+            ['key' => 'debt', 'label' => 'Total debt (trillions USD)', 'points' => [['2026-01-01', 38.0], ['2026-01-02', 38.1]]],
+            ['key' => 'trend', 'label' => 'Trend (straight line)', 'slope_per_day' => 0.1, 'r2' => 1.0, 'points' => [['2026-01-01', 38.0], ['2026-01-02', 38.1]]],
+            ['key' => 'projection', 'label' => 'Projection if the trend continues', 'projection' => true, 'points' => [['2026-01-03', 38.2], ['2026-01-05', 38.4]]],
+        ]];
+        $html = self::renderDaily($chart, false);
+        self::assertSame(1, substr_count($html, '<p class="trend-summary">'));
+        self::assertStringContainsString(
+            '<p class="trend-summary">Trend: about +$100.00 billion per day (straight line). Projection to Jan 5, 2026: about $38.40 trillion.'
+            . '<span class="trend-off-note"> (trend line hidden)</span></p>',
+            $html
+        );
+        self::assertStringNotContainsString('Growth', $html);
+
+        // With the curve: its own sentence, its own projection end, and one plural note.
+        $chart['series'][] = ['key' => 'curve', 'label' => 'Trend (growth curve)', 'growth_pct_per_year' => 8.0607, 'r2' => 0.99, 'points' => [['2026-01-01', 38.0], ['2026-01-02', 38.1]]];
+        $chart['series'][] = ['key' => 'curve_projection', 'label' => 'Growth projection', 'projection' => true, 'points' => [['2026-01-03', 38.25], ['2026-01-05', 42.6059]]];
+        $html = self::renderDaily($chart, true);
+        self::assertStringContainsString(
+            '<p class="trend-summary">Growth curve: about +8.1% per year. Growth projection to Jan 5, 2026: about $42.61 trillion.'
+            . '<span class="trend-off-note" hidden> (trend lines hidden)</span></p>',
+            $html
+        );
+        self::assertSame(1, substr_count($html, 'trend-off-note'));
+    }
+
+    /** @param array<string, mixed> $chart */
+    private static function renderDaily(array $chart, bool $show_trend): string
+    {
+        $first = new \USDebt\Model\DebtEntry('2026-01-01', 38_000_000_000_000.0);
+        $last = new \USDebt\Model\DebtEntry('2026-01-02', 38_100_000_000_000.0);
+        ob_start();
+        try {
+            (static function () use ($chart, $first, $last, $show_trend): void {
+                require dirname(__DIR__, 2) . '/src/lib/View/chart_daily.php';
+            })();
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+        return $html;
+    }
+
     private static function findNode(): ?string
     {
         $finder = DIRECTORY_SEPARATOR === '\\' ? 'where node 2>NUL' : 'command -v node 2>/dev/null';
@@ -335,6 +410,8 @@ final class ViewRenderTest extends TestCase
         self::assertSame(1, substr_count($css, '#c62828'), 'red is defined once, for the trend line');
         self::assertSame(2, substr_count($css, '--trend:'), 'the trend color is defined once for light and once for dark mode');
         self::assertSame(1, preg_match_all('/--trend:\s*#c62828;/', $css), 'the one red is the trend color');
+        self::assertSame(2, substr_count($css, '--trend-curve:'), 'the growth-curve red is defined for light and dark mode');
+        self::assertSame(1, substr_count($css, '#7f1d1d'), 'the darker red is defined once, for the growth curve');
         self::assertStringContainsString('@media (prefers-color-scheme: dark)', $css);
         self::assertMatchesRegularExpression('/font-variant-numeric:\s*tabular-nums/', $css);
         // The hidden screen-reader text in each term card stays inside the sideways strip;

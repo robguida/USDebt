@@ -31,6 +31,19 @@ final class StatsAndDatesTest extends TestCase
         self::assertSame(1, $stats['working_days']);
         self::assertSame(0, $stats['total_days']);
         self::assertNull($stats['trend_per_day'], 'one day: no trend line');
+        self::assertNull($stats['growth_pct_per_year'], 'one day: no growth curve');
+    }
+
+    public function testStatsGrowthCurveIsTheYearlyPercent(): void
+    {
+        // Exactly 5% a year, compounded daily over calendar days.
+        $entries = [];
+        foreach (['2024-01-01', '2024-06-03', '2025-01-01', '2025-09-15'] as $date) {
+            $t = (new DateTimeImmutable('2024-01-01'))->diff(new DateTimeImmutable($date))->days;
+            $entries[] = new DebtEntry($date, 30_000_000_000_000.0 * 1.05 ** ($t / 365));
+        }
+
+        self::assertSame(5.0, StatsCalculator::summarize($entries)['growth_pct_per_year']);
     }
 
     public function testStatsTrendIsTheStraightLineSlopeInDollarsPerDay(): void

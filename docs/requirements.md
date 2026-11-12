@@ -16,6 +16,7 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 2. **USD-1** — safe backend: daily cache, timeouts, error handling, remove the dead debug page and unused libraries, PHP upgrade, tests. Done.
 3. **USD-2** — look and feel, one chart library (Chart.js 4), neutral term colors. Done.
 4. **USD-3** — trend line. Built (straight line and projection). Waiting on Rob's review stop.
+    - **a.** **USD-5** — growth curve beside the straight line, each with its own projection. Built.
 5. **Features, in Rob's order (next):** share link + picture card, Your Share, Since you were born.
 6. **USD-4** — deploy to `usdebt.bengusa.pro`. Not started. Going live waits for Rob's direct go.
 
@@ -32,7 +33,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **a.** Make the site look good. Today it looks bad (Rob). Status: built.
     - **b.** Must work on a phone as well as a desktop. Status: built. Checked at 360, 768 and 1280 pixels wide.
     - **c.** One chart library: Chart.js 4.5.1. Term colors are neutral. Red is kept for the trend. Status: built (plan USD-2).
-    - **d.** User-picked chart colors. Rob asked only how hard it is. Status: open. Not built, not approved to build.
+    - **d.** User-picked chart colors. Moved to version 2. Rob: "Q3, Wait". Status: later, not built.
         - **i.** Estimate: 4 to 6 hours if saved in browser storage. 7 to 9 hours if saved as a cookie.
 2. **R2 — Trend line and projection on each chart.**
     - **a.** A red straight line through the data shown. Status: built.
@@ -44,10 +45,13 @@ Rob's review stops, in build order (the build runs all day and stops only here):
         - **ii.** No trend when the range has fewer than 2 days.
     - **d.** A dashed red line labeled "Projection" continues the trend into the future. Status: built.
         - **i.** Length: 25% of the shown range, at least 3 days, at most 365 days.
-    - **e.** Version 1 uses the straight line (Rob's choice). A curved (percent-growth) line is common for long ranges; adding it as a second line is estimated at 6–8 hours. Whether it goes in version 1 or version 2 is Rob's call (open).
-        - **i.** Curves are common for long ranges. Estimate: 6 to 8 hours.
-        - **ii.** Why it matters: on a 2000-to-today range, the straight projection lands below today's debt. A curve would follow the data better.
-    - **f.** The Stats tab shows "Trend (straight line): about +$X billion per day". Status: built.
+    - **e.** A growth curve (steady percent growth) is built in version 1, next to the straight line. Rob: "Q2, Sure". Status: built.
+        - **i.** Method: least squares on ln(value) against calendar days. Non-positive days are skipped. It shows annual growth % and R² (on the dollar scale).
+        - **ii.** Its own projection follows the same rules as the straight line (25% of range, at least 3 days, at most 365 days).
+        - **iii.** Look: curve dark-red dotted, its projection dark-red dash-dot. Straight line solid red, its projection dashed red. One switch hides all four.
+        - **iv.** Compare keeps straight per-president trends only. No curve in version 1.
+        - **v.** Example, range 2000 to today: today's debt is $40.56T. The straight projection reaches $36.13T. The curve projection reaches $46.03T by Nov 9, 2027 (about 8.1% a year). The curve follows the data better.
+    - **f.** The Stats tab shows "Trend (straight line): about +$X billion per day" and "Growth curve: about +X% per year". Status: built.
 3. **R3 — Trend line on/off button.**
     - **a.** A "Trend line" button turns the trend line and projection off and on. Status: built.
     - **b.** Default is on. The choice is remembered in the browser and in the URL (`trend=0`), so a shared link opens the same view.
@@ -78,9 +82,9 @@ Rob's review stops, in build order (the build runs all day and stops only here):
 
 ## Open questions
 
-1. **R2e:** Version 1 uses the straight line (Rob's choice). A curved (percent-growth) line is common for long ranges; adding it as a second line is estimated at 6–8 hours. Whether it goes in version 1 or version 2 is Rob's call (open).
-2. **R1d:** user-picked chart colors (4 to 6 hours in browser storage, 7 to 9 hours as a cookie). Rob decides whether to build.
-3. **R1:** any look Rob likes (a site to copy, colors, logo)?
-4. **R4:** public with no login, or behind a password for now?
+1. **R1:** any look Rob likes (a site to copy, colors, logo)?
+2. **R4:** public with no login, or behind a password for now?
 
+Answered 2026-11-12: Curved trend line is in version 1 (Rob: "Q2, Sure"). User-picked chart colors wait for version 2 (Rob: "Q3, Wait").
+Decision 2026-11-12: no AI-tool attribution in commits or PR descriptions (no co-author line, no "generated with" line). Rob: "No drop it ... I pay the bill, and I do not pay [the tool maker] to advertise for them."
 Answered 2026-11-12: Compare list stays uncapped. Projection into the future: yes. Address: `usdebt.bengusa.pro`. Treasury calls are cached daily (one full-dataset copy). PHP 8.5, no Docker. Gap-between-terms run is in version 1. Phone support: built and checked.
