@@ -13,7 +13,10 @@ namespace USDebt\Service;
  * - Same file safety as the Treasury cache: temp name then rename, folder
  *   0750, files 0640.
  * - Never fatal. If the folder cannot be used, cards are drawn every time and
- *   the problem is logged once per PHP process.
+ *   the problem is logged once per window across PHP processes (LogOnce, the
+ *   same marker files as the Treasury cache), not once per request.
+ * - Two requests may trim at the same time. A file the other request already
+ *   removed counts as removed, not as a failure.
  */
 final class CardCache
 {
@@ -24,10 +27,14 @@ final class CardCache
     /** Temp files older than this (a crash mid-save) are removed during clean-up. */
     private const STALE_TEMP_SECONDS = 3600;
 
-    private static bool $warned = false;
-
+    /**
+     * @param string  $dir       The cards folder. Created if missing. Must not be web-served.
+     * @param LogOnce $log       Logs a lasting problem once per window (see CardController::create).
+     * @param int     $maxFiles  Most cards kept.
+     */
     public function __construct(
         private readonly string $dir,
+        private readonly LogOnce $log,
         private readonly int $maxFiles = self::MAX_FILES,
     ) {
     }
@@ -55,7 +62,7 @@ final class CardCache
             || !@chmod($tmp, self::FILE_MODE)
             || !@rename($tmp, $file)) {
             @unlink($tmp);
-            $this->warnOnce("UsDebt: could not save a share card in {$this->dir}; cards are drawn on every request until it is fixed.");
+            $this->warn("UsDebt: could not save a share card in {$this->dir}; cards are drawn on every request until it is fixed.");
             return false;
         }
         $this->trim();
@@ -66,7 +73,8 @@ final class CardCache
      * Remove the oldest cards until at most maxFiles are left, and any stale
      * temp files. One file that cannot be removed does not stop the rest.
      *
-     * @return int  Number of files removed.
+     * @return int  Number of files removed (by this request or, at the same
+     *              moment, by another one).
      */
     public function trim(): int
     {
@@ -84,11 +92,7 @@ final class CardCache
                 if ($extra <= 0) {
                     break;
                 }
-                if (@unlink($card)) {
-                    $removed++;
-                } else {
-                    $failed++;
-                }
+                self::remove($card) ? $removed++ : $failed++;
                 $extra--;
             }
         }
@@ -96,18 +100,28 @@ final class CardCache
         foreach (@glob($this->dir . DIRECTORY_SEPARATOR . '*.tmp') ?: [] as $tmp) {
             $mtime = @filemtime($tmp);
             if ($mtime === false || $now - $mtime <= self::STALE_TEMP_SECONDS) {
-                continue; // may be another request's save in progress
+                continue; // gone already, or may be another request's save in progress
             }
-            if (@unlink($tmp)) {
-                $removed++;
-            } else {
-                $failed++;
-            }
+            self::remove($tmp) ? $removed++ : $failed++;
         }
         if ($failed > 0) {
-            $this->warnOnce("UsDebt: could not remove {$failed} old share card file(s) in {$this->dir}.");
+            $this->warn("UsDebt: could not remove {$failed} old share card file(s) in {$this->dir}.");
         }
         return $removed;
+    }
+
+    /**
+     * Delete a file. True when it is gone afterwards, including when another
+     * request removed it first (two trims at once), so that is not reported
+     * as a failure.
+     */
+    public static function remove(string $file): bool
+    {
+        if (@unlink($file)) {
+            return true;
+        }
+        clearstatcache(true, $file);
+        return !file_exists($file);
     }
 
     private function file(string $key): ?string
@@ -121,22 +135,18 @@ final class CardCache
     private function ensureDir(): bool
     {
         if (!is_dir($this->dir) && !@mkdir($this->dir, self::DIR_MODE, true) && !is_dir($this->dir)) {
-            $this->warnOnce("UsDebt: could not create the share card folder {$this->dir}; cards are drawn on every request.");
+            $this->warn("UsDebt: could not create the share card folder {$this->dir}; cards are drawn on every request.");
             return false;
         }
         if (!is_writable($this->dir)) {
-            $this->warnOnce("UsDebt: the share card folder {$this->dir} is not writable; cards are drawn on every request.");
+            $this->warn("UsDebt: the share card folder {$this->dir} is not writable; cards are drawn on every request.");
             return false;
         }
         return true;
     }
 
-    private function warnOnce(string $message): void
+    private function warn(string $message): void
     {
-        if (self::$warned) {
-            return;
-        }
-        self::$warned = true;
-        error_log($message);
+        $this->log->log($this->dir, $message);
     }
 }

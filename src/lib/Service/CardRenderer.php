@@ -47,6 +47,9 @@ final class CardRenderer
     private readonly string $regular;
     private readonly string $bold;
 
+    /** @var list<array{role: string, text: string, left: int, top: int, right: int, bottom: int}> */
+    private array $layout = [];
+
     public function __construct(private readonly string $siteAddress, ?string $fontDir = null)
     {
         $fontDir ??= dirname(__DIR__) . '/Assets/fonts';
@@ -64,6 +67,20 @@ final class CardRenderer
     }
 
     /**
+     * Where the last render() put things, in card pixels, so a test can check
+     * that nothing overflows or overlaps. Each box has a role: site, headline,
+     * detail, note, footer, footer-rule (the line above the footer), range-label,
+     * row-label, row-value, row-more and bar (a Compare bar's grey track).
+     * Text boxes are the measured ink boxes gd reports for the drawn text.
+     *
+     * @return list<array{role: string, text: string, left: int, top: int, right: int, bottom: int}>
+     */
+    public function lastLayout(): array
+    {
+        return $this->layout;
+    }
+
+    /**
      * @return string  PNG bytes, 1200x630.
      * @throws CardUnavailableException when gd or a font is missing.
      */
@@ -78,12 +95,13 @@ final class CardRenderer
             }
         }
 
+        $this->layout = [];
         $img = self::canvas(self::WIDTH, self::HEIGHT);
         $width = self::WIDTH - 2 * self::PAD;
 
         // Thin top band, site name.
         imagefilledrectangle($img, 0, 0, self::WIDTH - 1, 9, self::color($img, self::LINE));
-        $this->text($img, $this->bold, 22, self::PAD, 72, self::MUTED, ShareText::SITE_NAME);
+        $this->text($img, $this->bold, 22, self::PAD, 72, self::MUTED, ShareText::SITE_NAME, 'site');
 
         // Headline: as large as fits in two lines.
         $size = 40;
@@ -96,28 +114,30 @@ final class CardRenderer
         $y = 140;
         $lineHeight = (int) round($size * 1.45);
         foreach ($lines as $line) {
-            $this->text($img, $this->bold, $size, self::PAD, $y, self::INK, $line);
+            $this->text($img, $this->bold, $size, self::PAD, $y, self::INK, $line, 'headline');
             $y += $lineHeight;
         }
         $y += 4;
         foreach (array_slice($this->wrap($card->detail, $this->regular, 18, $width), 0, 2) as $line) {
-            $this->text($img, $this->regular, 18, self::PAD, $y, self::MUTED, $line);
+            $this->text($img, $this->regular, 18, self::PAD, $y, self::MUTED, $line, 'detail');
             $y += 30;
         }
         // Small note (Compare: terms are shown for reference only).
         if ($card->note !== '') {
             foreach (array_slice($this->wrap($card->note, $this->regular, 15, $width), 0, 2) as $line) {
-                $this->text($img, $this->regular, 15, self::PAD, $y, self::MUTED, $line);
+                $this->text($img, $this->regular, 15, self::PAD, $y, self::MUTED, $line, 'note');
                 $y += 24;
             }
         }
 
         // Footer.
         $footerY = self::HEIGHT - 40;
-        imageline($img, self::PAD, $footerY - 38, self::WIDTH - self::PAD, $footerY - 38, self::color($img, self::RULE));
-        $this->text($img, $this->regular, 15, self::PAD, $footerY, self::MUTED, ShareText::SOURCE);
+        $ruleY = $footerY - 38;
+        imageline($img, self::PAD, $ruleY, self::WIDTH - self::PAD, $ruleY, self::color($img, self::RULE));
+        $this->record('footer-rule', '', self::PAD, $ruleY, self::WIDTH - self::PAD, $ruleY);
+        $this->text($img, $this->regular, 15, self::PAD, $footerY, self::MUTED, ShareText::SOURCE, 'footer');
         $address = $this->fit($this->siteAddress, $this->bold, 15, 420);
-        $this->text($img, $this->bold, 15, self::WIDTH - self::PAD - $this->textWidth($address, $this->bold, 15), $footerY, self::MUTED, $address);
+        $this->text($img, $this->bold, 15, self::WIDTH - self::PAD - $this->textWidth($address, $this->bold, 15), $footerY, self::MUTED, $address, 'footer');
 
         // Body: between the words and the footer.
         $top = $y + 14;
@@ -234,9 +254,9 @@ final class CardRenderer
         $from = Html::shortDate($entries[0]->effectiveDate);
         $to = Html::shortDate($entries[count($entries) - 1]->effectiveDate);
         $labelY = $top + $h + 26;
-        $this->text($img, $this->regular, $labelSize, self::PAD, $labelY, self::MUTED, $from);
+        $this->text($img, $this->regular, $labelSize, self::PAD, $labelY, self::MUTED, $from, 'range-label');
         if ($to !== $from) {
-            $this->text($img, $this->regular, $labelSize, self::WIDTH - self::PAD - $this->textWidth($to, $this->regular, $labelSize), $labelY, self::MUTED, $to);
+            $this->text($img, $this->regular, $labelSize, self::WIDTH - self::PAD - $this->textWidth($to, $this->regular, $labelSize), $labelY, self::MUTED, $to, 'range-label');
         }
     }
 
@@ -278,13 +298,14 @@ final class CardRenderer
         $y = $top + (int) floor(max(0, ($bottom - $top) - $slots * $rowHeight) / 2);
         foreach ($shown as $row) {
             $base = $y + (int) round($rowHeight * 0.62);
-            $this->text($img, $this->regular, $size, self::PAD, $base, self::INK, $this->fit($row['label'], $this->regular, $size, $labelWidth));
+            $this->text($img, $this->regular, $size, self::PAD, $base, self::INK, $this->fit($row['label'], $this->regular, $size, $labelWidth), 'row-label');
             $value = ShareText::compareChange($row['change']);
-            $this->text($img, $this->bold, $size, self::WIDTH - self::PAD - $this->textWidth($value, $this->bold, $size), $base, self::INK, $value);
+            $this->text($img, $this->bold, $size, self::WIDTH - self::PAD - $this->textWidth($value, $this->bold, $size), $base, self::INK, $value, 'row-value');
 
             $barTop = $y + (int) round($rowHeight * 0.25);
             $barBottom = $y + (int) round($rowHeight * 0.75);
             imagefilledrectangle($img, $barLeft, $barTop, $barRight, $barBottom, $rule);
+            $this->record('bar', '', $barLeft, $barTop, $barRight, $barBottom);
             $length = $biggest > 0.0 ? (int) round(abs($row['change']) / $biggest * $reach) : 0;
             if ($length > 0) {
                 [$from, $to] = $row['change'] >= 0 ? [$zero, $zero + $length] : [$zero - $length, $zero];
@@ -293,7 +314,7 @@ final class CardRenderer
             $y += $rowHeight;
         }
         if ($more > 0) {
-            $this->text($img, $this->regular, $size, self::PAD, $y + (int) round($rowHeight * 0.62), self::MUTED, ShareText::moreRows($more));
+            $this->text($img, $this->regular, $size, self::PAD, $y + (int) round($rowHeight * 0.62), self::MUTED, ShareText::moreRows($more), 'row-more');
         }
     }
 
@@ -316,12 +337,23 @@ final class CardRenderer
         return $color;
     }
 
-    private function text(GdImage $img, string $font, int $size, int $x, int $baseline, int $rgb, string $text): void
+    /** Draw one line of text and record its measured box (see lastLayout). */
+    private function text(GdImage $img, string $font, int $size, int $x, int $baseline, int $rgb, string $text, string $role): void
     {
         if ($text === '') {
             return;
         }
-        imagettftext($img, $size, 0, $x, $baseline, self::color($img, $rgb), $font, $text);
+        $box = imagettftext($img, $size, 0, $x, $baseline, self::color($img, $rgb), $font, $text);
+        if ($box !== false) {
+            $xs = [$box[0], $box[2], $box[4], $box[6]];
+            $ys = [$box[1], $box[3], $box[5], $box[7]];
+            $this->record($role, $text, min($xs), min($ys), max($xs), max($ys));
+        }
+    }
+
+    private function record(string $role, string $text, int $left, int $top, int $right, int $bottom): void
+    {
+        $this->layout[] = ['role' => $role, 'text' => $text, 'left' => $left, 'top' => $top, 'right' => $right, 'bottom' => $bottom];
     }
 
     private function textWidth(string $text, string $font, int $size): int

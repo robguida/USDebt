@@ -5,25 +5,30 @@ declare(strict_types=1);
 namespace USDebt\Tests\Support;
 
 /**
- * Per-test folder under tests/.tmp (gitignored), removed after the test.
+ * Per-test folders under tests/.tmp (gitignored), all removed after the test.
+ * A test may make more than one; each is tracked, so none is left behind.
  */
 trait TempDir
 {
-    private string $tempDir = '';
+    /** @var list<string> */
+    private array $tempDirs = [];
 
     protected function makeTempDir(): string
     {
-        $this->tempDir = dirname(__DIR__) . '/.tmp/' . bin2hex(random_bytes(6));
-        mkdir($this->tempDir, 0775, true);
-        return $this->tempDir;
+        $dir = dirname(__DIR__) . '/.tmp/' . bin2hex(random_bytes(6));
+        mkdir($dir, 0775, true);
+        $this->tempDirs[] = $dir;
+        return $dir;
     }
 
     protected function removeTempDir(): void
     {
-        if ($this->tempDir === '' || !is_dir($this->tempDir)) {
-            return;
+        foreach ($this->tempDirs as $dir) {
+            if (is_dir($dir)) {
+                self::removeTree($dir);
+            }
         }
-        self::removeTree($this->tempDir);
+        $this->tempDirs = [];
     }
 
     private static function removeTree(string $dir): void

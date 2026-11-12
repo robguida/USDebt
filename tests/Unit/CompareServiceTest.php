@@ -88,6 +88,26 @@ final class CompareServiceTest extends TestCase
         self::assertSame([4], $alpha['term_starts']);
     }
 
+    public function testTotalChangeRunsToTheLastDataDayOfEachTerm(): void
+    {
+        $dataset = new DebtDataset([
+            new DebtEntry('2001-01-02', 100.0e12),
+            new DebtEntry('2002-12-02', 102.0e12),  // first day of the last month: the last chart point of term 1
+            new DebtEntry('2002-12-31', 102.75e12), // term 1's last data day
+            new DebtEntry('2005-01-03', 200.0e12),
+            new DebtEntry('2006-12-01', 201.0e12),
+            new DebtEntry('2006-12-29', 201.5e12),  // term 2's last data day
+        ], '2026-11-12');
+
+        $alpha = (new CompareService(self::TERMS))->buildSeries([100, 300], $dataset)[0];
+
+        // Chart: one point per month; term 2 starts from term 1's full change (2.75).
+        self::assertSame([[1, 0.0], [2, 2.0], [3, 2.75], [4, 3.75]], $alpha['data']);
+        // Stated total: (102.75 - 100) + (201.5 - 200), not the last chart point (3.75).
+        self::assertSame(4.25e12, $alpha['change']);
+        self::assertSame(4, $alpha['months']);
+    }
+
     public function testSingleTermHasNoLaterTermStart(): void
     {
         $dataset = new DebtDataset([

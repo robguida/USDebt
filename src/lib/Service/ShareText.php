@@ -8,9 +8,12 @@ use USDebt\Model\DebtEntry;
 
 /**
  * Every word used by sharing: the picture card, the link preview tags (Open
- * Graph and Twitter), the share text sent to social sites and email, and the
- * picture's alt text. Kept in one place so the copy can be swapped without
- * touching the drawing or the page code.
+ * Graph and Twitter), the share text sent to social sites and email, the
+ * picture's alt text, the Share menu's labels and status lines (the page
+ * script gets those from the menu's data attributes), and the picture card's
+ * error lines. Kept in one place so the copy can be swapped without touching
+ * the drawing or the page code. (A card request that fails unexpectedly gets
+ * the site-wide FrontController::GENERIC_ERROR, which is not share wording.)
  *
  * Neutral voice: the words say what the numbers did (grew, fell, was about
  * the same), never why and never who.
@@ -44,6 +47,38 @@ final class ShareText
     public const COMPARE_SHARE_TEXT = 'How the U.S. debt changed across presidential terms.';
     public const COMPARE_ALT = 'Chart comparing the change in U.S. debt during each presidential term.'
         . ' Terms are shown for reference only.';
+
+    // ---------- Share menu (View/share_menu.php) ----------
+
+    public const MENU_BUTTON = 'Share';
+    public const MENU_TITLE = 'Share this view';
+    /** Phones only: the system share sheet. */
+    public const MENU_NATIVE = 'Share with an app';
+    /** Screen-reader label for the read-only link box. */
+    public const MENU_LINK_LABEL = 'Link to this view';
+    public const MENU_COPY = 'Copy link';
+    public const MENU_DOWNLOAD = 'Download picture';
+    /** Screen-reader note after a link that opens a new tab. */
+    public const MENU_NEW_TAB = ' (opens in a new tab)';
+    /** Status line after "Copy link" (the page script shows it; the menu hands it over in a data attribute). */
+    public const MENU_COPIED = 'Link copied';
+    public const MENU_COPY_FAILED = "Couldn't copy the link. Select it and copy it by hand.";
+
+    /** @var array{x: string, facebook: string, linkedin: string, reddit: string, email: string} */
+    public const MENU_NETWORKS = [
+        'x' => 'Share to X',
+        'facebook' => 'Share to Facebook',
+        'linkedin' => 'Share to LinkedIn',
+        'reddit' => 'Share to Reddit',
+        'email' => 'Share by email',
+    ];
+
+    // ---------- Picture card errors (card.php, plain text) ----------
+
+    /** 400: the view has no Treasury data to draw. */
+    public const CARD_NO_DATA = 'There is no Treasury data for this view.';
+    /** 503: this server cannot draw cards (no gd with FreeType, or a missing font). */
+    public const CARD_UNAVAILABLE = 'The picture card is not available right now.';
 
     private const RANGE_DESCRIPTION_TAIL = ' Daily U.S. Treasury data.';
 

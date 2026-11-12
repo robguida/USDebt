@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12. Owner of decisions: Rob Guida.
 
-Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on branch USD-3-trend-line. **open** = still waiting on an answer. **next** = approved, not started.
+Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on branch USD-6-share-card (which also carries USD-1 to USD-5); not merged into `development` yet. **open** = still waiting on an answer. **next** = approved, not started.
 
 ## Purpose
 
@@ -65,9 +65,10 @@ Rob's review stops, in build order (the build runs all day and stops only here):
         - **i.** Share links are plain GET links for every view: `/?start_date=…&end_date=…[&trend=0]` and `/?compare=id,…`. The Compare form POST still works. No cap on the Compare list.
         - **ii.** `card.php` draws a 1200×630 PNG picture card (DejaVu Sans font). Cards are cached in the `cards` folder inside the cache folder: at most 500 files, oldest removed first.
         - **iii.** Each page has og and twitter preview tags. Links in them are absolute and built from `USDEBT_BASE_URL`, never from the request's Host header.
-        - **iv.** Share menu: copy link, download picture, plain links to X, Facebook, LinkedIn, Reddit and email, and the phone's own share sheet where available.
-        - **v.** No third-party scripts. All share wording lives in `ShareText.php`.
+        - **iv.** Share menu: copy link, download picture, plain links to X, Facebook, LinkedIn, Reddit and email, and the phone's own share sheet where available. The menu's picture links start at the site root (`/card.php?…`), so they work from any page address.
+        - **v.** No third-party scripts. Share wording lives in `ShareText.php`: the card, the preview tags, the share and email text, the menu's labels, the "Link copied" lines and the card's two error lines. Two card errors are not share wording and use the site's own messages: bad input (for example too few Compare picks) and an unexpected failure.
         - **vi.** The server needs PHP gd with FreeType. Without it the card returns a short plain-text error, and the rest of the site works.
+        - **vii.** Compare totals on the card and on the Compare page are the same numbers: each term from its first data day to its last data day. Two terms of one president add up both terms' changes. Example, live data on 2026-11-12: Joseph Biden +$8.45 trillion (an earlier build showed +$8.42 trillion, because it stopped at the first day of the term's last month).
     - **b.** Your Share. Status: next. Review stop when done.
     - **c.** Since you were born. Review stop when done.
         - **i.** Treasury data does not go back to every birth year. If the birth year is too early, show a funny, friendly alert. Example: "You are too old! Sorry!"

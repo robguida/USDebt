@@ -8,7 +8,7 @@
  * Compare chart: change in debt since each president took office, by month.
  * The page script reads the JSON data block and draws it.
  *
- * @var list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>}> $series
+ * @var list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>, change: float, months: int}> $series  From CompareService::buildSeries().
  * @var array{type: string, series: list<array<string, mixed>>} $chart  From ChartData::compare(), same order as $series.
  * @var bool $show_trend  Trend lines on (false when the URL says trend=0).
  */
@@ -19,13 +19,14 @@ $lines = [];
 $notes = [];
 $has_trend = false;
 foreach ($series as $i => $s) {
-    $lastPoint = $s['data'][count($s['data']) - 1];
+    // The exact change to the last data day (the same number as the share card),
+    // not the last monthly chart point.
     $line = sprintf(
         '%s: %s after %d %s in office.',
         $s['label'],
-        Html::compactMoney($lastPoint[1] * 1_000_000_000_000, true),
-        $lastPoint[0],
-        $lastPoint[0] === 1 ? 'month' : 'months'
+        Html::compactMoney($s['change'], true),
+        $s['months'],
+        $s['months'] === 1 ? 'month' : 'months'
     );
     $trend = $chart['series'][$i]['trend'] ?? null;
     if ($trend !== null) {

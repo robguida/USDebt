@@ -22,6 +22,7 @@ use USDebt\Service\CompareService;
 use USDebt\Service\DebtRepository;
 use USDebt\Service\DebtSource;
 use USDebt\Service\FiscalDataClient;
+use USDebt\Service\LogOnce;
 use USDebt\Service\PresidentService;
 use USDebt\Service\ShareCardBuilder;
 use USDebt\Service\ShareLinks;
@@ -66,8 +67,14 @@ final class ShareTest extends TestCase
             $source ?? FrontControllerTest::source(),
             new CompareService(),
             new CardRenderer('usdebt.bengusa.pro'),
-            new CardCache($cacheDir ?? $this->makeTempDir() . '/cards'),
+            $this->cardCache($cacheDir ?? $this->makeTempDir() . '/cards'),
         );
+    }
+
+    /** A card cache whose "already logged" markers sit in this test's own temp folder. */
+    private function cardCache(string $dir, int $maxFiles = CardCache::MAX_FILES): CardCache
+    {
+        return new CardCache($dir, new LogOnce($this->makeTempDir() . '/log-markers', 900), $maxFiles);
     }
 
     private static function requireGd(): void
@@ -349,7 +356,7 @@ final class ShareTest extends TestCase
         self::assertStringNotContainsString('target=', $share['tags']['email']);
 
         // Download picture and the preview: the card for this view, on this site.
-        $card = 'card.php?' . parse_url($meta['og:image'], PHP_URL_QUERY);
+        $card = '/card.php?' . parse_url($meta['og:image'], PHP_URL_QUERY);
         self::assertSame($card, $share['download']['href']);
         self::assertSame('us-debt-' . $days['start_date'] . '-to-' . $days['end_date'] . '.png', $share['download']['download']);
         self::assertSame($card, $share['thumb']['src']);
@@ -376,7 +383,7 @@ final class ShareTest extends TestCase
         self::assertStringContainsString('url=' . rawurlencode($link), $share['links']['x']);
         self::assertSame('How the U.S. debt changed across presidential terms.', $share['attrs']['data-text']);
         self::assertSame('U.S. debt across presidential terms', $share['attrs']['data-subject']);
-        self::assertSame('card.php?compare=' . self::CLINTON . ',' . self::BUSH, $share['download']['href']);
+        self::assertSame('/card.php?compare=' . self::CLINTON . ',' . self::BUSH, $share['download']['href']);
         self::assertSame('us-debt-presidential-terms.png', $share['download']['download']);
         self::assertSame(ShareText::COMPARE_ALT, $share['thumb']['alt']);
         self::assertSame('0', $share['attrs']['data-card-trend'], 'the Compare card has no trend line');
@@ -397,6 +404,49 @@ final class ShareTest extends TestCase
         self::assertSame('Change in debt during each term, 1993 to 2008', $card->detail);
         self::assertSame('Congress sets spending and taxes. Terms are shown for reference only.', $card->note);
         self::assertFalse($card->cardTrendMatters);
+    }
+
+    public function testCompareTotalsRunToTheLastDataDayOfEachTermOnTheCardAndThePage(): void
+    {
+        // Each term's last month has two data days: the first day of the month
+        // (the last monthly chart point) and the term's real last data day.
+        $source = FrontControllerTest::sourceOf(
+            new DebtEntry('1993-01-20', 4.00e12),
+            new DebtEntry('2001-01-02', 5.60e12),
+            new DebtEntry('2001-01-19', 5.70e12),   // Clinton's last data day
+            new DebtEntry('2001-01-22', 5.72e12),
+            new DebtEntry('2009-01-02', 10.60e12),
+            new DebtEntry('2009-01-16', 10.63e12),  // Bush's last data day
+            new DebtEntry('2017-01-20', 19.94e12),
+            new DebtEntry('2021-01-04', 27.75e12),
+            new DebtEntry('2021-01-19', 27.80e12),  // Trump term 1, last data day
+            new DebtEntry('2025-01-21', 36.20e12),
+            new DebtEntry('2026-11-02', 38.00e12),
+            new DebtEntry('2026-11-09', 38.10e12),  // Trump term 2, latest data day
+        );
+        $trump = [1484888400, 1863561600];
+        $keys = [(int) self::CLINTON, (int) self::BUSH, ...$trump];
+        $card = (new ShareCardBuilder(new CompareService()))->forCompare($source->load(), $keys, true);
+
+        // First to last data day of each term. Two terms of one president are
+        // the sum of each term's change (7.86 + 1.90), the same number the
+        // joined line on the Compare chart ends on.
+        self::assertNotNull($card);
+        self::assertSame([
+            ['label' => 'Bill Clinton (1993-2001)', 'change' => 1.70e12],
+            ['label' => 'George W. Bush (2001-2009)', 'change' => 4.91e12],
+            ['label' => 'Donald Trump (2017-2021, 2025-2029)', 'change' => 9.76e12],
+        ], $card->rows);
+        self::assertSame(['+$1.70 trillion', '+$4.91 trillion', '+$9.76 trillion'], array_map(
+            static fn (array $row): string => ShareText::compareChange($row['change']),
+            $card->rows,
+        ));
+
+        // The Compare page states the very same numbers.
+        $html = FrontControllerTest::app($source)->handle(['compare' => implode(',', $keys)], [])->body;
+        self::assertStringContainsString('Bill Clinton (1993-2001): +$1.70 trillion after 2 months in office.', $html);
+        self::assertStringContainsString('George W. Bush (2001-2009): +$4.91 trillion after 2 months in office.', $html);
+        self::assertStringContainsString('Donald Trump (2017-2021, 2025-2029): +$9.76 trillion after 4 months in office.', $html);
     }
 
     public function testShareMenuKeepsTheTrendSwitch(): void
@@ -621,15 +671,112 @@ final class ShareTest extends TestCase
     public function testCardWithManyTermsStillFits(): void
     {
         self::requireGd();
-        // Ten terms with data: more rows than fit, so the last row counts the rest.
+        $source = FrontControllerTest::source();
+        // Names far longer than any real one, each with two terms, so every
+        // label is cut to fit its column ("…").
         $terms = [];
         for ($i = 0; $i < 10; $i++) {
             $start = 1993 + 3 * $i;
-            $terms[1000 + $i] = ['pres' => "President number {$i} with a long name", 'start' => "January 20, {$start}", 'end' => 'January 19, ' . ($start + 3), 'img' => 'x.jpg'];
+            $name = "President number {$i} with a much longer name than any real president";
+            $terms[1000 + 2 * $i] = ['pres' => $name, 'start' => "January 20, {$start}", 'end' => 'January 19, ' . ($start + 1), 'img' => 'x.jpg'];
+            $terms[1001 + 2 * $i] = ['pres' => $name, 'start' => 'January 20, ' . ($start + 2), 'end' => 'January 19, ' . ($start + 3), 'img' => 'x.jpg'];
         }
-        $cards = new CardController(FrontControllerTest::source(), new CompareService($terms), new CardRenderer('usdebt.bengusa.pro'), null);
+        $compare = new CompareService($terms);
+        $renderer = new CardRenderer('usdebt.bengusa.pro');
 
+        // Six terms: the most rows the card draws, all of them real rows.
+        $six = array_slice(array_keys($terms), 0, 12);
+        $card = (new ShareCardBuilder($compare))->forCompare($source->load(), $six, true);
+        self::assertNotNull($card);
+        self::assertCount(6, $card->rows);
+        self::assertPngBytes($renderer->render($card));
+        self::assertCardFits($renderer->lastLayout(), 6, false);
+        foreach (self::boxes($renderer->lastLayout(), 'row-label') as $label) {
+            self::assertStringEndsWith("\u{2026}", $label['text'], 'a name too long for its column is cut, not drawn over the bar');
+        }
+
+        // Ten terms: five rows, then "and 5 more on the site".
+        $card = (new ShareCardBuilder($compare))->forCompare($source->load(), array_keys($terms), true);
+        self::assertNotNull($card);
+        self::assertPngBytes($renderer->render($card));
+        $layout = $renderer->lastLayout();
+        self::assertCardFits($layout, 5, true);
+        self::assertSame([ShareText::moreRows(5)], array_column(self::boxes($layout, 'row-more'), 'text'));
+
+        // The real longest label fits whole, with no cut.
+        $all = array_keys(PresidentService::getPresidentConfig());
+        $card = (new ShareCardBuilder(new CompareService()))->forCompare($source->load(), $all, true);
+        self::assertNotNull($card);
+        $renderer->render($card);
+        $labels = array_column(self::boxes($renderer->lastLayout(), 'row-label'), 'text');
+        self::assertContains('Donald Trump (2017-2021, 2025-2029)', $labels);
+        self::assertCardFits($renderer->lastLayout(), count($card->rows), false);
+
+        // Through card.php too.
+        $cards = new CardController($source, $compare, $renderer, null);
         self::assertPng($cards->handle(['compare' => implode(',', array_keys($terms))]));
+    }
+
+    /**
+     * @param list<array{role: string, text: string, left: int, top: int, right: int, bottom: int}> $layout
+     * @return list<array{role: string, text: string, left: int, top: int, right: int, bottom: int}>
+     */
+    private static function boxes(array $layout, string $role): array
+    {
+        return array_values(array_filter($layout, static fn (array $b): bool => $b['role'] === $role));
+    }
+
+    /**
+     * Nothing leaves the card, labels stay left of their bars and amounts right
+     * of them, rows do not overlap, and the lowest row ends above the footer
+     * line.
+     *
+     * @param list<array{role: string, text: string, left: int, top: int, right: int, bottom: int}> $layout
+     */
+    private static function assertCardFits(array $layout, int $rows, bool $moreRow): void
+    {
+        foreach ($layout as $b) {
+            $what = "{$b['role']} \"{$b['text']}\"";
+            self::assertGreaterThanOrEqual(0, $b['left'], $what);
+            self::assertGreaterThanOrEqual(0, $b['top'], $what);
+            self::assertLessThanOrEqual(CardRenderer::WIDTH, $b['right'], $what);
+            self::assertLessThanOrEqual(CardRenderer::HEIGHT, $b['bottom'], $what);
+        }
+        $rule = self::boxes($layout, 'footer-rule');
+        self::assertCount(1, $rule);
+        $ruleY = $rule[0]['top'];
+        $labels = self::boxes($layout, 'row-label');
+        $values = self::boxes($layout, 'row-value');
+        $bars = self::boxes($layout, 'bar');
+        self::assertCount($rows, $labels);
+        self::assertCount($rows, $values);
+        self::assertCount($rows, $bars);
+        self::assertCount($moreRow ? 1 : 0, self::boxes($layout, 'row-more'));
+
+        $words = array_merge(self::boxes($layout, 'site'), self::boxes($layout, 'headline'), self::boxes($layout, 'detail'), self::boxes($layout, 'note'));
+        $wordsBottom = max(array_column($words, 'bottom'));
+        for ($i = 0; $i < $rows; $i++) {
+            self::assertLessThan($bars[$i]['left'], $labels[$i]['right'], "label {$i} runs into its bar: {$labels[$i]['text']}");
+            self::assertGreaterThan($bars[$i]['right'], $values[$i]['left'], "amount {$i} runs into its bar");
+            if ($i > 0) {
+                $above = max($labels[$i - 1]['bottom'], $values[$i - 1]['bottom'], $bars[$i - 1]['bottom']);
+                $top = min($labels[$i]['top'], $values[$i]['top'], $bars[$i]['top']);
+                self::assertLessThan($top, $above, "row {$i} overlaps the row above");
+            }
+        }
+        $body = array_merge($labels, $values, $bars, self::boxes($layout, 'row-more'));
+        self::assertGreaterThan($wordsBottom, min(array_column($body, 'top')), 'the first row starts below the words');
+        self::assertLessThan($ruleY, max(array_column($body, 'bottom')), 'the lowest row ends above the footer line');
+        foreach (self::boxes($layout, 'footer') as $f) {
+            self::assertGreaterThan($ruleY, $f['top'], 'the footer sits below its line');
+        }
+    }
+
+    private static function assertPngBytes(string $png): void
+    {
+        $info = getimagesizefromstring($png);
+        self::assertIsArray($info);
+        self::assertSame([1200, 630, 'image/png'], [$info[0], $info[1], $info['mime']]);
     }
 
     public function testCardRejectsInputThePageRejectsWith400AndNoImage(): void
@@ -654,7 +801,7 @@ final class ShareTest extends TestCase
         $response = $this->cards()->handle(['start_date' => '1980-01-01', 'end_date' => '1980-02-01']);
 
         self::assertPlainError(400, $response);
-        self::assertSame(CardController::NO_DATA . "\n", $response->body);
+        self::assertSame(ShareText::CARD_NO_DATA . "\n", $response->body);
     }
 
     public function testCardWithNoTreasuryDataIs503(): void
@@ -681,7 +828,7 @@ final class ShareTest extends TestCase
         $response = $cards->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09']);
 
         self::assertPlainError(503, $response);
-        self::assertSame(CardController::UNAVAILABLE . "\n", $response->body);
+        self::assertSame(ShareText::CARD_UNAVAILABLE . "\n", $response->body);
     }
 
     public function testUnexpectedCardErrorIs500AndLeaksNothing(): void
@@ -772,7 +919,7 @@ final class ShareTest extends TestCase
     public function testCardCacheIsBoundedAndDropsTheOldestFirst(): void
     {
         $dir = $this->makeTempDir() . '/cards';
-        $cache = new CardCache($dir, 3);
+        $cache = $this->cardCache($dir, 3);
         $keys = [];
         for ($i = 0; $i < 5; $i++) {
             $keys[$i] = hash('sha256', (string) $i);
@@ -798,7 +945,7 @@ final class ShareTest extends TestCase
     public function testCardCacheOnlyAcceptsHashKeys(): void
     {
         $dir = $this->makeTempDir() . '/cards';
-        $cache = new CardCache($dir);
+        $cache = $this->cardCache($dir);
 
         self::assertFalse($cache->put('../../escape', 'x'));
         self::assertNull($cache->get('../../escape'));
@@ -813,6 +960,108 @@ final class ShareTest extends TestCase
         file_put_contents($file, 'x');
 
         self::assertPng($this->cards(null, $file)->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09']));
+    }
+
+    public function testCardCacheProblemIsLoggedOncePerWindowAcrossProcesses(): void
+    {
+        $tmp = $this->makeTempDir();
+        $blocked = $tmp . '/not-a-folder';
+        file_put_contents($blocked, 'x');
+        $now = 1_800_000_000;
+        // Each call is a new request: a new cache, a new LogOnce, the same marker folder.
+        $cache = static function () use ($blocked, $tmp, &$now): CardCache {
+            return new CardCache($blocked, new LogOnce($tmp . '/log-markers', 900, static function () use (&$now): int {
+                return $now;
+            }));
+        };
+        $log = $tmp . '/php-error.log';
+        $count = fn (): int => is_file($log) ? substr_count((string) file_get_contents($log), 'share card folder') : 0;
+        $forget = static fn () => (new \ReflectionProperty(LogOnce::class, 'logged'))->setValue(null, []);
+        $oldLog = ini_set('error_log', $log);
+        try {
+            $key = hash('sha256', 'x');
+            self::assertFalse($cache()->put($key, 'png'));
+            self::assertFalse($cache()->put($key, 'png'));
+            self::assertSame(1, $count(), 'two requests, one log line');
+
+            // A new PHP-FPM request starts with empty static state; the marker file still holds.
+            $forget();
+            $now += 300;
+            self::assertFalse($cache()->put($key, 'png'));
+            self::assertSame(1, $count(), 'still inside the window in a new process');
+
+            $forget();
+            $now += 700;
+            self::assertFalse($cache()->put($key, 'png'));
+            self::assertSame(2, $count(), 'logged again once the window has passed');
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+    }
+
+    public function testCardFileAlreadyRemovedByAnotherRequestIsNotAFailure(): void
+    {
+        $dir = $this->makeTempDir() . '/cards';
+        $log = dirname($dir) . '/php-error.log';
+        $oldLog = ini_set('error_log', $log);
+        try {
+            // Another request's trim removed it between our listing and our delete.
+            self::assertTrue(CardCache::remove($dir . '/' . hash('sha256', 'gone') . '.png'));
+            $file = $dir . '-file.png';
+            file_put_contents($file, 'x');
+            self::assertTrue(CardCache::remove($file));
+            self::assertFileDoesNotExist($file);
+            // A file that is still there after the delete is a real failure.
+            mkdir($dir . '-folder.png');
+            self::assertFalse(CardCache::remove($dir . '-folder.png'));
+
+            // A trim over a folder that another request is trimming too logs nothing.
+            $cache = $this->cardCache($dir, 1);
+            self::assertTrue($cache->put(hash('sha256', 'a'), 'a'));
+            self::assertTrue($cache->put(hash('sha256', 'b'), 'b'));
+            self::assertCount(1, self::cardFiles($dir));
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+        self::assertFalse(is_file($log) && str_contains((string) file_get_contents($log), 'could not remove'), 'no false warning');
+    }
+
+    public function testCardLinksInTheMenuAreRootRelative(): void
+    {
+        // Same for any page address (/, /index.php, /index.php/extra): the link starts at the site root.
+        self::assertSame('/card.php?compare=1,2', (new ShareLinks())->localCard('compare=1,2'));
+        self::assertSame('/card.php', (new ShareLinks())->localCard(''));
+        // A site in a sub-folder keeps its folder.
+        self::assertSame('/usdebt/card.php?trend=0', (new ShareLinks('https://example.test/usdebt/'))->localCard('trend=0'));
+
+        $share = self::shareMenu(self::page(['start_date' => '2009-01-20', 'end_date' => '2017-01-19'])->body);
+        self::assertStringStartsWith('/card.php?', $share['download']['href']);
+        self::assertStringStartsWith('/card.php?', $share['thumb']['src']);
+        self::assertStringStartsWith('/card.php?', $share['attrs']['data-card']);
+    }
+
+    public function testShareMenuAndScriptHoldNoShareWordsOfTheirOwn(): void
+    {
+        $root = dirname(__DIR__, 2) . '/src';
+        // The menu view: with every PHP block and tag taken out, no words are left.
+        $view = (string) file_get_contents($root . '/lib/View/share_menu.php');
+        $text = trim((string) preg_replace(['#<\?php.*?\?>#s', '#<[^>]+>#'], ' ', $view));
+        self::assertSame('', $text, 'share_menu.php should take every word from ShareText');
+
+        // The page script takes the copy messages from the menu, which takes them from ShareText.
+        $js = (string) file_get_contents($root . '/Public/js/usdebt.js');
+        foreach ([ShareText::MENU_COPIED, ShareText::MENU_COPY_FAILED, "Couldn\\'t copy"] as $words) {
+            self::assertStringNotContainsString($words, $js);
+        }
+        $html = self::page(['start_date' => '2009-01-20', 'end_date' => '2017-01-19'])->body;
+        $attrs = self::shareMenu($html)['attrs'];
+        self::assertSame(ShareText::MENU_COPIED, $attrs['data-copied']);
+        self::assertSame(ShareText::MENU_COPY_FAILED, $attrs['data-copy-failed']);
+
+        // The card's error lines live in ShareText too.
+        $controller = (string) file_get_contents($root . '/lib/Controller/CardController.php');
+        self::assertStringNotContainsString(ShareText::CARD_NO_DATA, $controller);
+        self::assertStringNotContainsString(ShareText::CARD_UNAVAILABLE, $controller);
     }
 
     // ---------- Font ----------

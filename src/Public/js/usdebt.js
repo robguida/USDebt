@@ -558,11 +558,14 @@
         });
 
         /*
-         * The address bar too, so a copied link opens the same view. Not on
-         * Compare: that page comes from a form post, and changing its address
+         * The address bar too, so a copied link opens the same view. Compare
+         * reached by its ?compare= link is updated like any other page. Compare
+         * reached by the form post is not: its address is not the view's link
+         * (the Share menu has the ?compare= link for that), and changing it
          * would make a reload show a different page.
          */
-        if (chartType !== 'compare' && window.history && window.history.replaceState) {
+        var compareByLink = /(^|&)compare=/.test(window.location.search.replace(/^\?/, ''));
+        if ((chartType !== 'compare' || compareByLink) && window.history && window.history.replaceState) {
             try {
                 var here = window.location.pathname + window.location.search + window.location.hash;
                 var next = withTrend(window.location.href, on);
@@ -611,9 +614,6 @@
     }
 
     /* ---------- Share menu ---------- */
-
-    var SHARE_COPIED = 'Link copied';
-    var SHARE_COPY_FAILED = 'Couldn\'t copy the link. Select it and copy it by hand.';
 
     /* encodeURIComponent, plus !'()* so the links match the server's (PHP rawurlencode) */
     function encode(value) {
@@ -717,6 +717,9 @@
         var status = document.getElementById('share_status');
         var copyButton = document.getElementById('share_copy');
         var nativeButton = document.getElementById('share_native');
+        /* the words come from the server (ShareText), like every other share word */
+        var copied = menu.getAttribute('data-copied') || '';
+        var copyFailed = menu.getAttribute('data-copy-failed') || '';
 
         function say(text) {
             if (status) {
@@ -761,7 +764,7 @@
                 } catch (e) {
                     ok = false;
                 }
-                say(ok ? SHARE_COPIED : SHARE_COPY_FAILED);
+                say(ok ? copied : copyFailed);
                 if (!ok) {
                     input.focus();
                     input.select();
@@ -770,7 +773,7 @@
             copyButton.hidden = false;
             copyButton.addEventListener('click', function () {
                 if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
-                    navigator.clipboard.writeText(input.value).then(function () { say(SHARE_COPIED); }, copyByHand);
+                    navigator.clipboard.writeText(input.value).then(function () { say(copied); }, copyByHand);
                 } else {
                     copyByHand();
                 }

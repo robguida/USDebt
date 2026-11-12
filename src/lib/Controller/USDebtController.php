@@ -224,7 +224,8 @@ class USDebtController
 
     /**
      * Everything the Share menu shows. The page link is the same as og:url;
-     * the card links are relative so "Download picture" stays on this site.
+     * the card links are root-relative (no host) so "Download picture" stays on
+     * this site, and do not depend on the page's own path.
      *
      * @return array<string, mixed>
      */
@@ -233,7 +234,7 @@ class USDebtController
         $url = $this->shareLinks->page($share->pageQuery);
         return [
             'url' => $url,
-            'card_href' => ShareLinks::localCard($share->cardQuery),
+            'card_href' => $this->shareLinks->localCard($share->cardQuery),
             'card_trend' => $share->cardTrendMatters,
             'download_name' => $share->downloadName,
             'image_alt' => $share->imageAlt,

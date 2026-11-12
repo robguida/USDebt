@@ -16,7 +16,7 @@ use USDebt\Model\ShareCard;
 final class ShareCardBuilder
 {
     /** Bump when the card's look changes, so old cached cards are not served. */
-    public const RENDER_VERSION = 2;
+    public const RENDER_VERSION = 3;
 
     public function __construct(private readonly CompareService $compareService)
     {
@@ -87,8 +87,9 @@ final class ShareCardBuilder
         }
         $rows = [];
         foreach ($series as $s) {
-            $lastPoint = $s['data'][count($s['data']) - 1];
-            $rows[] = ['label' => $s['label'], 'change' => (float) $lastPoint[1] * 1_000_000_000_000];
+            // The exact change (first to last data day of each term), the same
+            // number the Compare page states; not the last monthly chart point.
+            $rows[] = ['label' => $s['label'], 'change' => $s['change']];
         }
         $picks = 'compare=' . implode(',', $keys);
         $pageQuery = $picks . ($showTrend ? '' : '&trend=0');

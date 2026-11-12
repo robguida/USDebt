@@ -85,13 +85,18 @@ final class ShareLinks
     }
 
     /**
-     * The card link on this site, relative ("card.php?..."), for the Share
-     * menu's preview and "Download picture". A browser only honours the
-     * download attribute on a same-site link, so this one is not absolute.
+     * The card link on this site, root-relative ("/card.php?..."), for the
+     * Share menu's preview and "Download picture". A browser only honours the
+     * download attribute on a same-site link, so this one has no host. It
+     * starts at the site root (plus the base URL's path, if the site lives in
+     * a sub-folder), so a page address with extra path parts, such as
+     * /index.php/extra, still points at the real card and not at
+     * /index.php/card.php.
      */
-    public static function localCard(string $query): string
+    public function localCard(string $query): string
     {
-        return self::CARD_PATH . ($query === '' ? '' : '?' . $query);
+        $path = (string) parse_url($this->baseUrl, PHP_URL_PATH);
+        return $path . '/' . self::CARD_PATH . ($query === '' ? '' : '?' . $query);
     }
 
     /**
