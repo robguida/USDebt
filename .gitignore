@@ -1,0 +1,30 @@
+# IDE settings (per-developer, not part of the project)
+.idea/
+.vscode/
+
+# Personal scratch files at the repo root only.
+# The leading slash keeps src/Public/index.php tracked.
+/index.php
+/scratch.php
+
+# Composer packages (rebuilt with `composer install`)
+/vendor/
+
+# Environment files hold real settings and secrets. Never commit them.
+# Templates with placeholder values stay tracked.
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Test and tool caches
+.phpunit.result.cache
+.phpunit.cache/
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
