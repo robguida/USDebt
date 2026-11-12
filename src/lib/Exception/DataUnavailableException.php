@@ -17,4 +17,10 @@ final class DataUnavailableException extends UserFacingException
     {
         parent::__construct(self::MESSAGE, 0, $previous);
     }
+
+    /** Our side cannot serve data right now; the visitor did nothing wrong. */
+    public function httpStatus(): int
+    {
+        return 503;
+    }
 }

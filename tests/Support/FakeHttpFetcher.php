@@ -38,8 +38,9 @@ final class FakeHttpFetcher implements HttpFetcher
      * A fiscaldata-shaped body from [date, amount] pairs.
      *
      * @param list<array{0: mixed, 1: mixed}> $rows
+     * @param int|null $totalCount  Rows in the whole dataset; defaults to the rows on this page.
      */
-    public static function body(array $rows): string
+    public static function body(array $rows, int $totalPages = 1, ?int $totalCount = null): string
     {
         $data = [];
         foreach ($rows as [$date, $amount]) {
@@ -47,7 +48,7 @@ final class FakeHttpFetcher implements HttpFetcher
         }
         return (string) json_encode([
             'data' => $data,
-            'meta' => ['count' => count($data), 'total-count' => count($data), 'total-pages' => 1],
+            'meta' => ['count' => count($data), 'total-count' => $totalCount ?? count($data), 'total-pages' => $totalPages],
         ]);
     }
 }

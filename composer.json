@@ -11,10 +11,8 @@
   ],
   "require": {
     "php": ">=8.2",
+    "ext-curl": "*",
     "ext-json": "*"
-  },
-  "suggest": {
-    "ext-curl": "Preferred HTTP client for the Treasury download (falls back to PHP streams)."
   },
   "require-dev": {
     "phpunit/phpunit": "^11.5"

@@ -67,7 +67,7 @@ final class FrontControllerTest extends TestCase
                 throw new Error('secret detail /var/www/usdebt/src/lib/x.php');
             }
         };
-        $html = self::app($broken)->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-01'], []);
+        $html = self::app($broken)->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-01'], [])->body;
 
         self::assertStringContainsString(Html::e(FrontController::GENERIC_ERROR), $html);
         self::assertStringNotContainsString('secret detail', $html);
@@ -81,7 +81,7 @@ final class FrontControllerTest extends TestCase
             new FiscalDataClient(new FakeHttpFetcher(new HttpException('timeout after 10s'))),
             $this->makeTempDir()
         );
-        $html = self::app($repo)->handle([], []);
+        $html = self::app($repo)->handle([], [])->body;
 
         self::assertStringContainsString(Html::e(DataUnavailableException::MESSAGE), $html);
         self::assertStringNotContainsString('timeout after 10s', $html);
@@ -89,7 +89,7 @@ final class FrontControllerTest extends TestCase
 
     public function testBadDateInputIsRejectedAndNotEchoed(): void
     {
-        $html = self::app(self::source())->handle(['start_date' => '"><script>alert(1)</script>'], []);
+        $html = self::app(self::source())->handle(['start_date' => '"><script>alert(1)</script>'], [])->body;
 
         self::assertStringContainsString('must be a real date', $html);
         self::assertStringNotContainsString('<script>alert(1)', $html);
@@ -97,7 +97,7 @@ final class FrontControllerTest extends TestCase
 
     public function testDateRangeViewRendersChartJsonStatsAndTable(): void
     {
-        $html = self::app(self::source())->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], []);
+        $html = self::app(self::source())->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], [])->body;
 
         self::assertMatchesRegularExpression('/var chartData = \{"labels":\[[^\]]+\],"values":\[[0-9.,]+\]\};/', $html);
         self::assertStringContainsString('Starting debt amount', $html);
@@ -108,21 +108,21 @@ final class FrontControllerTest extends TestCase
 
     public function testEmptyDateRangeShowsMessage(): void
     {
-        $html = self::app(self::source())->handle(['start_date' => '1980-01-01', 'end_date' => '1980-02-01'], []);
+        $html = self::app(self::source())->handle(['start_date' => '1980-01-01', 'end_date' => '1980-02-01'], [])->body;
 
         self::assertStringContainsString('There is no Treasury data for this date range', $html);
     }
 
     public function testReversedDatesAreRejected(): void
     {
-        $html = self::app(self::source())->handle(['start_date' => '2026-11-01', 'end_date' => '2026-10-01'], []);
+        $html = self::app(self::source())->handle(['start_date' => '2026-11-01', 'end_date' => '2026-10-01'], [])->body;
 
         self::assertStringContainsString('start date must be on or before the end date', $html);
     }
 
     public function testStaleDataShowsANotice(): void
     {
-        $html = self::app(self::source(true))->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], []);
+        $html = self::app(self::source(true))->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], [])->body;
 
         self::assertStringContainsString('Showing Treasury data saved on 2026-11-12', $html);
     }
@@ -130,7 +130,7 @@ final class FrontControllerTest extends TestCase
     public function testCompareAllPresidentsAtOnce(): void
     {
         $all = array_map('strval', array_keys(PresidentService::getPresidentConfig()));
-        $html = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => $all]);
+        $html = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => $all])->body;
 
         self::assertMatchesRegularExpression('/var data = (\[.*\]);/', $html);
         preg_match('/var data = (\[.*\]);/', $html, $m);
@@ -143,9 +143,79 @@ final class FrontControllerTest extends TestCase
         self::assertSame(count($all), substr_count($html, 'checked="checked"'), 'all boxes stay ticked');
     }
 
+    public function testStatusCodes(): void
+    {
+        $ok = self::app(self::source());
+        self::assertSame(200, $ok->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], [])->status);
+        self::assertSame(200, $ok->handle([], ['submit' => 'Compare', 'compare_pres' => ['727506000', '979966800']])->status);
+        self::assertSame(400, $ok->handle(['start_date' => '2026-02-30'], [])->status, 'bad date');
+        self::assertSame(400, $ok->handle(['start_date' => '2026-11-01', 'end_date' => '2026-10-01'], [])->status, 'reversed dates');
+        self::assertSame(400, $ok->handle([], ['submit' => 'Compare', 'compare_pres' => ['727506000']])->status, 'one pick');
+
+        $down = new class implements DebtSource {
+            public function load(): DebtDataset
+            {
+                throw new DataUnavailableException();
+            }
+        };
+        $response = self::app($down)->handle([], []);
+        self::assertSame(503, $response->status, 'no data at all');
+        self::assertStringContainsString(Html::e(DataUnavailableException::MESSAGE), $response->body);
+
+        $broken = new class implements DebtSource {
+            public function load(): DebtDataset
+            {
+                throw new Error('boom');
+            }
+        };
+        self::assertSame(500, self::app($broken)->handle([], [])->status);
+    }
+
+    public function testArrayParametersAreIgnoredNotFatal(): void
+    {
+        $response = self::app(self::source())->handle(
+            ['start_date' => ['2026-10-01'], 'end_date' => ['x' => 'y'], 'submit' => ['compare']],
+            []
+        );
+
+        self::assertSame(200, $response->status);
+        self::assertStringContainsString('var chartData = ', $response->body, 'falls back to the default view');
+        self::assertStringNotContainsString('Array', $response->body);
+
+        $compare = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => 'not-a-list']);
+        self::assertSame(400, $compare->status);
+        self::assertStringContainsString('Please pick at least 2 presidents to compare.', $compare->body);
+    }
+
+    public function testNoSessionAndNoCookies(): void
+    {
+        self::app(self::source())->handle(['start_date' => '2026-10-01', 'end_date' => '2026-11-09'], []);
+        self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => ['727506000', '979966800']]);
+
+        self::assertSame(PHP_SESSION_NONE, session_status(), 'no session is started');
+        self::assertSame([], preg_grep('/^Set-Cookie:/i', headers_list()));
+
+        // The CLI does not record headers, so also prove no code can send a cookie.
+        $src = dirname(__DIR__, 2) . '/src';
+        $files = [$src . '/Public/index.php'];
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($src . '/lib', \FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if ($file->getExtension() === 'php') {
+                $files[] = $file->getPathname();
+            }
+        }
+        foreach ($files as $file) {
+            self::assertDoesNotMatchRegularExpression(
+                '/\b(session_start|setcookie|setrawcookie)\s*\(|Set-Cookie/i',
+                (string) file_get_contents($file),
+                $file
+            );
+        }
+    }
+
     public function testCompareNeedsTwoRealPresidents(): void
     {
-        $html = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => ['727506000', 'bogus', '727506000']]);
+        $html = self::app(self::source())->handle([], ['submit' => 'Compare', 'compare_pres' => ['727506000', 'bogus', '727506000']])->body;
 
         self::assertStringContainsString('Please pick at least 2 presidents to compare.', $html);
     }

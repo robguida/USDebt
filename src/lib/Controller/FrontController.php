@@ -7,6 +7,7 @@ namespace USDebt\Controller;
 use Throwable;
 use USDebt\Exception\UserFacingException;
 use USDebt\Http\NativeHttpFetcher;
+use USDebt\Http\Response;
 use USDebt\Model\RequestModel;
 use USDebt\Service\CompareService;
 use USDebt\Service\DebtRepository;
@@ -42,10 +43,13 @@ final class FrontController
     }
 
     /**
+     * Status codes: 200 for a page, 400 for input we cannot use, 503 when no
+     * Treasury data can be loaded, 500 for anything unexpected.
+     *
      * @param array<string, mixed> $query  $_GET
      * @param array<string, mixed> $post   $_POST
      */
-    public function handle(array $query, array $post): string
+    public function handle(array $query, array $post): Response
     {
         $input = $post + $query;
         $request = new RequestModel();
@@ -54,7 +58,7 @@ final class FrontController
             if ($action === 'compare') {
                 $keys = $this->controller->compareService()->validateSelection($input['compare_pres'] ?? []);
                 $request->setComparePres($keys);
-                return $this->controller->compareView($request);
+                return new Response(200, $this->controller->compareView($request));
             }
             $start = self::text($input['start_date'] ?? null);
             $end = self::text($input['end_date'] ?? null);
@@ -64,24 +68,24 @@ final class FrontController
             if ($end !== '') {
                 $request->setEndDate($end);
             }
-            return $this->controller->defaultView($request);
+            return new Response(200, $this->controller->defaultView($request));
         } catch (UserFacingException $e) {
-            return $this->errorPage($e->getMessage(), $request);
+            return $this->errorPage($e->httpStatus(), $e->getMessage(), $request);
         } catch (Throwable $e) {
             error_log('UsDebt: unhandled ' . get_class($e) . ': ' . $e->getMessage()
                 . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString());
-            return $this->errorPage(self::GENERIC_ERROR, $request);
+            return $this->errorPage(500, self::GENERIC_ERROR, $request);
         }
     }
 
-    private function errorPage(string $message, RequestModel $request): string
+    private function errorPage(int $status, string $message, RequestModel $request): Response
     {
         try {
-            return $this->controller->getErrorView($message, $request);
+            return new Response($status, $this->controller->getErrorView($message, $request));
         } catch (Throwable $e) {
             error_log('UsDebt: error page failed: ' . get_class($e) . ': ' . $e->getMessage());
-            return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Our U.S. Debt</title></head><body><p>'
-                . Html::e(self::GENERIC_ERROR) . '</p></body></html>';
+            return new Response(500, '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Our U.S. Debt</title></head><body><p>'
+                . Html::e(self::GENERIC_ERROR) . '</p></body></html>');
         }
     }
 

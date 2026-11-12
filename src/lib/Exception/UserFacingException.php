@@ -13,4 +13,9 @@ use RuntimeException;
  */
 class UserFacingException extends RuntimeException
 {
+    /** The visitor sent something we cannot use (bad date, too few picks). */
+    public function httpStatus(): int
+    {
+        return 400;
+    }
 }

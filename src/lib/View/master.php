@@ -62,8 +62,6 @@ foreach ($css_files as $file) {
     ?>
 </div>
 </body>
-<footer>
-</footer>
 <script type="text/javascript">
     $(function() {
         $('#about_usdebt').dialog({

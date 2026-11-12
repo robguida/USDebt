@@ -15,9 +15,9 @@ final class CompareServiceTest extends TestCase
 {
     /** A (2001-2002), B (2003-2004), A again (2005-2006): A has a gap between terms. */
     private const TERMS = [
-        100 => ['pres' => 'Alpha', 'start' => '2001-01-01', 'end' => '2002-12-31', 'img' => 'a.jpg', 'grfcolor' => ''],
-        200 => ['pres' => 'Bravo', 'start' => '2003-01-01', 'end' => '2004-12-31', 'img' => 'b.jpg', 'grfcolor' => ''],
-        300 => ['pres' => 'Alpha', 'start' => '2005-01-01', 'end' => '2006-12-31', 'img' => 'a.jpg', 'grfcolor' => ''],
+        100 => ['pres' => 'Alpha', 'start' => '2001-01-01', 'end' => '2002-12-31', 'img' => 'a.jpg'],
+        200 => ['pres' => 'Bravo', 'start' => '2003-01-01', 'end' => '2004-12-31', 'img' => 'b.jpg'],
+        300 => ['pres' => 'Alpha', 'start' => '2005-01-01', 'end' => '2006-12-31', 'img' => 'a.jpg'],
     ];
 
     public function testUnknownAndDuplicateValuesAreIgnored(): void
@@ -59,7 +59,7 @@ final class CompareServiceTest extends TestCase
         $names = array_column($series, 'president');
         self::assertSame(array_values(array_unique(array_column($config, 'pres'))), $names);
         $trump = $series[array_search('Donald Trump', $names, true)];
-        self::assertTrue($trump['continuous']);
+        self::assertCount(1, $trump['term_starts'], 'two terms, one line, one later-term start');
         self::assertSame('Donald Trump (2017-2021, 2025-2029)', $trump['label']);
     }
 
@@ -83,14 +83,12 @@ final class CompareServiceTest extends TestCase
         self::assertCount(1, $series);
         $alpha = $series[0];
         self::assertSame('Alpha (2001-2002, 2005-2006)', $alpha['label']);
-        self::assertTrue($alpha['continuous']);
-        self::assertSame([100, 300], $alpha['keys']);
         // Term 1: months 1, 2, 3 (Jan 01, Feb 01, Dec 02). Term 2 continues at x = 4.
         self::assertSame([[1, 0.0], [2, 1.0], [3, 3.0], [4, 3.0], [5, 5.0]], $alpha['data']);
         self::assertSame([4], $alpha['term_starts']);
     }
 
-    public function testSingleTermIsNotMarkedContinuous(): void
+    public function testSingleTermHasNoLaterTermStart(): void
     {
         $dataset = new DebtDataset([
             new DebtEntry('2005-01-03', 200.0e12),
@@ -99,7 +97,6 @@ final class CompareServiceTest extends TestCase
         $series = (new CompareService(self::TERMS))->buildSeries([300], $dataset);
 
         self::assertSame('Alpha (2005-2006)', $series[0]['label']);
-        self::assertFalse($series[0]['continuous']);
         self::assertSame([[1, 0.0], [2, -0.5]], $series[0]['data'], 'a falling debt gives negative change');
         self::assertSame([], $series[0]['term_starts']);
     }

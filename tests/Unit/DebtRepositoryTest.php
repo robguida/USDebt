@@ -32,9 +32,22 @@ final class DebtRepositoryTest extends TestCase
         $this->removeTempDir();
     }
 
-    private function repo(FakeHttpFetcher $fetcher, ?string $seed = null): DebtRepository
+    private function repo(
+        FakeHttpFetcher $fetcher,
+        ?string $seed = null,
+        float $lockWait = DebtRepository::LOCK_WAIT_SECONDS,
+        ?\Closure $sleep = null,
+    ): DebtRepository {
+        return new DebtRepository(new FiscalDataClient($fetcher), $this->dir, $seed, fn () => $this->now, 900, $lockWait, $sleep);
+    }
+
+    /** @return resource  The lock, held as if another request were downloading. */
+    private function holdLock()
     {
-        return new DebtRepository(new FiscalDataClient($fetcher), $this->dir, $seed, fn () => $this->now, 900);
+        $other = fopen($this->dir . '/' . DebtRepository::LOCK_FILE, 'c');
+        self::assertNotFalse($other);
+        self::assertTrue(flock($other, LOCK_EX));
+        return $other;
     }
 
     private static function okBody(): string
@@ -186,6 +199,212 @@ final class DebtRepositoryTest extends TestCase
 
         self::assertCount(1, $fetcher->calls);
         self::assertSame('2026-11-12', $data->savedOn());
+        self::assertFalse($data->isStale(), 'a normal refresh in progress is not a failure');
+    }
+
+    public function testNewYorkMidnightDecidesTheDayEvenWithAUtcClock(): void
+    {
+        $utc = new DateTimeZone('UTC');
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        // 04:59 UTC on Nov 13 is 23:59 on Nov 12 in New York (EST, UTC-5).
+        $this->now = new DateTimeImmutable('2026-11-13 04:59:00', $utc);
+        self::assertSame('2026-11-12', $this->repo($fetcher)->load()->savedOn());
+
+        $this->now = new DateTimeImmutable('2026-11-13 04:59:59', $utc);
+        $this->repo($fetcher)->load();
+        self::assertCount(1, $fetcher->calls, 'still Nov 12 in New York: no new download');
+
+        // 05:00 UTC is midnight in New York: a new day.
+        $this->now = new DateTimeImmutable('2026-11-13 05:00:00', $utc);
+        self::assertSame('2026-11-13', $this->repo($fetcher)->load()->savedOn());
+        self::assertCount(2, $fetcher->calls);
+    }
+
+    public function testUnwritableCacheFolderNeverDownloads(): void
+    {
+        // A file where the folder should be: the folder cannot be created or written.
+        $blocked = $this->dir . '/not-a-folder';
+        file_put_contents($blocked, 'x');
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        $repo = new DebtRepository(new FiscalDataClient($fetcher), $blocked, null, fn () => $this->now, 900);
+
+        for ($i = 0; $i < 3; $i++) {
+            try {
+                $repo->load();
+                self::fail('expected DataUnavailableException');
+            } catch (DataUnavailableException) {
+                // Friendly error, no download.
+            }
+        }
+        self::assertCount(0, $fetcher->calls, 'no Treasury call per page view when nothing can be saved');
+    }
+
+    public function testUnwritableCacheFolderServesTheSavedCopyWithoutDownloading(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\' || (function_exists('posix_geteuid') && posix_geteuid() === 0)) {
+            self::markTestSkipped('needs POSIX folder permissions and a non-root user');
+        }
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        $this->repo($fetcher)->load();
+        chmod($this->dir, 0555);
+        try {
+            $this->now = $this->now->modify('+1 day');
+            $data = $this->repo($fetcher)->load();
+        } finally {
+            chmod($this->dir, 0775);
+        }
+        self::assertCount(1, $fetcher->calls);
+        self::assertTrue($data->isStale());
+        self::assertSame('2026-11-12', $data->savedOn());
+    }
+
+    public function testLockThatCannotBeOpenedServesTheSavedCopyWithoutDownloading(): void
+    {
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        $this->repo($fetcher)->load();
+        $lock = $this->dir . '/' . DebtRepository::LOCK_FILE;
+        unlink($lock);
+        mkdir($lock); // a folder where the lock file should be, so it cannot be opened
+
+        $this->now = $this->now->modify('+1 day');
+        $data = $this->repo($fetcher)->load();
+        $this->repo($fetcher)->load();
+
+        self::assertCount(1, $fetcher->calls, 'no download without the lock');
+        self::assertTrue($data->isStale());
+        self::assertSame('2026-11-12', $data->savedOn());
+    }
+
+    public function testLockThatCannotBeOpenedWithNoCopyGivesFriendlyError(): void
+    {
+        mkdir($this->dir . '/' . DebtRepository::LOCK_FILE);
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        try {
+            $this->repo($fetcher)->load();
+            self::fail('expected DataUnavailableException');
+        } catch (DataUnavailableException) {
+            self::assertCount(0, $fetcher->calls);
+        }
+    }
+
+    public function testColdCacheWaitsForTheOtherDownloadAndUsesItsCopy(): void
+    {
+        $other = $this->holdLock();
+        $sleeps = 0;
+        // The other request saves its copy and lets go of the lock during our second pause.
+        $sleep = function () use (&$sleeps, $other): void {
+            $sleeps++;
+            if ($sleeps === 2) {
+                file_put_contents($this->dir . '/' . DebtRepository::CACHE_FILE, (string) json_encode([
+                    'version' => 1,
+                    'saved_on' => '2026-11-12',
+                    'rows' => [['2026-11-09', 200.0], ['2026-11-10', 300.0]],
+                ]));
+                flock($other, LOCK_UN);
+            }
+        };
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        try {
+            $data = $this->repo($fetcher, null, 5.0, $sleep)->load();
+        } finally {
+            fclose($other);
+        }
+
+        self::assertCount(0, $fetcher->calls, 'the waiting request does not download');
+        self::assertSame(2, $sleeps);
+        self::assertSame(2, $data->count());
+        self::assertFalse($data->isStale());
+    }
+
+    public function testColdCacheGivesUpWaitingAfterTheLimit(): void
+    {
+        $other = $this->holdLock();
+        $sleeps = 0;
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        try {
+            $this->repo($fetcher, null, 0.3, function () use (&$sleeps): void {
+                $sleeps++;
+            })->load();
+            self::fail('expected DataUnavailableException');
+        } catch (DataUnavailableException) {
+            self::assertSame(3, $sleeps, '0.3 s limit, one check every 0.1 s');
+            self::assertCount(0, $fetcher->calls);
+        } finally {
+            flock($other, LOCK_UN);
+            fclose($other);
+        }
+    }
+
+    public function testColdCacheWhoseOtherDownloadFailedDoesNotRetryInsideTheBackOff(): void
+    {
+        $other = $this->holdLock();
+        $sleep = function () use ($other): void {
+            file_put_contents($this->dir . '/' . DebtRepository::FAIL_FILE, (string) $this->now->getTimestamp());
+            flock($other, LOCK_UN);
+        };
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        try {
+            $this->repo($fetcher, null, 5.0, $sleep)->load();
+            self::fail('expected DataUnavailableException');
+        } catch (DataUnavailableException) {
+            self::assertCount(0, $fetcher->calls);
+        } finally {
+            fclose($other);
+        }
+    }
+
+    public function testFailedPageKeepsTheLastCompleteCopyAndSavesNothing(): void
+    {
+        $this->repo(new FakeHttpFetcher(self::okBody()))->load();
+        $file = $this->dir . '/' . DebtRepository::CACHE_FILE;
+        $before = (string) file_get_contents($file);
+
+        $this->now = $this->now->modify('+1 day');
+        $twoPages = new FakeHttpFetcher(
+            FakeHttpFetcher::body([['2026-10-01', '100'], ['2026-11-09', '200']], 2, 4),
+            new HttpException('page 2 timed out'),
+        );
+        $data = $this->repo($twoPages)->load();
+
+        self::assertCount(2, $twoPages->calls);
+        self::assertTrue($data->isStale(), 'last complete copy, flagged stale');
+        self::assertSame('2026-11-12', $data->savedOn());
+        self::assertSame(3, $data->count());
+        self::assertSame($before, (string) file_get_contents($file), 'partial data is never saved');
+        self::assertFileExists($this->dir . '/' . DebtRepository::FAIL_FILE, 'the back-off starts');
+    }
+
+    public function testFailedPageWithNoCopyGivesFriendlyErrorAndSavesNothing(): void
+    {
+        $twoPages = new FakeHttpFetcher(
+            FakeHttpFetcher::body([['2026-10-01', '100']], 2, 2),
+            new HttpException('page 2 timed out'),
+        );
+        try {
+            $this->repo($twoPages)->load();
+            self::fail('expected DataUnavailableException');
+        } catch (DataUnavailableException) {
+            self::assertFileDoesNotExist($this->dir . '/' . DebtRepository::CACHE_FILE);
+        }
+    }
+
+    public function testCacheFolderAndFilesAreNotOpenToOtherUsers(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('Windows does not use POSIX permission bits');
+        }
+        $folder = $this->dir . '/cache';
+        $old = umask(0);
+        try {
+            $repo = new DebtRepository(new FiscalDataClient(new FakeHttpFetcher(self::okBody())), $folder, null, fn () => $this->now, 900);
+            $repo->load();
+        } finally {
+            umask($old);
+        }
+        clearstatcache();
+        self::assertSame(0750, fileperms($folder) & 0777);
+        self::assertSame(0640, fileperms($folder . '/' . DebtRepository::CACHE_FILE) & 0777);
+        self::assertSame(0640, fileperms($folder . '/' . DebtRepository::LOCK_FILE) & 0777);
     }
 
     public function testSlicingReturnsOnlyTheRequestedDays(): void

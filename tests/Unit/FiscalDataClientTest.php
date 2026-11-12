@@ -6,6 +6,8 @@ namespace USDebt\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use UnexpectedValueException;
+use USDebt\Exception\HttpException;
+use USDebt\Exception\IncompleteDownloadException;
 use USDebt\Service\FiscalDataClient;
 use USDebt\Tests\Support\FakeHttpFetcher;
 
@@ -55,17 +57,71 @@ final class FiscalDataClientTest extends TestCase
         (new FiscalDataClient(new FakeHttpFetcher()))->parse('{"error":"bad request"}');
     }
 
-    public function testRequestsTheWholeDatasetNewestFirstWithATenSecondTimeout(): void
+    public function testRequestsTheWholeDatasetOldestFirstWithATenSecondTimeout(): void
     {
         $fetcher = new FakeHttpFetcher(FakeHttpFetcher::body([['2026-11-09', '1']]));
         (new FiscalDataClient($fetcher))->fetchAll();
 
-        self::assertCount(1, $fetcher->calls);
+        self::assertCount(1, $fetcher->calls, 'one page: one request');
         self::assertSame(10, $fetcher->calls[0]['timeout']);
         $url = urldecode($fetcher->calls[0]['url']);
         self::assertStringStartsWith(FiscalDataClient::ENDPOINT . '?', $url);
         self::assertStringContainsString('fields=record_date,tot_pub_debt_out_amt', $url);
-        self::assertStringContainsString('sort=-record_date', $url);
+        self::assertStringContainsString('sort=record_date', $url);
+        self::assertStringNotContainsString('sort=-record_date', $url);
+        self::assertStringContainsString('page[number]=1', $url);
         self::assertStringContainsString('page[size]=10000', $url);
+    }
+
+    public function testFetchesEveryPageAndJoinsThem(): void
+    {
+        $fetcher = new FakeHttpFetcher(
+            FakeHttpFetcher::body([['2026-11-02', '100'], ['2026-11-03', '110']], 2, 3),
+            FakeHttpFetcher::body([['2026-11-04', '120']], 2, 3),
+        );
+        $result = (new FiscalDataClient($fetcher))->fetchAll();
+
+        self::assertCount(2, $fetcher->calls);
+        self::assertStringContainsString('page[number]=2', urldecode($fetcher->calls[1]['url']));
+        self::assertSame(
+            ['2026-11-02', '2026-11-03', '2026-11-04'],
+            array_map(fn ($e) => $e->effectiveDate, $result['entries'])
+        );
+    }
+
+    public function testAFailedPageDoesNotStopTheOtherPagesButRejectsTheDownload(): void
+    {
+        $fetcher = new FakeHttpFetcher(
+            FakeHttpFetcher::body([['2026-11-02', '100']], 3, 3),
+            new HttpException('page 2 timed out'),
+            FakeHttpFetcher::body([['2026-11-04', '120']], 3, 3),
+        );
+        try {
+            (new FiscalDataClient($fetcher))->fetchAll();
+            self::fail('expected IncompleteDownloadException');
+        } catch (IncompleteDownloadException $e) {
+            self::assertCount(3, $fetcher->calls, 'page 3 is still fetched after page 2 fails');
+            self::assertSame([2], array_keys($e->failedPages()));
+            self::assertStringContainsString('page 2', $e->getMessage());
+        }
+    }
+
+    public function testFewerRowsThanTheTotalCountRejectsTheDownload(): void
+    {
+        $fetcher = new FakeHttpFetcher(FakeHttpFetcher::body([['2026-11-02', '100']], 1, 5));
+
+        $this->expectException(IncompleteDownloadException::class);
+        (new FiscalDataClient($fetcher))->fetchAll();
+    }
+
+    public function testAbsurdPageCountIsRejectedBeforeFetchingMore(): void
+    {
+        $fetcher = new FakeHttpFetcher(FakeHttpFetcher::body([['2026-11-02', '100']], FiscalDataClient::MAX_PAGES + 1));
+        try {
+            (new FiscalDataClient($fetcher))->fetchAll();
+            self::fail('expected UnexpectedValueException');
+        } catch (UnexpectedValueException) {
+            self::assertCount(1, $fetcher->calls);
+        }
     }
 }

@@ -29,18 +29,20 @@ final class StatsAndDatesTest extends TestCase
 
     public function testStatsOverARange(): void
     {
+        // 4 reported days spread over 8 calendar days (a weekend and a gap in between).
         $stats = StatsCalculator::summarize([
             new DebtEntry('2026-11-02', 100.0),
             new DebtEntry('2026-11-03', 90.0),
             new DebtEntry('2026-11-04', 130.0),
-            new DebtEntry('2026-11-06', 140.0),
+            new DebtEntry('2026-11-10', 140.0),
         ]);
 
         self::assertSame(100.0, $stats['first_debt']);
         self::assertSame(140.0, $stats['last_debt']);
         self::assertSame(40.0, $stats['delta']);
-        self::assertSame(10.0, $stats['average_per_day']);
-        self::assertSame(4, $stats['total_days']);
+        self::assertSame(4, $stats['working_days']);
+        self::assertSame(8, $stats['total_days']);
+        self::assertSame(5.0, $stats['average_per_day'], 'per calendar day: 40 / 8, not 40 / 4');
         self::assertSame(2, $stats['days_above_start']);
         self::assertSame(50.0, $stats['pct_above_start']);
         self::assertSame(1, $stats['days_below_start']);

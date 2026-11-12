@@ -24,11 +24,11 @@ final class CompareService
 {
     private const TRILLION = 1_000_000_000_000;
 
-    /** @var array<int, array{pres: string, start: string, end: string, img: string, grfcolor: string}> */
+    /** @var array<int, array{pres: string, start: string, end: string, img: string}> */
     private array $terms;
 
     /**
-     * @param array<int, array{pres: string, start: string, end: string, img: string, grfcolor: string}>|null $terms
+     * @param array<int, array{pres: string, start: string, end: string, img: string}>|null $terms
      */
     public function __construct(?array $terms = null)
     {
@@ -67,8 +67,9 @@ final class CompareService
 
     /**
      * @param list<int> $keys  Validated term ids (see validateSelection).
-     * @return list<array{label: string, president: string, keys: list<int>, continuous: bool, term_starts: list<int>, data: list<array{0: int, 1: float}>}>
+     * @return list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>}>
      *   term_starts = x values where a later term begins (empty for one term).
+     *   Not drawn yet; kept for the chart rework, which marks where each later term starts.
      */
     public function buildSeries(array $keys, DebtDataset $dataset): array
     {
@@ -86,7 +87,6 @@ final class CompareService
 
             $points = [];
             $termStarts = [];
-            $usedKeys = [];
             $years = [];
             $x = 0;
             $carried = 0.0; // debt change (dollars) at the end of the previous term(s)
@@ -110,7 +110,6 @@ final class CompareService
                     $points[] = [$x, round(($carried + $entry->totalDebt - $baseline) / self::TRILLION, 3)];
                 }
                 $carried += end($entries)->totalDebt - $baseline;
-                $usedKeys[] = $key;
                 $years[] = $this->start($key)->format('Y') . '-' . $this->end($key)->format('Y');
             }
             if ($points === []) {
@@ -119,8 +118,6 @@ final class CompareService
             $series[] = [
                 'label' => $name . ' (' . implode(', ', $years) . ')',
                 'president' => $name,
-                'keys' => $usedKeys,
-                'continuous' => count($usedKeys) > 1,
                 'term_starts' => $termStarts,
                 'data' => $points,
             ];

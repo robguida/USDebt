@@ -23,11 +23,19 @@ trait TempDir
         if ($this->tempDir === '' || !is_dir($this->tempDir)) {
             return;
         }
-        foreach (scandir($this->tempDir) ?: [] as $name) {
-            if ($name !== '.' && $name !== '..') {
-                @unlink($this->tempDir . '/' . $name);
+        self::removeTree($this->tempDir);
+    }
+
+    private static function removeTree(string $dir): void
+    {
+        @chmod($dir, 0775);
+        foreach (scandir($dir) ?: [] as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
             }
+            $path = $dir . '/' . $name;
+            is_dir($path) ? self::removeTree($path) : @unlink($path);
         }
-        @rmdir($this->tempDir);
+        @rmdir($dir);
     }
 }

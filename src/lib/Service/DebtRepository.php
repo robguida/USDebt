@@ -18,12 +18,19 @@ use USDebt\Model\DebtEntry;
  * - The whole dataset is downloaded at most once per day (America/New_York date)
  *   and saved as one JSON file. Every page and every Compare president is sliced
  *   from that one copy, so visitors never trigger extra Treasury calls.
- * - A lock makes sure only one request downloads; the others keep serving the
- *   last good copy (or wait for the download when there is no copy yet).
+ * - A lock makes sure only one request downloads. The others keep serving the
+ *   last saved copy as normal data, or, when there is no copy yet, wait a bounded
+ *   time for the download to finish.
+ * - A download happens ONLY when the result can be saved and the lock is held.
+ *   If the cache folder is not writable or the lock cannot be opened, nothing is
+ *   downloaded: the saved copy is served (marked stale) or the visitor gets the
+ *   friendly error. That way a broken cache folder can never turn into one
+ *   Treasury download per page view.
  * - The file is written to a temp name and renamed, so readers never see half a file.
- * - If the download fails, the last good copy is served (marked stale) and the
- *   download is not retried for RETRY_AFTER_SECONDS, so a Treasury outage does not
- *   make every page wait for the timeout.
+ *   Folder 0750, files 0640: no access for other users on the server.
+ * - If the download fails or is incomplete, nothing is saved: the last good copy is
+ *   served marked stale and the download is not retried for RETRY_AFTER_SECONDS,
+ *   so a Treasury outage does not make every page wait for the timeout.
  * - If the download fails and there is no copy, DataUnavailableException is thrown.
  */
 final class DebtRepository implements DebtSource
@@ -32,15 +39,28 @@ final class DebtRepository implements DebtSource
     public const LOCK_FILE = 'treasury-debt.lock';
     public const FAIL_FILE = 'treasury-debt.failed';
     public const RETRY_AFTER_SECONDS = 900;
+    /** Longest time a request with no saved copy waits for another request's download. */
+    public const LOCK_WAIT_SECONDS = 25.0;
+    public const DIR_MODE = 0750;
+    public const FILE_MODE = 0640;
     private const FORMAT_VERSION = 1;
+    private const LOCK_POLL_SECONDS = 0.1;
+
+    /** @var array<string, true> Problems already logged by this PHP process (each is logged once). */
+    private static array $logged = [];
 
     /** @var Closure(): DateTimeImmutable */
     private Closure $clock;
 
+    /** @var Closure(float): void */
+    private Closure $sleep;
+
     /**
-     * @param string                            $cacheDir  Folder for the cache file. Created if missing. Must not be web-served.
-     * @param string|null                       $seedFile  JSON rows for days before the API's first day (see Data/debt_seed_1993.json).
-     * @param (Closure(): DateTimeImmutable)|null $clock   "Now"; tests pass a fixed time.
+     * @param string                              $cacheDir        Folder for the cache file. Created if missing. Must not be web-served.
+     * @param string|null                         $seedFile        JSON rows for days before the API's first day (see Data/debt_seed_1993.json).
+     * @param (Closure(): DateTimeImmutable)|null $clock           "Now"; tests pass a fixed time.
+     * @param float                               $lockWaitSeconds Longest wait for another request's download when there is no saved copy.
+     * @param (Closure(float): void)|null         $sleep           Pause between lock checks; tests pass their own.
      */
     public function __construct(
         private readonly FiscalDataClient $client,
@@ -48,8 +68,13 @@ final class DebtRepository implements DebtSource
         private readonly ?string $seedFile = null,
         ?Closure $clock = null,
         private readonly int $retryAfterSeconds = self::RETRY_AFTER_SECONDS,
+        private readonly float $lockWaitSeconds = self::LOCK_WAIT_SECONDS,
+        ?Closure $sleep = null,
     ) {
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable('now', new DateTimeZone('America/New_York'));
+        $this->sleep = $sleep ?? static function (float $seconds): void {
+            usleep((int) ($seconds * 1_000_000));
+        };
     }
 
     public function load(): DebtDataset
@@ -61,43 +86,72 @@ final class DebtRepository implements DebtSource
         }
 
         if (!$this->ensureCacheDir()) {
-            // Cannot save: still serve live data so the site works, and say why in the log.
-            error_log("UsDebt: cache folder {$this->cacheDir} is not writable; downloading without saving.");
-            return $this->downloadOrFallback($cached, $today, false);
+            self::logOnce("UsDebt: cache folder {$this->cacheDir} is missing or not writable; not downloading until it is fixed.");
+            return $this->savedCopyOrFail($cached);
         }
 
         if ($this->failedRecently()) {
-            return $cached !== null ? $this->asStale($cached) : throw new DataUnavailableException();
+            return $this->savedCopyOrFail($cached);
         }
 
-        $lock = @fopen($this->path(self::LOCK_FILE), 'c');
+        $lockFile = $this->path(self::LOCK_FILE);
+        $lock = @fopen($lockFile, 'c');
         if ($lock === false) {
-            error_log('UsDebt: could not open the cache lock file; downloading without a lock.');
-            return $this->downloadOrFallback($cached, $today, true);
+            self::logOnce("UsDebt: could not open the cache lock file {$lockFile}; not downloading until it is fixed.");
+            return $this->savedCopyOrFail($cached);
         }
+        @chmod($lockFile, self::FILE_MODE);
         try {
             if (!flock($lock, LOCK_EX | LOCK_NB)) {
                 // Another request is downloading right now.
                 if ($cached !== null) {
-                    return $this->asStale($cached);
+                    // A normal daily refresh is in progress and nothing has failed,
+                    // so the saved copy is served as normal data (not flagged stale).
+                    return $cached;
                 }
-                flock($lock, LOCK_EX); // wait for it (bounded by the download timeout)
-                $fresh = $this->readCache();
-                return $fresh ?? throw new DataUnavailableException();
+                return $this->waitForOtherDownload($lock);
             }
             // We hold the lock. Another request may have finished the download while we waited.
             $cached = $this->readCache() ?? $cached;
             if ($cached !== null && $cached->savedOn() === $today) {
                 return $cached;
             }
-            return $this->downloadOrFallback($cached, $today, true);
+            return $this->downloadOrFallback($cached, $today);
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
         }
     }
 
-    private function downloadOrFallback(?DebtDataset $cached, string $today, bool $canSave): DebtDataset
+    /**
+     * No saved copy and another request holds the lock: check again every
+     * LOCK_POLL_SECONDS, for at most lockWaitSeconds, then serve what it saved.
+     *
+     * @param resource $lock
+     */
+    private function waitForOtherDownload($lock): DebtDataset
+    {
+        $tries = max(1, (int) ceil($this->lockWaitSeconds / self::LOCK_POLL_SECONDS));
+        for ($i = 0; $i < $tries; $i++) {
+            ($this->sleep)(self::LOCK_POLL_SECONDS);
+            if (!flock($lock, LOCK_EX | LOCK_NB)) {
+                continue;
+            }
+            $fresh = $this->readCache();
+            if ($fresh !== null) {
+                return $fresh;
+            }
+            // The other download failed and saved nothing; its failure marker starts the back-off.
+            if ($this->failedRecently()) {
+                throw new DataUnavailableException();
+            }
+            return $this->downloadOrFallback(null, $this->today());
+        }
+        error_log('UsDebt: gave up waiting for another request to finish the Treasury download.');
+        throw new DataUnavailableException();
+    }
+
+    private function downloadOrFallback(?DebtDataset $cached, string $today): DebtDataset
     {
         try {
             $result = $this->client->fetchAll();
@@ -105,25 +159,29 @@ final class DebtRepository implements DebtSource
                 throw new \UnexpectedValueException('Treasury returned no usable rows');
             }
         } catch (Throwable $e) {
-            error_log('UsDebt: Treasury download failed: ' . get_class($e) . ': ' . $e->getMessage());
-            if ($canSave) {
-                $this->markFailure();
-            }
-            if ($cached !== null) {
-                return $this->asStale($cached);
-            }
-            throw new DataUnavailableException($e);
+            error_log('UsDebt: Treasury download failed; nothing saved: ' . get_class($e) . ': ' . $e->getMessage());
+            $this->markFailure();
+            return $this->savedCopyOrFail($cached, $e);
         }
 
         if ($result['skipped'] > 0) {
             error_log("UsDebt: Treasury download skipped {$result['skipped']} bad row(s).");
         }
         $entries = $this->withSeed($result['entries']);
-        if ($canSave) {
-            $this->writeCache($entries, $today, $result['skipped']);
-            $this->clearFailure();
-        }
+        $this->writeCache($entries, $today, $result['skipped']);
+        $this->clearFailure();
         return new DebtDataset($entries, $today);
+    }
+
+    /**
+     * Used when no new data can be loaded: the saved copy marked stale, or the friendly error.
+     */
+    private function savedCopyOrFail(?DebtDataset $cached, ?Throwable $previous = null): DebtDataset
+    {
+        if ($cached === null) {
+            throw new DataUnavailableException($previous);
+        }
+        return new DebtDataset($cached->all(), $cached->savedOn(), true);
     }
 
     /**
@@ -190,7 +248,9 @@ final class DebtRepository implements DebtSource
         }
         $target = $this->path(self::CACHE_FILE);
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
-        if (@file_put_contents($tmp, $payload, LOCK_EX) === false || !@rename($tmp, $target)) {
+        if (@file_put_contents($tmp, $payload, LOCK_EX) === false
+            || !@chmod($tmp, self::FILE_MODE)
+            || !@rename($tmp, $target)) {
             @unlink($tmp);
             error_log("UsDebt: could not write the cache file {$target}.");
         }
@@ -237,11 +297,6 @@ final class DebtRepository implements DebtSource
         return array_values($entries);
     }
 
-    private function asStale(DebtDataset $cached): DebtDataset
-    {
-        return new DebtDataset($cached->all(), $cached->savedOn(), true);
-    }
-
     private function failedRecently(): bool
     {
         $raw = @file_get_contents($this->path(self::FAIL_FILE));
@@ -253,7 +308,10 @@ final class DebtRepository implements DebtSource
 
     private function markFailure(): void
     {
-        @file_put_contents($this->path(self::FAIL_FILE), (string) $this->now());
+        $file = $this->path(self::FAIL_FILE);
+        if (@file_put_contents($file, (string) $this->now()) !== false) {
+            @chmod($file, self::FILE_MODE);
+        }
     }
 
     private function clearFailure(): void
@@ -266,7 +324,7 @@ final class DebtRepository implements DebtSource
 
     private function ensureCacheDir(): bool
     {
-        if (!is_dir($this->cacheDir) && !@mkdir($this->cacheDir, 0775, true) && !is_dir($this->cacheDir)) {
+        if (!is_dir($this->cacheDir) && !@mkdir($this->cacheDir, self::DIR_MODE, true) && !is_dir($this->cacheDir)) {
             return false;
         }
         return is_writable($this->cacheDir);
@@ -285,5 +343,13 @@ final class DebtRepository implements DebtSource
     private function now(): int
     {
         return ($this->clock)()->getTimestamp();
+    }
+
+    private static function logOnce(string $message): void
+    {
+        if (!isset(self::$logged[$message])) {
+            self::$logged[$message] = true;
+            error_log($message);
+        }
     }
 }
