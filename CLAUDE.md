@@ -38,7 +38,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
     - **d.** `Model/` — `RequestModel.php` (dates, picked terms, trend on/off), `DebtEntry.php`, `DebtDataset.php`.
     - **e.** `Service/FiscalDataClient.php` — downloads the full Treasury history, page by page.
     - **f.** `Service/DebtSource.php` (the interface) and `Service/DebtRepository.php` — the daily cache.
-    - **g.** `Service/TrendService.php` — the straight trend line and projection.
+    - **g.** `Service/TrendService.php` — the straight trend line and its projection, and the growth curve (least squares on ln(value)) and its projection.
     - **h.** `Service/CompareService.php` — checks the picked terms and builds the Compare series.
     - **i.** `Service/StatsCalculator.php`, `ChartData.php`, `Html.php` — stats, chart data shaping, safe HTML output.
     - **j.** `Service/PresidentService.php` — fixed list of presidents (term dates, photo, chart colour).
@@ -70,7 +70,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 
 1. Chart data goes to the page in one block: `<script type="application/json" id="chart-data">`. The page script reads it.
 2. CSP-ready: no inline scripts, no inline styles, no inline event handlers. The page script is a separate file.
-3. Colours come from CSS variables in `css/usdebt.css`. Term lines use neutral colours. Red (`--trend`, and darker `--trend-curve`) is reserved for the date-range trend lines and their projections.
+3. Colours come from CSS variables in `css/usdebt.css`. Term lines use neutral colours. Red (`--trend`, and the separate `--trend-curve` shade) is reserved for the date-range trend lines and their projections.
 4. Compare is labelled "View by presidential term", with the caption that Congress sets spending and taxes and terms are shown for reference only.
 5. Quick ranges (1M, 1Y, 5Y, This term) are plain links. They are month-end safe: Mar 31 minus one month gives Feb 28 or 29, never Mar 3.
 6. Share button (chart card header, next to "Trend line"): a `<details>` menu, so it works with JavaScript off.
@@ -87,14 +87,15 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 5. The Stats tab has a row "Trend (straight line)": about +$X billion per day. It also has "Growth curve: about +X% per year".
 6. The growth curve IS built (Rob approved it for version 1). It is drawn beside the straight line on the date-range chart.
     - **a.** Method: least squares on ln(value) against calendar days. Days with a non-positive value are skipped.
-    - **b.** Annual growth % comes from the fitted slope. R² is measured on the dollar scale.
+    - **b.** Annual growth % comes from the fitted slope and is shown on the Stats tab. R² is measured on the dollar scale and sent in the chart data, but the page does not show it.
     - **c.** Its own projection follows the same rules as the straight line: 25% of the range, at least 3 days, at most 365 days.
-    - **d.** Look: straight line solid red, its projection dashed red. Curve dark-red dotted, its projection dark-red dash-dot. CSS variable `--trend-curve` (light and dark mode).
+    - **d.** Look: straight line solid red, its projection dashed red. Curve dotted, its projection dash-dot, in the `--trend-curve` shade (darker red in light mode, paler pink in dark mode). The dotted pattern is the real way to tell it from the straight line.
     - **e.** Test data: `tests/fixtures/debt_monthly_2000_2026.json`. Node checks: `tests/js/*.check.js`.
 
 ## 7. Run locally
 
 1. From the repo root: `php -S localhost:8000 -t src/Public`. This starts on PHP 8.2 (checked 2026-11-12).
+    - **a.** To also draw the share picture card, start it with gd loaded: `php -d extension=gd -S localhost:8000 -t src/Public`. Without gd, `card.php` shows a short plain-text error and everything else works.
 2. Open `http://localhost:8000/`.
 3. Set `USDEBT_DEV=1` to show errors on the page while developing. Without it, errors go to the log only.
 4. `index.php` loads `bootstrap.php` with `__DIR__`, so it does not depend on the working folder. Keep `src/Public` as the document root.

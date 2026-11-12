@@ -17,13 +17,13 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 3. **USD-2** — look and feel, one chart library (Chart.js 4), neutral term colors. Done.
 4. **USD-3** — trend line. Built (straight line and projection). Waiting on Rob's review stop.
     - **a.** **USD-5** — growth curve beside the straight line, each with its own projection. Built.
-5. **Features, in Rob's order (next):** share link + picture card, Your Share, Since you were born.
+5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, waiting on Rob's review stop). Next: Your Share, then Since you were born.
 6. **USD-4** — deploy to `usdebt.bengusa.pro`. Not started. Going live waits for Rob's direct go.
 
 Rob's review stops, in build order (the build runs all day and stops only here):
 
 1. When the red trend line is implemented. Reached.
-2. When "Share link + picture card" is done.
+2. When "Share link + picture card" is done. Reached.
 3. When "Your Share" is done.
 4. When "Since you were born" is done.
 
@@ -46,11 +46,11 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **d.** A dashed red line labeled "Projection" continues the trend into the future. Status: built.
         - **i.** Length: 25% of the shown range, at least 3 days, at most 365 days.
     - **e.** A growth curve (steady percent growth) is built in version 1, next to the straight line. Rob: "Q2, Sure". Status: built.
-        - **i.** Method: least squares on ln(value) against calendar days. Non-positive days are skipped. It shows annual growth % and R² (on the dollar scale).
+        - **i.** Method: least squares on ln(value) against calendar days. Non-positive days are skipped. The page shows annual growth %. (R² is worked out in the code and sent to the chart data, but the page does not display it.)
         - **ii.** Its own projection follows the same rules as the straight line (25% of range, at least 3 days, at most 365 days).
-        - **iii.** Look: curve dark-red dotted, its projection dark-red dash-dot. Straight line solid red, its projection dashed red. One switch hides all four.
+        - **iii.** Look: curve in a different red shade, dotted, its projection dash-dot. Straight line solid red, its projection dashed red. One switch hides all four. The shade is darker red in light mode and a paler pink in dark mode, so the dotted pattern is what really tells the curve apart from the straight line.
         - **iv.** Compare keeps straight per-president trends only. No curve in version 1.
-        - **v.** Example, range 2000 to today: today's debt is $40.56T. The straight projection reaches $36.13T. The curve projection reaches $46.03T by Nov 9, 2027 (about 8.1% a year). The curve follows the data better.
+        - **v.** Example, range 2000 to today, live daily data on 2026-11-12: today's debt is $40.56T. The straight projection reaches $36.13T. The curve projection reaches $46.03T by Nov 9, 2027 (about 8.1% a year). The curve follows the data better. (The monthly test data gives slightly different numbers: 36.21, 46.00 and 8.05%.)
     - **f.** The Stats tab shows "Trend (straight line): about +$X billion per day" and "Growth curve: about +X% per year". Status: built.
 3. **R3 — Trend line on/off button.**
     - **a.** A "Trend line" button turns the trend line and projection off and on. Status: built.
@@ -60,9 +60,15 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **b.** Host: its own small AWS Lightsail server (about $5 a month). nginx and PHP.
     - **c.** Deploy ships `./src` only (allow-list). Rollback in one step.
     - **d.** Going live waits for Rob's direct go. Status: not started.
-5. **R5 — More features, built in this order.** Status: approved 2026-11-12. Next.
-    - **a.** Share link + picture card. Review stop when done.
-    - **b.** Your Share. Review stop when done.
+5. **R5 — More features, built in this order.** Status: approved 2026-11-12.
+    - **a.** Share link + picture card. Status: BUILT (USD-6). Review stop reached.
+        - **i.** Share links are plain GET links for every view: `/?start_date=…&end_date=…[&trend=0]` and `/?compare=id,…`. The Compare form POST still works. No cap on the Compare list.
+        - **ii.** `card.php` draws a 1200×630 PNG picture card (DejaVu Sans font). Cards are cached in the `cards` folder inside the cache folder: at most 500 files, oldest removed first.
+        - **iii.** Each page has og and twitter preview tags. Links in them are absolute and built from `USDEBT_BASE_URL`, never from the request's Host header.
+        - **iv.** Share menu: copy link, download picture, plain links to X, Facebook, LinkedIn, Reddit and email, and the phone's own share sheet where available.
+        - **v.** No third-party scripts. All share wording lives in `ShareText.php`.
+        - **vi.** The server needs PHP gd with FreeType. Without it the card returns a short plain-text error, and the rest of the site works.
+    - **b.** Your Share. Status: next. Review stop when done.
     - **c.** Since you were born. Review stop when done.
         - **i.** Treasury data does not go back to every birth year. If the birth year is too early, show a funny, friendly alert. Example: "You are too old! Sorry!"
         - **ii.** The joke is about the data being young, not the person. Neutral, never mean.
@@ -84,6 +90,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
 
 1. **R1:** any look Rob likes (a site to copy, colors, logo)?
 2. **R4:** public with no login, or behind a password for now?
+3. **Site name:** the page header says "Our U.S. Debt", but the home page share preview title says "U.S. Debt Tracker". Which one should it be everywhere? Rob decides.
 
 Answered 2026-11-12: Curved trend line is in version 1 (Rob: "Q2, Sure"). User-picked chart colors wait for version 2 (Rob: "Q3, Wait").
 Decision 2026-11-12: no AI-tool attribution in commits or PR descriptions (no co-author line, no "generated with" line). Rob: "No drop it ... I pay the bill, and I do not pay [the tool maker] to advertise for them."
