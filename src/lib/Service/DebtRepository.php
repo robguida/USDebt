@@ -31,7 +31,12 @@ use USDebt\Model\DebtEntry;
  * - If the download fails or is incomplete, nothing is saved: the last good copy is
  *   served marked stale and the download is not retried for RETRY_AFTER_SECONDS,
  *   so a Treasury outage does not make every page wait for the timeout.
+ * - If the download works but cannot be saved (disk full, rename fails), this
+ *   request still shows the new data, and the same back-off starts, so the next
+ *   requests do not download again.
  * - If the download fails and there is no copy, DataUnavailableException is thrown.
+ * - Lasting problems (broken cache folder or lock) are logged once per back-off
+ *   window, not once per page view.
  */
 final class DebtRepository implements DebtSource
 {
@@ -46,7 +51,7 @@ final class DebtRepository implements DebtSource
     private const FORMAT_VERSION = 1;
     private const LOCK_POLL_SECONDS = 0.1;
 
-    /** @var array<string, true> Problems already logged by this PHP process (each is logged once). */
+    /** @var array<string, int> When this PHP process last logged each problem (Unix time). */
     private static array $logged = [];
 
     /** @var Closure(): DateTimeImmutable */
@@ -55,12 +60,16 @@ final class DebtRepository implements DebtSource
     /** @var Closure(float): void */
     private Closure $sleep;
 
+    private string $logMarkerDir;
+
     /**
      * @param string                              $cacheDir        Folder for the cache file. Created if missing. Must not be web-served.
      * @param string|null                         $seedFile        JSON rows for days before the API's first day (see Data/debt_seed_1993.json).
      * @param (Closure(): DateTimeImmutable)|null $clock           "Now"; tests pass a fixed time.
      * @param float                               $lockWaitSeconds Longest wait for another request's download when there is no saved copy.
      * @param (Closure(float): void)|null         $sleep           Pause between lock checks; tests pass their own.
+     * @param string|null                         $logMarkerDir    Where the "already logged" markers go (default: the system temp
+     *                                                             folder, because the cache folder may be the thing that is broken).
      */
     public function __construct(
         private readonly FiscalDataClient $client,
@@ -70,11 +79,13 @@ final class DebtRepository implements DebtSource
         private readonly int $retryAfterSeconds = self::RETRY_AFTER_SECONDS,
         private readonly float $lockWaitSeconds = self::LOCK_WAIT_SECONDS,
         ?Closure $sleep = null,
+        ?string $logMarkerDir = null,
     ) {
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable('now', new DateTimeZone('America/New_York'));
         $this->sleep = $sleep ?? static function (float $seconds): void {
             usleep((int) ($seconds * 1_000_000));
         };
+        $this->logMarkerDir = $logMarkerDir ?? sys_get_temp_dir();
     }
 
     public function load(): DebtDataset
@@ -86,7 +97,7 @@ final class DebtRepository implements DebtSource
         }
 
         if (!$this->ensureCacheDir()) {
-            self::logOnce("UsDebt: cache folder {$this->cacheDir} is missing or not writable; not downloading until it is fixed.");
+            $this->logOnce("UsDebt: cache folder {$this->cacheDir} is missing or not writable; not downloading until it is fixed.");
             return $this->savedCopyOrFail($cached);
         }
 
@@ -97,7 +108,7 @@ final class DebtRepository implements DebtSource
         $lockFile = $this->path(self::LOCK_FILE);
         $lock = @fopen($lockFile, 'c');
         if ($lock === false) {
-            self::logOnce("UsDebt: could not open the cache lock file {$lockFile}; not downloading until it is fixed.");
+            $this->logOnce("UsDebt: could not open the cache lock file {$lockFile}; not downloading until it is fixed.");
             return $this->savedCopyOrFail($cached);
         }
         @chmod($lockFile, self::FILE_MODE);
@@ -168,7 +179,12 @@ final class DebtRepository implements DebtSource
             error_log("UsDebt: Treasury download skipped {$result['skipped']} bad row(s).");
         }
         $entries = $this->withSeed($result['entries']);
-        $this->writeCache($entries, $today, $result['skipped']);
+        if (!$this->writeCache($entries, $today, $result['skipped'])) {
+            // The download worked but could not be saved (disk full, rename failed).
+            // Start the back-off so the next requests do not download again.
+            $this->markFailure();
+            return new DebtDataset($entries, $today);
+        }
         $this->clearFailure();
         return new DebtDataset($entries, $today);
     }
@@ -227,8 +243,9 @@ final class DebtRepository implements DebtSource
 
     /**
      * @param list<DebtEntry> $entries
+     * @return bool  False when nothing could be saved.
      */
-    private function writeCache(array $entries, string $today, int $skipped): void
+    private function writeCache(array $entries, string $today, int $skipped): bool
     {
         $rows = [];
         foreach ($entries as $e) {
@@ -244,7 +261,7 @@ final class DebtRepository implements DebtSource
         ], JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
         if ($payload === false) {
             error_log('UsDebt: could not encode the cache file.');
-            return;
+            return false;
         }
         $target = $this->path(self::CACHE_FILE);
         $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
@@ -252,8 +269,10 @@ final class DebtRepository implements DebtSource
             || !@chmod($tmp, self::FILE_MODE)
             || !@rename($tmp, $target)) {
             @unlink($tmp);
-            error_log("UsDebt: could not write the cache file {$target}.");
+            error_log("UsDebt: could not write the cache file {$target}; not downloading again for {$this->retryAfterSeconds} seconds.");
+            return false;
         }
+        return true;
     }
 
     /**
@@ -345,11 +364,29 @@ final class DebtRepository implements DebtSource
         return ($this->clock)()->getTimestamp();
     }
 
-    private static function logOnce(string $message): void
+    /**
+     * Log a lasting problem at most once per back-off window (retryAfterSeconds),
+     * across ALL PHP processes. Under PHP-FPM a static variable is reset on every
+     * request, so the window is kept as a small marker file (its modified time).
+     * If the marker cannot be written, this process still logs only once per window.
+     */
+    private function logOnce(string $message): void
     {
-        if (!isset(self::$logged[$message])) {
-            self::$logged[$message] = true;
-            error_log($message);
+        $now = $this->now();
+        $key = sha1($this->cacheDir . "\0" . $message);
+        $last = self::$logged[$key] ?? null;
+        if ($last !== null && $now - $last >= 0 && $now - $last < $this->retryAfterSeconds) {
+            return;
         }
+        $marker = rtrim($this->logMarkerDir, '/\\') . DIRECTORY_SEPARATOR . 'usdebt-log-' . $key;
+        clearstatcache(true, $marker);
+        $seen = @filemtime($marker);
+        if ($seen !== false && $now - $seen >= 0 && $now - $seen < $this->retryAfterSeconds) {
+            self::$logged[$key] = $seen; // another process logged it in this window
+            return;
+        }
+        self::$logged[$key] = $now;
+        @touch($marker, $now);
+        error_log($message);
     }
 }

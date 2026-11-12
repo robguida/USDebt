@@ -38,7 +38,17 @@ final class DebtRepositoryTest extends TestCase
         float $lockWait = DebtRepository::LOCK_WAIT_SECONDS,
         ?\Closure $sleep = null,
     ): DebtRepository {
-        return new DebtRepository(new FiscalDataClient($fetcher), $this->dir, $seed, fn () => $this->now, 900, $lockWait, $sleep);
+        return new DebtRepository(new FiscalDataClient($fetcher), $this->dir, $seed, fn () => $this->now, 900, $lockWait, $sleep, $this->markerDir());
+    }
+
+    /** Folder for the "already logged" markers, inside this test's temp folder. */
+    private function markerDir(): string
+    {
+        $dir = $this->dir . '/log-markers';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+        return $dir;
     }
 
     /** @return resource  The lock, held as if another request were downloading. */
@@ -226,7 +236,7 @@ final class DebtRepositoryTest extends TestCase
         $blocked = $this->dir . '/not-a-folder';
         file_put_contents($blocked, 'x');
         $fetcher = new FakeHttpFetcher(self::okBody());
-        $repo = new DebtRepository(new FiscalDataClient($fetcher), $blocked, null, fn () => $this->now, 900);
+        $repo = new DebtRepository(new FiscalDataClient($fetcher), $blocked, null, fn () => $this->now, 900, 1.0, null, $this->markerDir());
 
         for ($i = 0; $i < 3; $i++) {
             try {
@@ -414,5 +424,95 @@ final class DebtRepositoryTest extends TestCase
 
         self::assertSame(['2026-11-09'], array_map(fn ($e) => $e->effectiveDate, $slice));
         self::assertSame([], $data->between(new DateTimeImmutable('2026-11-10'), new DateTimeImmutable('2026-11-01')));
+    }
+
+    public function testDownloadThatCannotBeSavedStartsTheBackOff(): void
+    {
+        // A folder where the cache file should be: the rename onto it fails.
+        mkdir($this->dir . '/' . DebtRepository::CACHE_FILE);
+        $fetcher = new FakeHttpFetcher(self::okBody());
+
+        $data = $this->repo($fetcher)->load();
+        self::assertSame(3, $data->count(), 'this request still shows the new data');
+        self::assertFalse($data->isStale());
+        self::assertFileExists($this->dir . '/' . DebtRepository::FAIL_FILE);
+        self::assertSame([], glob($this->dir . '/*.tmp'), 'the temp file is cleaned up');
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->now = $this->now->modify('+1 minute');
+            try {
+                $this->repo($fetcher)->load();
+                self::fail('expected DataUnavailableException');
+            } catch (DataUnavailableException) {
+                // No saved copy and inside the back-off: friendly error, no download.
+            }
+        }
+        self::assertCount(1, $fetcher->calls, 'no download per page view while the copy cannot be saved');
+
+        $this->now = $this->now->modify('+20 minutes');
+        $this->repo($fetcher)->load();
+        self::assertCount(2, $fetcher->calls, 'tries again after the back-off window');
+    }
+
+    public function testLastingProblemIsLoggedOncePerBackOffWindowAcrossProcesses(): void
+    {
+        $blocked = $this->dir . '/not-a-folder';
+        file_put_contents($blocked, 'x');
+        $log = $this->dir . '/php-error.log';
+        $count = fn (): int => is_file($log) ? substr_count((string) file_get_contents($log), 'is missing or not writable') : 0;
+        $oldLog = ini_set('error_log', $log);
+        try {
+            for ($i = 0; $i < 3; $i++) {
+                $this->loadIgnoringFriendlyError($blocked, $this->markerDir());
+            }
+            self::assertSame(1, $count(), 'three page views, one log line');
+
+            // A new PHP-FPM request starts with empty static state; the marker file still holds.
+            self::forgetWhatThisProcessLogged();
+            $this->now = $this->now->modify('+5 minutes');
+            $this->loadIgnoringFriendlyError($blocked, $this->markerDir());
+            self::assertSame(1, $count(), 'still inside the window in a new process');
+
+            self::forgetWhatThisProcessLogged();
+            $this->now = $this->now->modify('+11 minutes');
+            $this->loadIgnoringFriendlyError($blocked, $this->markerDir());
+            self::assertSame(2, $count(), 'logged again once the window has passed');
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+    }
+
+    public function testLastingProblemIsLoggedOncePerWindowEvenWhenNoMarkerCanBeWritten(): void
+    {
+        $blocked = $this->dir . '/not-a-folder';
+        file_put_contents($blocked, 'x');
+        $log = $this->dir . '/php-error.log';
+        $oldLog = ini_set('error_log', $log);
+        try {
+            for ($i = 0; $i < 3; $i++) {
+                $this->loadIgnoringFriendlyError($blocked, $this->dir . '/no-such-folder');
+            }
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+        self::assertSame(1, substr_count((string) file_get_contents($log), 'is missing or not writable'));
+    }
+
+    private function loadIgnoringFriendlyError(string $cacheDir, string $markerDir): void
+    {
+        $repo = new DebtRepository(
+            new FiscalDataClient(new FakeHttpFetcher(self::okBody())), $cacheDir, null, fn () => $this->now, 900, 1.0, null, $markerDir
+        );
+        try {
+            $repo->load();
+            self::fail('expected DataUnavailableException');
+        } catch (DataUnavailableException) {
+            // Nothing can be saved, so the visitor gets the friendly error.
+        }
+    }
+
+    private static function forgetWhatThisProcessLogged(): void
+    {
+        (new \ReflectionProperty(DebtRepository::class, 'logged'))->setValue(null, []);
     }
 }
