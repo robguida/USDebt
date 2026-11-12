@@ -19,12 +19,12 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 5. **Features, in Rob's order:** share link + picture card, Your Share, Since you were born.
 6. **USD-4** — deploy to `usdebt.bengusa.pro`. Going live waits for Rob's direct go.
 
-Rob's review stops (the build runs all day and stops only here):
+Rob's review stops, in build order (the build runs all day and stops only here):
 
 1. When the red trend line is implemented.
-2. When "Your Share" is done.
-3. When "Since you were born" is done.
-4. When "Share link + picture card" is done.
+2. When "Share link + picture card" is done.
+3. When "Your Share" is done.
+4. When "Since you were born" is done.
 
 ## Requirements
 
@@ -53,23 +53,21 @@ Rob's review stops (the build runs all day and stops only here):
         - **i.** Treasury data does not go back to every birth year. If the birth year is too early, show a funny, friendly alert. Example: "You are too old! Sorry!"
         - **ii.** The joke is about the data being young, not the person. Neutral, never mean.
 6. **R6 — Backend (plan USD-1).**
-    - **a.** Cache the Treasury data once per day. Rob: once per day for each unique request, unless there is a more efficient way. Status: approved 2026-11-12. Method open. The team confirms which is more efficient: one daily copy per unique request, or one daily copy of the full dataset.
+    - **a.** Cache the Treasury data once per day. Rob: once per day for each unique request, unless there is a more efficient way. Status: approved 2026-11-12. Answered: one daily copy of the full dataset. Why: one download serves every request, and Compare costs zero extra Treasury calls. Built in USD-1.
     - **b.** Timeouts and error handling on the Treasury call. Status: approved 2026-11-12.
     - **c.** Delete the old dead debug page (`src/Public/index.topdown.php`) and unused libraries. Status: approved 2026-11-12.
-    - **d.** PHP: latest stable version the server supports. Status: approved 2026-11-12. Docker only if needed to avoid conflicts. Rob wants to be told first. Status: open.
+    - **d.** PHP: latest stable version the server supports. Status: approved 2026-11-12. Answered: production targets PHP 8.5 on a dedicated server, no Docker.
     - **e.** Tests for new and changed behavior. Status: approved 2026-11-12.
 7. **R7 — Compare list.**
     - **a.** The Compare list is NOT capped. Rob: it is one of the most important pages, because all presidents can be stacked against each other. Status: approved 2026-11-12.
-    - **b.** When a president has a gap between terms and both terms are selected, show the data as one continuous run. Version 1 if it takes under a day. If longer, version 2. Status: open. Estimate pending.
+    - **b.** When a president has a gap between terms and both terms are selected, show the data as one continuous run. Status: version 1, built in USD-1.
 
 ## Open questions
 
 1. **R2e:** curved line: hours estimate, then Rob picks version 1 or version 2.
 2. **R1d:** user-picked chart colors in a cookie: estimate, then Rob decides.
-3. **R6a:** cache method: per unique request, or one full-dataset copy per day.
-4. **R6d:** does the server need Docker for the latest PHP?
-5. **R7b:** gap-between-terms run: under a day (version 1) or version 2?
-6. **R1:** any look Rob likes (a site to copy, colors, logo)?
-7. **R4:** public with no login, or behind a password for now?
+3. **R1b:** phone support (assumed, to confirm).
+4. **R1:** any look Rob likes (a site to copy, colors, logo)?
+5. **R4:** public with no login, or behind a password for now?
 
-Answered 2026-11-12: Compare list stays uncapped. Projection into the future: yes. Address: `usdebt.bengusa.pro`. Treasury calls are cached daily.
+Answered 2026-11-12: Compare list stays uncapped. Projection into the future: yes. Address: `usdebt.bengusa.pro`. Treasury calls are cached daily (one full-dataset copy). PHP 8.5, no Docker. Gap-between-terms run is in version 1.

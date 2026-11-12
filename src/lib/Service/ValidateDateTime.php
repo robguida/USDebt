@@ -6,30 +6,20 @@
  * Time: 7:39 PM
  */
 
+declare(strict_types=1);
+
 namespace USDebt\Service;
 
-use DateTime;
-use InvalidArgumentException;
+use DateTimeImmutable;
 
 class ValidateDateTime
 {
     /**
-     * @param $input
-     * @param bool $suppress
-     * @return bool
+     * Strict Y-m-d check: the date must exist (no 2020-02-30) and match the format exactly.
      */
-    public static function validate($input, $suppress = false)
+    public static function isValid(string $input): bool
     {
-        DateTime::createFromFormat('Y-m-d', $input);
-        if ($date_errors = DateTime::getLastErrors()) {
-            if (!$suppress && !empty($date_errors['errors'])) {
-                throw new InvalidArgumentException(print_r($date_errors['errors'], true));
-            } else {
-                $output = empty($date_errors['errors']);
-            }
-        } else {
-            $output = true;
-        }
-        return $output;
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $input);
+        return $date !== false && $date->format('Y-m-d') === $input;
     }
 }

@@ -6,98 +6,68 @@
  * Time: 6:55 PM
  */
 
+declare(strict_types=1);
+
 namespace USDebt\Model;
 
-use DateTime;
-use InvalidArgumentException;
+use DateTimeImmutable;
+use USDebt\Exception\UserFacingException;
 use USDebt\Service\ValidateDateTime;
 
 class RequestModel
 {
-    /** @var DateTime */
-    private $startDate;
+    private ?DateTimeImmutable $startDate = null;
 
-    /** @var DateTime */
-    private $endDate;
+    private ?DateTimeImmutable $endDate = null;
 
-    /** @var array */
-    private $compare_pres;
+    /** @var list<int> */
+    private array $comparePres = [];
 
     /**
-     * @param int $input
+     * @param list<int> $keys  Validated term ids (no cap on how many).
      */
-    public function addComparePres($input)
+    public function setComparePres(array $keys): void
     {
-        if (false === filter_var($input, FILTER_VALIDATE_INT)) {
-            throw new InvalidArgumentException("{$input} is not a valid integer");
-        }
-        $this->compare_pres[] = $input;
-    }
-
-    /**
-     * @param array $input
-     */
-    public function setComparePres(array $input)
-    {
-        if (1 >= count($input)) {
-            throw new InvalidArgumentException("You must select at least 2 presidents");
-        }
-        $this->compare_pres = $input;
-    }
-
-    /**
-     * @return array
-     */
-    public function getComparePres()
-    {
-        return $this->compare_pres;
-    }
-
-    /**
-     * @param bool $ref
-     * @return DateTime
-     */
-    public function getStartDate($ref = false)
-    {
-        return ($ref) ? $this->startDate : clone $this->startDate;
-    }
-
-    /**
-     * @param string|DateTime $start_date
-     */
-    public function setStartDate($start_date)
-    {
-        if ($start_date instanceof  DateTime) {
-            $this->startDate = $start_date;
-        } elseif (ValidateDateTime::validate($start_date)) {
-            if (!$start_date instanceof DateTime) {
-                $start_date = new DateTime($start_date);
-            }
-            $this->startDate = $start_date;
+        $this->comparePres = array_values($keys);
+        if (count($this->comparePres) < 2) {
+            throw new UserFacingException('Please pick at least 2 presidents to compare.');
         }
     }
 
-    /**
-     * @param bool $ref
-     * @return DateTime
-     */
-    public function getEndDate($ref = false)
+    /** @return list<int> */
+    public function getComparePres(): array
     {
-        return ($ref) ? $this->endDate : clone $this->endDate;
+        return $this->comparePres;
     }
 
-    /**
-     * @param string|DateTime $end_date
-     */
-    public function setEndDate($end_date)
+    public function getStartDate(): ?DateTimeImmutable
     {
-        if ($end_date instanceof  DateTime) {
-            $this->endDate = $end_date;
-        } elseif (ValidateDateTime::validate($end_date)) {
-            if (!$end_date instanceof DateTime) {
-                $end_date = new DateTime($end_date);
-            }
-            $this->endDate = $end_date;
+        return $this->startDate;
+    }
+
+    public function setStartDate(DateTimeImmutable|string $startDate): void
+    {
+        $this->startDate = self::toDate($startDate, 'Start date');
+    }
+
+    public function getEndDate(): ?DateTimeImmutable
+    {
+        return $this->endDate;
+    }
+
+    public function setEndDate(DateTimeImmutable|string $endDate): void
+    {
+        $this->endDate = self::toDate($endDate, 'End date');
+    }
+
+    private static function toDate(DateTimeImmutable|string $value, string $label): DateTimeImmutable
+    {
+        if ($value instanceof DateTimeImmutable) {
+            return $value->setTime(0, 0);
         }
+        if (!ValidateDateTime::isValid($value)) {
+            throw new UserFacingException("{$label} must be a real date written as YYYY-MM-DD.");
+        }
+        return new DateTimeImmutable($value);
     }
 }

@@ -28,3 +28,7 @@
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Runtime data written by the app (daily Treasury cache). Rebuilt on demand.
+/src/var/
+/tests/.tmp/

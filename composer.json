@@ -1,5 +1,5 @@
 {
-  "name": "RobGuida/USDebt",
+  "name": "robguida/usdebt",
   "description": "Graphical interface for our National Debt",
   "minimum-stability": "stable",
   "license": "proprietary",
@@ -10,9 +10,20 @@
     }
   ],
   "require": {
-    "php": ">=5.4"
+    "php": ">=8.2",
+    "ext-curl": "*",
+    "ext-json": "*"
   },
   "require-dev": {
-    "phpunit/phpunit": ">7"
+    "phpunit/phpunit": "^11.5"
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "USDebt\\": "src/lib/",
+      "USDebt\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true
   }
 }
