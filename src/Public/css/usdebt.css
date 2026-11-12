@@ -322,6 +322,7 @@ main.wrap {
     overscroll-behavior-x: contain;
 }
 .term {
+    position: relative; /* keeps its hidden screen-reader text inside the scrolling strip, not stretching the page */
     scroll-snap-align: start;
     display: grid;
     gap: 6px;

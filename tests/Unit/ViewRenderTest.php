@@ -301,6 +301,9 @@ final class ViewRenderTest extends TestCase
         self::assertSame(1, preg_match_all('/--trend:\s*#c62828;/', $css), 'the one red is the trend color');
         self::assertStringContainsString('@media (prefers-color-scheme: dark)', $css);
         self::assertMatchesRegularExpression('/font-variant-numeric:\s*tabular-nums/', $css);
+        // The hidden screen-reader text in each term card stays inside the sideways strip;
+        // without this the page scrolls sideways on phones.
+        self::assertMatchesRegularExpression('/\.term \{\s*position: relative;/', $css);
 
         $js = $this->script();
         self::assertStringNotContainsString('innerHTML', $js, 'the script never writes raw HTML');
