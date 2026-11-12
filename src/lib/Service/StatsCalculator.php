@@ -16,6 +16,9 @@ use USDebt\Model\DebtEntry;
  *
  * trend_per_day = slope of the straight trend line (TrendService), in dollars
  * per calendar day; null when the range has fewer than 2 days.
+ *
+ * growth_pct_per_year = yearly growth of the growth curve (TrendService::growth),
+ * in percent; null when there is no curve.
  */
 final class StatsCalculator
 {
@@ -26,7 +29,7 @@ final class StatsCalculator
      * @return array{first_debt: float, last_debt: float, delta: float, average_per_day: float,
      *               working_days: int, total_days: int, days_above_start: int, pct_above_start: float,
      *               days_below_start: int, pct_below_start: float,
-     *               trend_per_day: float|null}|null
+     *               trend_per_day: float|null, growth_pct_per_year: float|null}|null
      */
     public static function summarize(array $entries): ?array
     {
@@ -41,6 +44,7 @@ final class StatsCalculator
         $totalDays = (int) (new DateTimeImmutable($first->effectiveDate))->diff(new DateTimeImmutable($last->effectiveDate))->days;
 
         $trendSlope = TrendService::slopePerDay($entries);
+        $growthPct = TrendService::growthPctPerYear($entries);
 
         $above = 0;
         $below = 0;
@@ -64,6 +68,7 @@ final class StatsCalculator
             'days_below_start' => $below,
             'pct_below_start' => round($below / $workingDays * 100, 2),
             'trend_per_day' => $trendSlope === null ? null : round($trendSlope * self::TRILLION, 2),
+            'growth_pct_per_year' => $growthPct === null ? null : round($growthPct, 2),
         ];
     }
 }

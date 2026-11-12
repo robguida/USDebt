@@ -14,8 +14,13 @@ use USDebt\Model\DebtEntry;
  * - Date-range chart: two extra series, key "trend" (fitted over the shown
  *   days) and key "projection" (the same line carried past the last day,
  *   flagged "projection": true). Left out when there are fewer than 2 days.
+ *   Next to it, the growth curve (TrendService::growth): key "curve" (fitted
+ *   over the shown days) and key "curve_projection" (carried past the last
+ *   day over the same days as "projection", flagged "projection": true).
+ *   Left out when there are fewer than 2 days with a value above zero.
  * - Compare chart: each president's series carries its own "trend" (or null),
- *   fitted over that series' months in office. No projection.
+ *   fitted over that series' months in office. No projection, and no growth
+ *   curve (one extra line per term would double the lines on that chart).
  */
 final class ChartData
 {
@@ -28,6 +33,7 @@ final class ChartData
      * @return array{type: string, series: list<array<string, mixed>>}
      *   Every series has key, label and points = [ISO date, debt in trillions USD].
      *   "trend" also has slope_per_day (trillions per day) and r2.
+     *   "curve" also has growth_pct_per_year (percent) and r2 (on the dollar scale).
      */
     public static function daily(array $entries): array
     {
@@ -53,6 +59,23 @@ final class ChartData
                 'label' => 'Projection if the trend continues',
                 'projection' => true,
                 'points' => $trend['projection'],
+            ];
+        }
+
+        $curve = TrendService::growth($entries);
+        if ($curve !== null) {
+            $series[] = [
+                'key' => 'curve',
+                'label' => 'Trend (growth curve)',
+                'growth_pct_per_year' => round($curve['annual_growth_pct'], 4),
+                'r2' => round($curve['r2'], 4),
+                'points' => $curve['fitted'],
+            ];
+            $series[] = [
+                'key' => 'curve_projection',
+                'label' => 'Growth projection',
+                'projection' => true,
+                'points' => $curve['projection'],
             ];
         }
 

@@ -19,6 +19,10 @@ use USDebt\Model\DebtEntry;
  *   25% of the shown range, at least PROJECTION_MIN_DAYS, at most
  *   PROJECTION_MAX_DAYS (12 months). One point per calendar day.
  * - Chart values are in trillions of U.S. dollars, like ChartData.
+ *
+ * growth() adds a second, curved line next to the straight one: steady
+ * percent growth, value = A * e^(k * t), with t in calendar days. It uses the
+ * same x values and the same projection rules as the straight line.
  */
 final class TrendService
 {
@@ -101,15 +105,11 @@ final class TrendService
         }
 
         $lastOffset = $points[count($points) - 1][0];
-        $days = self::projectionDays($lastOffset);
-        $lastDate = new DateTimeImmutable($entries[count($entries) - 1]->effectiveDate, new DateTimeZone('UTC'));
-        $projection = [];
-        for ($k = 1; $k <= $days; $k++) {
-            $projection[] = [
-                $lastDate->modify("+{$k} days")->format('Y-m-d'),
-                round($line['intercept'] + $line['slope'] * ($lastOffset + $k), 6),
-            ];
-        }
+        $projection = self::project(
+            $entries[count($entries) - 1]->effectiveDate,
+            $lastOffset,
+            static fn (int $t): float => $line['intercept'] + $line['slope'] * $t
+        );
 
         return [
             'slope_per_day' => $line['slope'],
@@ -117,10 +117,79 @@ final class TrendService
             'r2' => $line['r2'],
             'first_date' => $entries[0]->effectiveDate,
             'last_date' => $entries[count($entries) - 1]->effectiveDate,
-            'projection_days' => $days,
+            'projection_days' => count($projection),
             'fitted' => $fitted,
             'projection' => $projection,
         ];
+    }
+
+    /**
+     * Growth curve (steady percent growth) for the date-range chart.
+     *
+     * Fitted by least squares on ln(value) against calendar days since the
+     * first day, which gives value = start_value * e^(rate_per_day * t).
+     * The log of a value needs the value to be above zero: a day with a zero,
+     * negative or non-finite value is left out of the fit and counted in
+     * skipped_points (the other days still count). Fewer than 2 usable days,
+     * or all usable days on one date, gives null.
+     *
+     * @param list<DebtEntry> $entries  Any order.
+     * @return array{rate_per_day: float, start_value: float, annual_growth_pct: float, r2: float,
+     *               skipped_points: int, first_date: string, last_date: string, projection_days: int,
+     *               fitted: list<array{0: string, 1: float}>, projection: list<array{0: string, 1: float}>}|null
+     *   start_value is in trillions of dollars, the curve's value on first_date.
+     *   annual_growth_pct = (e^(365 * rate_per_day) - 1) * 100.
+     *   r2 is measured on the original dollar scale (curve vs. the real
+     *   values), not on the log scale the fit uses, so it can be compared with
+     *   the straight line's r2. It is floored at 0.
+     *   fitted has one point per entry, oldest first, on the same dates as the
+     *   chart (a skipped day still gets the curve's value). projection uses
+     *   the same days as the straight line's projection.
+     */
+    public static function growth(array $entries): ?array
+    {
+        $curve = self::fitGrowthDays($entries);
+        if ($curve === null) {
+            return null;
+        }
+        ['entries' => $entries, 'offsets' => $offsets, 'a' => $a, 'k' => $k, 'r2' => $r2, 'skipped' => $skipped] = $curve;
+
+        $fitted = [];
+        foreach ($entries as $i => $entry) {
+            $fitted[] = [$entry->effectiveDate, round($a * exp($k * $offsets[$i]), 6)];
+        }
+
+        $projection = self::project(
+            $entries[count($entries) - 1]->effectiveDate,
+            $offsets[count($offsets) - 1],
+            static fn (int $t): float => $a * exp($k * $t)
+        );
+
+        return [
+            'rate_per_day' => $k,
+            'start_value' => $a,
+            'annual_growth_pct' => self::annualGrowthPct($k),
+            'r2' => $r2,
+            'skipped_points' => $skipped,
+            'first_date' => $entries[0]->effectiveDate,
+            'last_date' => $entries[count($entries) - 1]->effectiveDate,
+            'projection_days' => count($projection),
+            'fitted' => $fitted,
+            'projection' => $projection,
+        ];
+    }
+
+    /**
+     * Growth curve's yearly percent only; null when there is no curve. Same
+     * curve as growth(), without the fitted points or the projection (for the
+     * Stats tab).
+     *
+     * @param list<DebtEntry> $entries  Any order.
+     */
+    public static function growthPctPerYear(array $entries): ?float
+    {
+        $curve = self::fitGrowthDays($entries);
+        return $curve === null ? null : self::annualGrowthPct($curve['k']);
     }
 
     /**
@@ -159,6 +228,79 @@ final class TrendService
             return null;
         }
         return ['entries' => $entries, 'points' => $points, 'line' => $line];
+    }
+
+    /**
+     * Sort by date and fit the growth curve over calendar days since the first
+     * day: least squares on ln(value), then r2 on the original scale.
+     *
+     * @param list<DebtEntry> $entries  Any order.
+     * @return array{entries: list<DebtEntry>, offsets: list<int>, a: float, k: float, r2: float, skipped: int}|null
+     */
+    private static function fitGrowthDays(array $entries): ?array
+    {
+        usort($entries, static fn (DebtEntry $a, DebtEntry $b): int => strcmp($a->effectiveDate, $b->effectiveDate));
+        if (count($entries) < 2) {
+            return null;
+        }
+        $firstDay = self::dayNumber($entries[0]->effectiveDate);
+        $offsets = [];
+        $logPoints = [];
+        $usable = [];
+        $skipped = 0;
+        foreach ($entries as $entry) {
+            $t = self::dayNumber($entry->effectiveDate) - $firstDay;
+            $offsets[] = $t;
+            $value = $entry->totalDebt / self::TRILLION;
+            if (!is_finite($value) || $value <= 0.0) {
+                $skipped++; // no log of zero or less: leave this day out, keep the rest
+                continue;
+            }
+            $logPoints[] = [$t, log($value)];
+            $usable[] = [$t, $value];
+        }
+        $logLine = self::fit($logPoints);
+        if ($logLine === null) {
+            return null; // fewer than 2 usable days, or all on one date
+        }
+        $a = exp($logLine['intercept']);
+        $k = $logLine['slope'];
+
+        // r2 on the original scale: how closely the curve follows the real values.
+        $mean = array_sum(array_column($usable, 1)) / count($usable);
+        $ssTot = 0.0;
+        $ssRes = 0.0;
+        foreach ($usable as [$t, $value]) {
+            $ssTot += ($value - $mean) ** 2;
+            $ssRes += ($value - $a * exp($k * $t)) ** 2;
+        }
+        $r2 = $ssTot == 0.0 ? 1.0 : max(0.0, 1.0 - $ssRes / $ssTot);
+
+        return ['entries' => $entries, 'offsets' => $offsets, 'a' => $a, 'k' => $k, 'r2' => $r2, 'skipped' => $skipped];
+    }
+
+    /** Yearly percent change for a daily rate k: (e^(365k) - 1) * 100. */
+    private static function annualGrowthPct(float $k): float
+    {
+        return (exp(365 * $k) - 1) * 100;
+    }
+
+    /**
+     * Projection points past the last reported day, one per calendar day, for
+     * any line or curve. The number of days follows projectionDays().
+     *
+     * @param callable(int): float $valueAt  Value in trillions at a day offset from the first day.
+     * @return list<array{0: string, 1: float}>
+     */
+    private static function project(string $lastDate, int $lastOffset, callable $valueAt): array
+    {
+        $days = self::projectionDays($lastOffset);
+        $last = new DateTimeImmutable($lastDate, new DateTimeZone('UTC'));
+        $projection = [];
+        for ($d = 1; $d <= $days; $d++) {
+            $projection[] = [$last->modify("+{$d} days")->format('Y-m-d'), round($valueAt($lastOffset + $d), 6)];
+        }
+        return $projection;
     }
 
     /**

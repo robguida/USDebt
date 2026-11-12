@@ -177,8 +177,11 @@ final class ViewRenderTest extends TestCase
         );
 
         $chart = FrontControllerTest::chartJson($html);
-        self::assertSame(['debt', 'trend', 'projection'], array_column($chart['series'], 'key'));
+        self::assertSame(['debt', 'trend', 'projection', 'curve', 'curve_projection'], array_column($chart['series'], 'key'));
         self::assertSame('Trend (straight line)', $chart['series'][1]['label']);
+        self::assertSame('Trend (growth curve)', $chart['series'][3]['label']);
+        self::assertSame('Growth projection', $chart['series'][4]['label']);
+        self::assertTrue($chart['series'][4]['projection']);
         self::assertTrue($chart['series'][2]['projection']);
         $lastDay = $chart['series'][0]['points'][count($chart['series'][0]['points']) - 1][0];
         self::assertGreaterThan($lastDay, $chart['series'][2]['points'][0][0], 'the projection starts after the last data day');
