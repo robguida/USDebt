@@ -280,6 +280,42 @@ final class ViewRenderTest extends TestCase
         self::assertStringContainsString('x.stepSize = DAY_MS * Math.max(1, Math.ceil(spanDays / (x.maxTicks - 1)))', $js);
     }
 
+    public function testTrendLinksStayOnThisSiteEvenOnAPathStartingWithTwoSlashes(): void
+    {
+        // The server writes only relative links ("./..." or "?..."), never the request path.
+        $html = self::app()->handle(['trend' => '0'], [])->body;
+        preg_match_all('#(?:href|action)="([^"]*)"[^>]*data-trend-link#', $html, $targets);
+        self::assertNotEmpty($targets[1]);
+        foreach ($targets[1] as $target) {
+            self::assertMatchesRegularExpression('#^(?:\./|\?)#', $target);
+        }
+
+        // The script resolves against this origin, leaves other origins alone,
+        // and collapses leading slashes so "//evil.example/" cannot come back out.
+        $js = $this->script();
+        self::assertStringContainsString('if (url.origin !== origin) {', $js);
+        self::assertStringContainsString("return url.pathname.replace(/^[\\/\\\\]+/, '/') + url.search + url.hash;", $js);
+        self::assertStringNotContainsString('return url.pathname + url.search', $js);
+        self::assertStringContainsString('if (next !== null) {', $js, 'a link withTrend refuses is not rewritten');
+
+        // Behaviour check in Node, when it is installed.
+        $node = self::findNode();
+        if ($node === null) {
+            self::markTestSkipped('Node is not installed; the static checks above still ran.');
+        }
+        $check = dirname(__DIR__) . '/js/with-trend.check.js';
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($check) . ' 2>&1', $output, $code);
+        self::assertSame(0, $code, implode("\n", $output));
+    }
+
+    private static function findNode(): ?string
+    {
+        $finder = DIRECTORY_SEPARATOR === '\\' ? 'where node 2>NUL' : 'command -v node 2>/dev/null';
+        $found = trim((string) shell_exec($finder));
+        $first = $found === '' ? '' : trim(strtok($found, "\r\n"));
+        return $first !== '' && is_file($first) ? $first : null;
+    }
+
     public function testVendoredChartJsMatchesThePublishedChecksum(): void
     {
         $file = dirname(__DIR__, 2) . '/src/Public/lib/chart.umd.min.js';

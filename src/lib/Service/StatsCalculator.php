@@ -40,7 +40,7 @@ final class StatsCalculator
         // Calendar days from the first to the last reported day (weekends and holidays count).
         $totalDays = (int) (new DateTimeImmutable($first->effectiveDate))->diff(new DateTimeImmutable($last->effectiveDate))->days;
 
-        $trend = TrendService::daily($entries);
+        $trendSlope = TrendService::slopePerDay($entries);
 
         $above = 0;
         $below = 0;
@@ -63,7 +63,7 @@ final class StatsCalculator
             'pct_above_start' => round($above / $workingDays * 100, 2),
             'days_below_start' => $below,
             'pct_below_start' => round($below / $workingDays * 100, 2),
-            'trend_per_day' => $trend === null ? null : round($trend['slope_per_day'] * self::TRILLION, 2),
+            'trend_per_day' => $trendSlope === null ? null : round($trendSlope * self::TRILLION, 2),
         ];
     }
 }

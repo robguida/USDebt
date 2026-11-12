@@ -44,7 +44,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
         - **ii.** No trend when the range has fewer than 2 days.
     - **d.** A dashed red line labeled "Projection" continues the trend into the future. Status: built.
         - **i.** Length: 25% of the shown range, at least 3 days, at most 365 days.
-    - **e.** A curved line instead of straight. Status: open. Rob decides: version 1 or version 2.
+    - **e.** Version 1 uses the straight line (Rob's choice). A curved (percent-growth) line is common for long ranges; adding it as a second line is estimated at 6–8 hours. Whether it goes in version 1 or version 2 is Rob's call (open).
         - **i.** Curves are common for long ranges. Estimate: 6 to 8 hours.
         - **ii.** Why it matters: on a 2000-to-today range, the straight projection lands below today's debt. A curve would follow the data better.
     - **f.** The Stats tab shows "Trend (straight line): about +$X billion per day". Status: built.
@@ -78,7 +78,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
 
 ## Open questions
 
-1. **R2e:** curved line (6 to 8 hours). Rob picks version 1 or version 2.
+1. **R2e:** Version 1 uses the straight line (Rob's choice). A curved (percent-growth) line is common for long ranges; adding it as a second line is estimated at 6–8 hours. Whether it goes in version 1 or version 2 is Rob's call (open).
 2. **R1d:** user-picked chart colors (4 to 6 hours in browser storage, 7 to 9 hours as a cookie). Rob decides whether to build.
 3. **R1:** any look Rob likes (a site to copy, colors, logo)?
 4. **R4:** public with no login, or behind a password for now?

@@ -349,7 +349,7 @@ final class DebtRepositoryTest extends TestCase
     {
         $other = $this->holdLock();
         $sleep = function () use ($other): void {
-            file_put_contents($this->dir . '/' . DebtRepository::FAIL_FILE, (string) $this->now->getTimestamp());
+            touch($this->dir . '/' . DebtRepository::FAIL_FILE, $this->now->getTimestamp());
             flock($other, LOCK_UN);
         };
         $fetcher = new FakeHttpFetcher(self::okBody());
@@ -486,16 +486,154 @@ final class DebtRepositoryTest extends TestCase
     {
         $blocked = $this->dir . '/not-a-folder';
         file_put_contents($blocked, 'x');
+        // A file where the marker folder should be: no marker can be written.
+        $noMarkers = $this->dir . '/markers-blocked';
+        file_put_contents($noMarkers, 'x');
         $log = $this->dir . '/php-error.log';
         $oldLog = ini_set('error_log', $log);
         try {
             for ($i = 0; $i < 3; $i++) {
-                $this->loadIgnoringFriendlyError($blocked, $this->dir . '/no-such-folder');
+                $this->loadIgnoringFriendlyError($blocked, $noMarkers);
             }
         } finally {
             ini_set('error_log', (string) $oldLog);
         }
         self::assertSame(1, substr_count((string) file_get_contents($log), 'is missing or not writable'));
+    }
+
+    public function testEmptyFailureFileStillHoldsTheBackOff(): void
+    {
+        // A full disk leaves the failure file empty: created, but 0 bytes written.
+        // Its modified time alone must start the back-off.
+        $fail = $this->dir . '/' . DebtRepository::FAIL_FILE;
+        touch($fail, $this->now->getTimestamp());
+        self::assertSame(0, filesize($fail));
+        $fetcher = new FakeHttpFetcher(self::okBody());
+
+        for ($i = 0; $i < 3; $i++) {
+            try {
+                $this->repo($fetcher)->load();
+                self::fail('expected DataUnavailableException');
+            } catch (DataUnavailableException) {
+                // No saved copy and inside the back-off: friendly error, no download.
+            }
+            $this->now = $this->now->modify('+1 minute');
+        }
+        self::assertCount(0, $fetcher->calls, 'an empty failure file is still a failure');
+
+        $this->now = $this->now->modify('+20 minutes');
+        self::assertSame(3, $this->repo($fetcher)->load()->count());
+        self::assertCount(1, $fetcher->calls, 'tries again once the window has passed');
+        self::assertFileDoesNotExist($fail, 'a saved download clears the back-off');
+    }
+
+    public function testFullDiskShapeDoesNotTurnIntoOneDownloadPerPageView(): void
+    {
+        // The download works but cannot be saved (rename fails), and the failure
+        // file the disk leaves behind is empty. The back-off must still hold.
+        mkdir($this->dir . '/' . DebtRepository::CACHE_FILE);
+        $fetcher = new FakeHttpFetcher(self::okBody());
+        $this->repo($fetcher)->load();
+
+        $fail = $this->dir . '/' . DebtRepository::FAIL_FILE;
+        self::assertFileExists($fail);
+        $failedAt = filemtime($fail);
+        file_put_contents($fail, ''); // what a writer on a full disk leaves: 0 bytes
+        touch($fail, (int) $failedAt);
+        self::assertSame($this->now->getTimestamp(), $failedAt, 'the failure time is the file\'s modified time');
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->now = $this->now->modify('+1 minute');
+            try {
+                $this->repo($fetcher)->load();
+            } catch (DataUnavailableException) {
+                // Friendly error is fine; a download is not.
+            }
+        }
+        self::assertCount(1, $fetcher->calls, 'no download per page view on a full disk');
+    }
+
+    public function testOldFailureFileDoesNotBlockDownloads(): void
+    {
+        $fail = $this->dir . '/' . DebtRepository::FAIL_FILE;
+        touch($fail, $this->now->getTimestamp() - 1200);
+        $fetcher = new FakeHttpFetcher(self::okBody());
+
+        self::assertSame(3, $this->repo($fetcher)->load()->count());
+        self::assertCount(1, $fetcher->calls);
+    }
+
+    public function testLogMarkersGoInAPrivateFolderNextToTheCacheFolder(): void
+    {
+        $cache = $this->dir . '/cache';
+        mkdir($cache);
+        mkdir($cache . '/' . DebtRepository::LOCK_FILE); // the lock cannot be opened: a lasting problem
+        $log = $this->dir . '/php-error.log';
+        $oldLog = ini_set('error_log', $log);
+        try {
+            $repo = new DebtRepository(new FiscalDataClient(new FakeHttpFetcher(self::okBody())), $cache, null, fn () => $this->now, 900);
+            try {
+                $repo->load();
+                self::fail('expected DataUnavailableException');
+            } catch (DataUnavailableException) {
+                // Friendly error.
+            }
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+
+        $markers = $this->dir . '/' . DebtRepository::MARKER_DIR_NAME;
+        self::assertDirectoryExists($markers, 'default marker folder sits next to the cache folder');
+        self::assertCount(1, array_diff(scandir($markers) ?: [], ['.', '..']));
+        self::assertSame(1, substr_count((string) file_get_contents($log), 'could not open the cache lock file'));
+        if (DIRECTORY_SEPARATOR === '/') {
+            clearstatcache();
+            self::assertSame(0700, fileperms($markers) & 0777);
+        }
+    }
+
+    public function testMarkerFolderOpenToOtherUsersIsMadePrivate(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('Windows does not use POSIX permission bits');
+        }
+        $markers = $this->dir . '/open-markers';
+        mkdir($markers);
+        chmod($markers, 0777);
+        $blocked = $this->dir . '/not-a-folder';
+        file_put_contents($blocked, 'x');
+        $oldLog = ini_set('error_log', $this->dir . '/php-error.log');
+        try {
+            $this->loadIgnoringFriendlyError($blocked, $markers);
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+        clearstatcache();
+        self::assertSame(0700, fileperms($markers) & 0777);
+    }
+
+    public function testSharedSystemTempFolderIsNeverUsedForMarkers(): void
+    {
+        $blocked = $this->dir . '/not-a-folder';
+        file_put_contents($blocked, 'x');
+        $message = "UsDebt: cache folder {$blocked} is missing or not writable; not downloading until it is fixed.";
+        $key = sha1($blocked . "\0" . $message);
+        $temp = sys_get_temp_dir();
+        $log = $this->dir . '/php-error.log';
+        $oldLog = ini_set('error_log', $log);
+        try {
+            $this->loadIgnoringFriendlyError($blocked, $temp);
+            self::forgetWhatThisProcessLogged();
+            $this->loadIgnoringFriendlyError($blocked, $temp . '/' . DebtRepository::MARKER_DIR_NAME . '-' . bin2hex(random_bytes(4)));
+            $this->loadIgnoringFriendlyError($blocked, $temp . '/' . DebtRepository::MARKER_DIR_NAME . '-' . bin2hex(random_bytes(4)));
+        } finally {
+            ini_set('error_log', (string) $oldLog);
+        }
+        self::assertFileDoesNotExist($temp . '/' . $key);
+        self::assertFileDoesNotExist($temp . '/usdebt-log-' . $key);
+        self::assertSame([], glob($temp . '/' . DebtRepository::MARKER_DIR_NAME . '-*') ?: [], 'no folder is created in shared temp');
+        // No marker: the per-process limit still applies (one line after the reset, not two).
+        self::assertSame(2, substr_count((string) file_get_contents($log), 'is missing or not writable'));
     }
 
     private function loadIgnoringFriendlyError(string $cacheDir, string $markerDir): void

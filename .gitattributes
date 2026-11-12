@@ -4,3 +4,7 @@ src/Public/lib/** -text
 
 # Checksum files are checked with sha256sum -c, which needs plain LF lines.
 *.sha256 text eol=lf
+
+# composer.phar is a binary PHP archive. Its SHA-256 is pinned in
+# composer.phar.sha256, so it must never be touched by line-ending conversion.
+composer.phar binary

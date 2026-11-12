@@ -233,4 +233,21 @@ final class TrendServiceTest extends TestCase
         self::assertCount(6, $trend['points'], 'one line across both terms');
         self::assertSame($data, $trend['points']);
     }
+
+    public function testSlopePerDayMatchesTheDailyTrendWithoutAProjection(): void
+    {
+        $entries = array_reverse(self::line('2020-01-01', 2000, 20.0, 0.004));
+
+        self::assertSame(TrendService::daily($entries)['slope_per_day'], TrendService::slopePerDay($entries));
+        self::assertEqualsWithDelta(0.004, TrendService::slopePerDay($entries), 1e-12);
+        self::assertNull(TrendService::slopePerDay(self::line('2020-01-01', 1, 20.0, 0.004)));
+        self::assertNull(TrendService::slopePerDay([]));
+    }
+
+    public function testSeriesFittedPointsAreSortedByMonthWhateverTheInputOrder(): void
+    {
+        $trend = TrendService::series([[3, 6.0], [1, 2.0], [2, 4.0]]);
+
+        self::assertSame([[1, 2.0], [2, 4.0], [3, 6.0]], $trend['fitted']);
+    }
 }

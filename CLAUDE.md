@@ -46,7 +46,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
     - **l.** `Http/` (`HttpFetcher`, `NativeHttpFetcher`, `Response`) and `Exception/` — the HTTP fetcher and the error types.
     - **m.** `Data/debt_seed_1993.json` — debt for 1993-01-04 to 1993-03-31, before the API's first day.
     - **n.** `View/` — `master.php` (page frame), `headline.php` (top number cards), `search_form.php` (date range, quick ranges, term strip), `tabs.php`, `chart_daily.php`, `chart_compare.php`, `tab_stats.php`, `tab_data.php`.
-3. `src/var/cache/` — the saved Treasury copy. Gitignored. Never web-served.
+3. `src/var/cache/` — the saved Treasury copy. `src/var/log-markers/` — private (0700) "already logged" markers, next to the cache folder. Both gitignored. Never web-served.
 4. Top level, not shipped: `composer.json`, `composer.lock`, `composer.phar`, `composer.phar.sha256`, `phpunit.xml`, `tests/`, `docs/`, this file.
 5. Stray untracked files at the top (`index.php`, `scratch.php`) are not part of this app. Do not ship them or commit them without Rob's say-so.
 6. Anything new that runs the product goes in `./src`. Tests, scripts and docs go outside it.
@@ -59,7 +59,8 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 4. If the download fails, the last saved copy is shown with a notice, and the app does not try again for 15 minutes. With no saved copy, the visitor sees a friendly error.
 5. If the cache folder is not writable, or the lock file cannot be opened, the app does not download at all. It serves the saved copy (marked stale) or the friendly error. This stops one Treasury download per page view.
 6. If the download works but cannot be saved, this page still shows the new data and the same 15-minute wait starts.
-7. Lasting problems are logged once per 15 minutes, not once per page view.
+7. Lasting problems are logged once per 15 minutes, not once per page view. The shared system temp folder is never used for this.
+    - **a.** The 15-minute wait is the failure file's modified time, not its contents, so it still works on a full disk.
 8. File safety: the file is written to a temp name and renamed. Folder mode 0750, files 0640. A lock lets only one request download.
 9. Every page and every Compare term is cut from the one saved copy. Compare costs zero extra Treasury calls.
 10. Presidents and term dates are hard-coded in `PresidentService`. Terms end on January 19, so no day is in two terms.
@@ -93,6 +94,7 @@ Rule: `./src` is the root of the deployed code. Only `./src` ships.
 
 1. Install: `php composer.phar install`. Run: `php vendor/bin/phpunit`.
 2. Tests live in `tests/` (outside `./src`): trend, cache, compare, client, front controller, views, stats and dates, presidents.
+    - **a.** `tests/js/with-trend.check.js` checks the page script's link rewriting in Node. The view tests run it when Node is installed, and skip that part when it is not.
 3. New or changed behaviour needs tests.
 
 ## 9. Errors

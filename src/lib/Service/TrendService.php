@@ -89,19 +89,11 @@ final class TrendService
      */
     public static function daily(array $entries): ?array
     {
-        usort($entries, static fn (DebtEntry $a, DebtEntry $b): int => strcmp($a->effectiveDate, $b->effectiveDate));
-        if (count($entries) < 2) {
+        $fit = self::fitDays($entries);
+        if ($fit === null) {
             return null;
         }
-        $firstDay = self::dayNumber($entries[0]->effectiveDate);
-        $points = [];
-        foreach ($entries as $entry) {
-            $points[] = [self::dayNumber($entry->effectiveDate) - $firstDay, $entry->totalDebt / self::TRILLION];
-        }
-        $line = self::fit($points);
-        if ($line === null) {
-            return null;
-        }
+        ['entries' => $entries, 'points' => $points, 'line' => $line] = $fit;
 
         $fitted = [];
         foreach ($entries as $i => $entry) {
@@ -132,11 +124,50 @@ final class TrendService
     }
 
     /**
+     * Slope of the date-range trend line only, in trillions of dollars per
+     * calendar day; null when there is no line. Same line as daily(), without
+     * building the fitted points or the projection (for the Stats tab).
+     *
+     * @param list<DebtEntry> $entries  Any order.
+     */
+    public static function slopePerDay(array $entries): ?float
+    {
+        $fit = self::fitDays($entries);
+        return $fit === null ? null : $fit['line']['slope'];
+    }
+
+    /**
+     * Sort by date and fit the line over calendar days since the first day.
+     *
+     * @param list<DebtEntry> $entries  Any order.
+     * @return array{entries: list<DebtEntry>, points: list<array{0: int, 1: float}>,
+     *               line: array{slope: float, intercept: float, r2: float}}|null
+     */
+    private static function fitDays(array $entries): ?array
+    {
+        usort($entries, static fn (DebtEntry $a, DebtEntry $b): int => strcmp($a->effectiveDate, $b->effectiveDate));
+        if (count($entries) < 2) {
+            return null;
+        }
+        $firstDay = self::dayNumber($entries[0]->effectiveDate);
+        $points = [];
+        foreach ($entries as $entry) {
+            $points[] = [self::dayNumber($entry->effectiveDate) - $firstDay, $entry->totalDebt / self::TRILLION];
+        }
+        $line = self::fit($points);
+        if ($line === null) {
+            return null;
+        }
+        return ['entries' => $entries, 'points' => $points, 'line' => $line];
+    }
+
+    /**
      * Trend for one Compare series (x = month in office). No projection.
      *
-     * @param list<array{0: int, 1: float}> $points  [month, change in trillions].
+     * @param list<array{0: int, 1: float}> $points  [month, change in trillions], any order.
      * @return array{slope_per_month: float, intercept: float, r2: float, fitted: list<array{0: int, 1: float}>}|null
-     *   fitted has one point per input point, in the input's x order.
+     *   fitted has one point per input point, sorted by month (smallest first),
+     *   whatever order the input was in.
      */
     public static function series(array $points): ?array
     {

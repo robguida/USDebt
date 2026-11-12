@@ -434,15 +434,27 @@
 
     /* ---------- trend line switch ---------- */
 
-    /* href or action with trend=0 added (off) or removed (on), as a same-site path */
+    /*
+     * href or action with trend=0 added (off) or removed (on), as a same-site
+     * path. Returns null (leave it alone) for anything on another origin.
+     *
+     * The path's leading slashes are collapsed to one. A page opened at
+     * "//evil.example/x" has that as its path; written back as-is, "//..."
+     * would be read as a link to another site (an open redirect).
+     */
     function withTrend(href, on) {
-        var url = new URL(href, window.location.href);
+        var origin = window.location.origin;
+        var base = new URL(window.location.pathname.replace(/^[\/\\]+/, '/') + window.location.search, origin);
+        var url = new URL(href, base);
+        if (url.origin !== origin) {
+            return null;
+        }
         if (on) {
             url.searchParams.delete('trend');
         } else {
             url.searchParams.set('trend', '0');
         }
-        return url.pathname + url.search + url.hash;
+        return url.pathname.replace(/^[\/\\]+/, '/') + url.search + url.hash;
     }
 
     function initialTrend() {
@@ -485,7 +497,10 @@
         Array.prototype.forEach.call(document.querySelectorAll('[data-trend-link]'), function (el) {
             try {
                 var attr = el.tagName === 'FORM' ? 'action' : 'href';
-                el.setAttribute(attr, withTrend(el.getAttribute(attr) || './', on));
+                var next = withTrend(el.getAttribute(attr) || './', on);
+                if (next !== null) {
+                    el.setAttribute(attr, next);
+                }
             } catch (e) {
                 /* one odd link must not stop the rest */
                 if (window.console) { console.warn('UsDebt: could not update a link', e); }
@@ -501,7 +516,7 @@
             try {
                 var here = window.location.pathname + window.location.search + window.location.hash;
                 var next = withTrend(window.location.href, on);
-                if (next !== here) {
+                if (next !== null && next !== here) {
                     window.history.replaceState(window.history.state, '', next);
                 }
             } catch (e) {
