@@ -23,6 +23,19 @@ class RequestModel
     /** @var list<int> */
     private array $comparePres = [];
 
+    /** Trend line on the charts. Off only when the URL says trend=0. */
+    private bool $showTrend = true;
+
+    public function setShowTrend(bool $show): void
+    {
+        $this->showTrend = $show;
+    }
+
+    public function showTrend(): bool
+    {
+        return $this->showTrend;
+    }
+
     /**
      * @param list<int> $keys  Validated term ids (no cap on how many).
      */

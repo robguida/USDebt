@@ -189,6 +189,7 @@ main.wrap {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 12px;
 }
 .results:focus { outline: none; }
@@ -251,6 +252,13 @@ main.wrap {
     white-space: nowrap;
 }
 .btn-quiet:hover { background: var(--accent-soft); }
+/* on/off switch: the pressed state is shown by fill and border, and by the "On"/"Off" text */
+.btn-toggle { flex: none; margin-bottom: 12px; } /* same gap below as the card title, also when it wraps on phones */
+.btn-toggle[aria-pressed="true"] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+}
+.btn-toggle[aria-pressed="false"] { color: var(--muted); }
 
 /* ---- Date range controls ---- */
 .range-form {
@@ -314,6 +322,7 @@ main.wrap {
     overscroll-behavior-x: contain;
 }
 .term {
+    position: relative; /* keeps its hidden screen-reader text inside the scrolling strip, not stretching the page */
     scroll-snap-align: start;
     display: grid;
     gap: 6px;
@@ -406,7 +415,9 @@ main.wrap {
     font-size: 0.9rem;
 }
 .chart-summary ul { margin: 0; padding-left: 1.2em; }
-.term-note { margin: 8px 0 0; }
+.chart-summary p { margin: 0; }
+.chart-summary .trend-summary { margin-top: 6px; }
+.chart-summary .term-note { margin: 8px 0 0; }
 
 /* ---- Stats ---- */
 .stats-grid {

@@ -9,22 +9,33 @@
  * The page script reads the JSON data block and draws it.
  *
  * @var list<array{label: string, president: string, term_starts: list<int>, data: list<array{0: int, 1: float}>}> $series
- * @var array{type: string, series: list<array<string, mixed>>} $chart  From ChartData::compare().
+ * @var array{type: string, series: list<array<string, mixed>>} $chart  From ChartData::compare(), same order as $series.
+ * @var bool $show_trend  Trend lines on (false when the URL says trend=0).
  */
 
 use USDebt\Service\Html;
 
 $lines = [];
 $notes = [];
-foreach ($series as $s) {
+$has_trend = false;
+foreach ($series as $i => $s) {
     $lastPoint = $s['data'][count($s['data']) - 1];
-    $lines[] = sprintf(
+    $line = sprintf(
         '%s: %s after %d %s in office.',
         $s['label'],
         Html::compactMoney($lastPoint[1] * 1_000_000_000_000, true),
         $lastPoint[0],
         $lastPoint[0] === 1 ? 'month' : 'months'
     );
+    $trend = $chart['series'][$i]['trend'] ?? null;
+    if ($trend !== null) {
+        $has_trend = true;
+        $line .= sprintf(
+            ' Trend: about %s per month (straight line).',
+            Html::compactMoney($trend['slope_per_month'] * 1_000_000_000_000, true)
+        );
+    }
+    $lines[] = $line;
     foreach ($s['term_starts'] as $month) {
         $notes[] = sprintf(
             '%s: the second term starts at month %d. The years between the terms are left out.',
@@ -47,6 +58,9 @@ foreach ($series as $s) {
             <li><?php echo Html::e($line); ?></li>
             <?php } ?>
         </ul>
+        <?php if ($has_trend) { ?>
+        <p class="trend-summary">Each dashed line is that term's trend (straight line), in the same color.<span class="trend-off-note"<?php echo $show_trend ? ' hidden' : ''; ?>> (trend lines hidden)</span></p>
+        <?php } ?>
         <?php foreach ($notes as $note) { ?>
         <p class="term-note"><?php echo Html::e($note); ?></p>
         <?php } ?>

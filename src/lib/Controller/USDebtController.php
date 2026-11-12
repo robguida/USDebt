@@ -57,6 +57,7 @@ class USDebtController
         $dataset = $this->debtSource->load();
         $entries = $dataset->between($requestModel->getStartDate(), $requestModel->getEndDate());
         $cards = $this->debtTodayCard($dataset);
+        $hasTrend = false;
 
         if ($entries === []) {
             $results = $this->message(sprintf(
@@ -80,18 +81,21 @@ class USDebtController
                     'detail' => 'Average over ' . number_format($stats['total_days']) . ' calendar days',
                 ];
             }
+            $chart = ChartData::daily($entries);
+            $hasTrend = in_array('trend', array_column($chart['series'], 'key'), true);
             $results = $this->loadFile('tabs.php', [
                 'graph' => $this->loadFile('chart_daily.php', [
-                    'chart' => ChartData::daily($entries),
+                    'chart' => $chart,
                     'first' => $first,
                     'last' => $last,
+                    'show_trend' => $requestModel->showTrend(),
                 ]),
                 'stats' => $this->loadFile('tab_stats.php', ['stats' => $stats]),
                 'data' => $this->loadFile('tab_data.php', ['datas' => array_reverse($entries)]),
             ]);
         }
 
-        return $this->page($requestModel, $results, $dataset, $cards);
+        return $this->page($requestModel, $results, $dataset, $cards, '', $hasTrend);
     }
 
     /**
@@ -101,11 +105,20 @@ class USDebtController
     {
         $dataset = $this->debtSource->load();
         $series = $this->compareService->buildSeries($requestModel->getComparePres(), $dataset);
-        $results = $series === []
-            ? $this->message('There is no Treasury data yet for the presidents you picked.')
-            : $this->loadFile('chart_compare.php', ['series' => $series, 'chart' => ChartData::compare($series)]);
+        $hasTrend = false;
+        if ($series === []) {
+            $results = $this->message('There is no Treasury data yet for the presidents you picked.');
+        } else {
+            $chart = ChartData::compare($series);
+            $hasTrend = array_filter(array_column($chart['series'], 'trend')) !== [];
+            $results = $this->loadFile('chart_compare.php', [
+                'series' => $series,
+                'chart' => $chart,
+                'show_trend' => $requestModel->showTrend(),
+            ]);
+        }
 
-        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset), 'Compare presidential terms');
+        return $this->page($requestModel, $results, $dataset, $this->debtTodayCard($dataset), 'Compare presidential terms', $hasTrend);
     }
 
     /**
@@ -125,6 +138,7 @@ class USDebtController
         ?DebtDataset $dataset = null,
         array $cards = [],
         string $heading = '',
+        bool $trendToggle = false,
     ): string {
         $notice = '';
         if ($dataset !== null && $dataset->isStale()) {
@@ -140,6 +154,9 @@ class USDebtController
             'controls' => $this->getSearchForm($requestModel),
             'results_heading' => $heading,
             'results' => $results,
+            // The trend button shows only when the chart has a trend line to switch.
+            'trend_toggle' => $trendToggle,
+            'show_trend' => $requestModel->showTrend(),
         ]);
     }
 
@@ -178,6 +195,7 @@ class USDebtController
             // Highlight a chip only when this page shows a date range (not on Compare or error pages).
             'quick_ranges' => self::quickRanges($today, $requestModel->getStartDate() === null ? '' : $start, $end),
             'today' => $today->format('Y-m-d'),
+            'show_trend' => $requestModel->showTrend(),
         ]);
     }
 

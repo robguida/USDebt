@@ -111,6 +111,15 @@ final class FrontControllerTest extends TestCase
         self::assertSame('debt', $chart['series'][0]['key']);
         self::assertSame('2026-10-05', $chart['series'][0]['points'][0][0], 'first weekly row in range, oldest first');
         self::assertIsFloat($chart['series'][0]['points'][0][1]);
+        // Straight trend line over the shown weeks (+$10 billion a week) and its projection.
+        self::assertSame(['debt', 'trend', 'projection'], array_column($chart['series'], 'key'));
+        self::assertSame(array_column($chart['series'][0]['points'], 0), array_column($chart['series'][1]['points'], 0));
+        self::assertEqualsWithDelta(0.01 / 7, $chart['series'][1]['slope_per_day'], 1e-9);
+        self::assertTrue($chart['series'][2]['projection']);
+        self::assertCount(9, $chart['series'][2]['points'], '25% of a 35-day range, rounded up');
+        self::assertSame('2026-11-10', $chart['series'][2]['points'][0][0]);
+        self::assertStringContainsString('Trend (straight line)', $html);
+        self::assertStringContainsString('About +$1.43 billion per day', $html);
         self::assertStringContainsString('Starting debt amount', $html);
         self::assertStringContainsString('<td class="currency">$', $html);
         self::assertStringNotContainsString('TM0.', $html, 'timing footer removed');
@@ -150,7 +159,12 @@ final class FrontControllerTest extends TestCase
         foreach ($series as $s) {
             self::assertIsInt($s['points'][0][0]);
             self::assertIsFloat($s['points'][1][1]);
+            self::assertIsArray($s['trend'], 'every president has a trend line');
+            self::assertCount(count($s['points']), $s['trend']['points'], 'fitted over that series\' own months');
+            self::assertSame(array_column($s['points'], 0), array_column($s['trend']['points'], 0));
+            self::assertGreaterThan(0, $s['trend']['slope_per_month']);
         }
+        self::assertArrayNotHasKey('projection', $series[0]['trend'], 'no projection on Compare');
         self::assertSame(count($all), substr_count($html, 'checked="checked"'), 'all boxes stay ticked');
     }
 
