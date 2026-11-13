@@ -12,7 +12,7 @@
  * through data-copied and data-copy-failed). This file holds no words of its own.
  *
  * @var string $url            The page link to share (same as og:url, absolute).
- * @var string $card_href      The picture card on this site, root-relative (/card.php?...).
+ * @var string $card_href      The picture card on this site, root-relative (/ourusdebt/card.php?...).
  * @var bool   $card_trend     The card changes with the trend switch.
  * @var string $download_name  File name for "Download picture".
  * @var string $image_alt      Alt text for the card preview.

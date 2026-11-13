@@ -359,7 +359,7 @@ final class ShareTest extends TestCase
         self::assertStringNotContainsString('target=', $share['tags']['email']);
 
         // Download picture and the preview: the card for this view, on this site.
-        $card = '/card.php?' . parse_url($meta['og:image'], PHP_URL_QUERY);
+        $card = '/ourusdebt/card.php?' . parse_url($meta['og:image'], PHP_URL_QUERY);
         self::assertSame($card, $share['download']['href']);
         self::assertSame('us-debt-' . $days['start_date'] . '-to-' . $days['end_date'] . '.png', $share['download']['download']);
         self::assertSame($card, $share['thumb']['src']);
@@ -386,7 +386,7 @@ final class ShareTest extends TestCase
         self::assertStringContainsString('url=' . rawurlencode($link), $share['links']['x']);
         self::assertSame('How the U.S. debt changed across presidential terms.', $share['attrs']['data-text']);
         self::assertSame('U.S. debt across presidential terms', $share['attrs']['data-subject']);
-        self::assertSame('/card.php?compare=' . self::CLINTON . ',' . self::BUSH, $share['download']['href']);
+        self::assertSame('/ourusdebt/card.php?compare=' . self::CLINTON . ',' . self::BUSH, $share['download']['href']);
         self::assertSame('us-debt-presidential-terms.png', $share['download']['download']);
         self::assertSame(ShareText::COMPARE_ALT, $share['thumb']['alt']);
         self::assertSame('0', $share['attrs']['data-card-trend'], 'the Compare card has no trend line');
@@ -1154,15 +1154,18 @@ final class ShareTest extends TestCase
     public function testCardLinksInTheMenuAreRootRelative(): void
     {
         // Same for any page address (/, /index.php, /index.php/extra): the link starts at the site root.
-        self::assertSame('/card.php?compare=1,2', (new ShareLinks())->localCard('compare=1,2'));
-        self::assertSame('/card.php', (new ShareLinks())->localCard(''));
+        // Unset: the default address, so the path is /ourusdebt.
+        self::assertSame('/ourusdebt/card.php?compare=1,2', (new ShareLinks())->localCard('compare=1,2'));
+        self::assertSame('/ourusdebt/card.php', (new ShareLinks())->localCard(''));
+        // Local development at "/" sets USDEBT_BASE_URL=http://localhost:8000.
+        self::assertSame('/card.php', (new ShareLinks('http://localhost:8000'))->localCard(''));
         // A site in a sub-folder keeps its folder.
         self::assertSame('/usdebt/card.php?trend=0', (new ShareLinks('https://example.test/usdebt/'))->localCard('trend=0'));
 
         $share = self::shareMenu(self::page(['start_date' => '2009-01-20', 'end_date' => '2017-01-19'])->body);
-        self::assertStringStartsWith('/card.php?', $share['download']['href']);
-        self::assertStringStartsWith('/card.php?', $share['thumb']['src']);
-        self::assertStringStartsWith('/card.php?', $share['attrs']['data-card']);
+        self::assertStringStartsWith('/ourusdebt/card.php?', $share['download']['href']);
+        self::assertStringStartsWith('/ourusdebt/card.php?', $share['thumb']['src']);
+        self::assertStringStartsWith('/ourusdebt/card.php?', $share['attrs']['data-card']);
     }
 
     public function testShareMenuAndScriptHoldNoShareWordsOfTheirOwn(): void

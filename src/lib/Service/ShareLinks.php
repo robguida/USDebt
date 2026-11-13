@@ -23,14 +23,10 @@ final class ShareLinks
 
     private readonly string $baseUrl;
 
-    /** False when no address was configured: the card link then starts at the site root, so local development at "/" works. */
-    private readonly bool $configured;
-
     public function __construct(?string $baseUrl = null)
     {
         $normalized = $baseUrl === null ? null : self::normalize($baseUrl);
         $this->baseUrl = $normalized ?? self::DEFAULT_BASE_URL;
-        $this->configured = $normalized !== null;
     }
 
     /** From USDEBT_BASE_URL, or the default. A bad value is logged and the default is used. */
@@ -93,18 +89,19 @@ final class ShareLinks
     }
 
     /**
-     * The card link on this site, root-relative ("/card.php?..."), for the
+     * The card link on this site, root-relative ("/ourusdebt/card.php?..."), for the
      * Share menu's preview and "Download picture". A browser only honours the
      * download attribute on a same-site link, so this one has no host. It
-     * starts at the site root (plus the base URL's path, if the site lives in
-     * a sub-folder), so a page address with extra path parts, such as
+     * starts at the site root plus the base URL's path (the effective base
+     * URL, so unset means /ourusdebt), so a page address with extra path parts, such as
      * /index.php/extra, still points at the real card and not at
      * /index.php/card.php.
      */
     public function localCard(string $query): string
     {
-        // No configured address (local development at "/"): start at the root.
-        $path = $this->configured ? (string) parse_url($this->baseUrl, PHP_URL_PATH) : '';
+        // One rule: the path always comes from the effective base URL.
+        // Local development at "/" sets USDEBT_BASE_URL=http://localhost:8000.
+        $path = (string) parse_url($this->baseUrl, PHP_URL_PATH);
         return $path . '/' . self::CARD_PATH . ($query === '' ? '' : '?' . $query);
     }
 

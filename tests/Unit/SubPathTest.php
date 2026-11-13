@@ -85,7 +85,7 @@ final class SubPathTest extends TestCase
         $rest = preg_split('#([?\#])#', $link, 2, PREG_SPLIT_DELIM_CAPTURE);
         $path = $rest[0];
         $tail = isset($rest[1]) ? $rest[1] . ($rest[2] ?? '') : '';
-        foreach (explode('/', $path) as $i => $segment) {
+        foreach (explode('/', $path) as $segment) {
             if ($segment === '.' || $segment === '') {
                 continue;
             }
@@ -97,6 +97,12 @@ final class SubPathTest extends TestCase
         }
         $endsWithSlash = str_ends_with($path, '/') || str_ends_with($path, '/.') || $path === '.';
         return self::ORIGIN . '/' . implode('/', $parts) . ($endsWithSlash ? '/' : '') . $tail;
+    }
+
+    /** @return array<string, array{0: array<string, mixed>, 1: array<string, mixed>}> The pages that have a Share menu (not the error page). */
+    public static function pagesWithShareMenu(): array
+    {
+        return array_filter(self::pages(), static fn (string $name): bool => !str_contains($name, 'error page'), ARRAY_FILTER_USE_KEY);
     }
 
     /**
@@ -145,13 +151,11 @@ final class SubPathTest extends TestCase
      * @param array<string, mixed> $query
      * @param array<string, mixed> $post
      */
-    #[DataProvider('pages')]
+    #[DataProvider('pagesWithShareMenu')]
     public function testShareTagsAndLinksUseTheRealAddress(array $query, array $post): void
     {
         $html = self::app()->handle($query, $post)->body;
-        if (!str_contains($html, 'id="share_url"')) {
-            self::markTestSkipped('error page: no Share menu');
-        }
+        self::assertStringContainsString('id="share_url"', $html);
         preg_match_all('#<meta (?:property|name)="((?:og|twitter):[a-z:_]+)" content="([^"]*)">#', $html, $m, PREG_SET_ORDER);
         $meta = [];
         foreach ($m as [, $name, $content]) {
@@ -168,7 +172,9 @@ final class SubPathTest extends TestCase
         $encoded = rawurlencode(self::BASE . '/');
         self::assertStringContainsString($encoded, $html, 'network links carry the encoded /ourusdebt/ address');
         self::assertStringNotContainsString('usdebt.bengusa.pro', $html);
-        self::assertStringNotContainsString(rawurlencode('https://bengusa.pro/') . '%3F', $html, 'no page link without /ourusdebt');
+        // Any encoded root link (bare, or followed by anything) would be a page link without /ourusdebt.
+        $root = rawurlencode('https://bengusa.pro/');
+        self::assertDoesNotMatchRegularExpression('/' . preg_quote($root, '/') . '(?!ourusdebt)/', $html, 'no page link without /ourusdebt');
     }
 
     public function testTheCardLinkInTheMenuIsUnderOurUsDebt(): void
@@ -178,17 +184,17 @@ final class SubPathTest extends TestCase
         self::assertStringContainsString('href="/ourusdebt/card.php?compare=727506000,979966800"', $html);
     }
 
-    public function testNothingIsConfiguredLocallyAndTheSiteStillWorksAtTheRoot(): void
+    public function testUnsetUsesTheDefaultAddressAndLocalDevelopmentSetsItToTheRoot(): void
     {
         putenv(ShareLinks::ENV_BASE_URL);
         $links = ShareLinks::fromEnvironment();
         self::assertSame(ShareLinks::DEFAULT_BASE_URL, $links->baseUrl());
         self::assertSame(self::BASE, ShareLinks::DEFAULT_BASE_URL, 'the default is the real address');
-        self::assertSame('/card.php?per=person', $links->localCard('per=person'));
+        self::assertSame('/ourusdebt/card.php?per=person', $links->localCard('per=person'));
 
         // An empty value is the same as unset.
         putenv(ShareLinks::ENV_BASE_URL . '=');
-        self::assertSame('/card.php', ShareLinks::fromEnvironment()->localCard(''));
+        self::assertSame('/ourusdebt/card.php', ShareLinks::fromEnvironment()->localCard(''));
 
         // A local address with no folder keeps everything at "/".
         putenv(ShareLinks::ENV_BASE_URL . '=http://localhost:8000');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace USDebt\Http;
 
 use USDebt\Exception\HttpException;
+use USDebt\Service\ShareLinks;
 
 /**
  * Plain HTTPS GET client. Uses the curl extension (required in production);
@@ -18,7 +19,7 @@ use USDebt\Exception\HttpException;
  */
 final class NativeHttpFetcher implements HttpFetcher
 {
-    private const USER_AGENT = 'UsDebt/1.0 (+https://bengusa.pro/ourusdebt)';
+    private const USER_AGENT = 'UsDebt/1.0 (+' . ShareLinks::DEFAULT_BASE_URL . ')';
 
     /** One page of the full history is under 1 MB; 20 MB is a generous ceiling. */
     public const MAX_BYTES = 20 * 1024 * 1024;
