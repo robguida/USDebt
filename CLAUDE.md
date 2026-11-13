@@ -2,7 +2,7 @@
 
 Source of truth for anyone (human or tool) working on this project.
 Owner: Rob Guida (RandBMedia, his own company; not a client project).
-Last updated: 2026-11-12 (matches branch USD-7-your-share).
+Last updated: 2026-11-13 (matches branch USD-8-ourusdebt-subpath).
 
 ## 1. What it is
 
@@ -10,11 +10,11 @@ Last updated: 2026-11-12 (matches branch USD-7-your-share).
 2. Data comes from the U.S. Treasury (fiscaldata "Debt to the Penny"), downloaded once a day and saved.
 3. Presidential terms can be compared side by side (debt change during each term).
 4. Charts show a straight trend line and a growth curve, each with its own projection, with one on/off button.
-5. Goal now: a public demo on bengUSA.pro. See `docs/requirements.md`.
+5. Goal now: a public demo at bengusa.pro/ourusdebt/. See `docs/requirements.md`.
 
 ## 2. Stack
 
-1. PHP 8.2 or newer (`composer.json` says `>=8.2`). Local development runs on PHP 8.2. Production targets PHP 8.5 on its own Lightsail server.
+1. PHP 8.2 or newer (`composer.json` says `>=8.2`). Local development runs on PHP 8.2. Production targets PHP 8.5 in its own PHP pool on the shared bengUSA.pro Lightsail server (see §10).
 2. Required PHP extensions: `ext-curl`, `ext-json`.
     - **a.** Also needed for the share picture card: `ext-gd` built with FreeType (and PNG). It is not in `composer.json`, because the rest of the site works without it: `card.php` then answers 503 with a short plain-text error. The production server must have it. Locally, load it per run (`php -d extension=gd ...`); the card tests skip without it.
 3. Composer 2: `composer.phar` at the repo root, with `composer.phar.sha256` beside it. Dev dependency: PHPUnit 11.
@@ -54,7 +54,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
         - **ii.** The `per` parameter (`?per=person` or `?per=household`; anything else, or missing, is Total and is never written in a link) is read by `RequestModel` into `Model/Per.php`. It rides in every page link, share link, card link and Compare. Trend and curve are fitted on the per-person series; chart values are dollars (Total stays in trillions). Every trend, change and Compare line keeps its "per person" or "per household" words (`ShareText::trendAmount`, `compareLine`, `perWords`), and so does the email's source line. The growth rate is rounded once, when shown, so the chart summary and the Stats tab agree.
     - **n.** Sharing:
         - **i.** `Service/ShareText.php` — every share word (see §5.6.c).
-        - **ii.** `Service/ShareLinks.php` — the share links: absolute page and card links from `USDEBT_BASE_URL`, the root-relative card link for the menu, and the plain links to each social site.
+        - **ii.** `Service/ShareLinks.php` — the share links: absolute page and card links from `USDEBT_BASE_URL`, the card link for the menu (a path built from `USDEBT_BASE_URL`'s path, e.g. `/ourusdebt/card.php`), and the plain links to each social site.
         - **iii.** `Service/ShareCardBuilder.php` — builds the `ShareCard` for a date range or a Compare view.
         - **iv.** `Service/CardRenderer.php` — draws the card with PHP gd.
         - **v.** `Service/CardCache.php` — the card files on disk (at most 500, oldest removed first).
@@ -93,7 +93,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 5. Quick ranges (1M, 1Y, 5Y, This term) are plain links. They are month-end safe: Mar 31 minus one month gives Feb 28 or 29, never Mar 3.
 6. Share button (chart card header, next to "Trend line"): a `<details>` menu, so it works with JavaScript off.
     - **a.** Shares the view's own GET link (the same as og:url), with the trend choice. After a Compare form post it is the `?compare=` link.
-    - **b.** Copy link, Download picture (`/card.php`, same site, root-relative so any page address works), a card preview, and plain links to X, Facebook, LinkedIn, Reddit and email. No scripts from social sites. Phones with a system share sheet get "Share with an app" first.
+    - **b.** Copy link, Download picture (`card.php`, same site; the link is built from the path in `USDEBT_BASE_URL`, so it works under `/ourusdebt/`), a card preview, and plain links to X, Facebook, LinkedIn, Reddit and email. No scripts from social sites. Phones with a system share sheet get "Share with an app" first.
     - **c.** Share words, and where each lives:
         - **i.** `Service/ShareText.php` holds every share word: the card's words, the link preview tags, the share text and email, alt text, the Share menu's labels, the "Link copied" and "Couldn't copy" lines, and the card's two error lines (no data, cannot draw). `View/share_menu.php` has no words of its own, and `js/usdebt.js` reads the copy lines from the menu's `data-copied` and `data-copy-failed` attributes. A test checks all three.
         - **ii.** Not in `ShareText`: a card request that fails its input checks gets the page's own message (for example "Please pick at least 2 presidents to compare."), and an unexpected failure gets the site-wide `FrontController::GENERIC_ERROR`.
@@ -138,10 +138,15 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 
 ## 10. Deploy
 
-1. Address: `usdebt.bengusa.pro` (approved 2026-11-12).
-2. Host: its own small AWS Lightsail server (about $5 a month), nginx + PHP. Never standard AWS.
+1. Address: `https://bengusa.pro/ourusdebt/` (Rob, 2026-11-13). The bare `/ourusdebt` redirects to `/ourusdebt/`.
+    - **a.** The path lives in one setting: `USDEBT_BASE_URL` (default `https://bengusa.pro/ourusdebt` in `ShareLinks`).
+    - **b.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) is no longer the address.
+2. Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution. Never standard AWS.
+    - **a.** Why: to keep costs down. Rob, 2026-11-13: *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there."*
+    - **b.** UsDebt has its own nginx + PHP 8.5 pool on that server, capped at 15% of one CPU and 256 MB. The bengusa.pro front door routes `/ourusdebt/` to it.
+    - **c.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
 3. Allow-list deploy: only `./src` ships. Rollback in one step.
-4. Every production deploy waits for Rob's direct go. Going live is plan step USD-4. Not started.
+4. Every production deploy waits for Rob's direct go. Rob, 2026-11-12: *"It is up, and it goes to the bengusa.pro server on lightsail."* The bengusa.pro Home links to it in a new tab (`target="_blank"`, `rel="noopener"`).
 5. Plan order: USD-0 repo setup, USD-1 safe backend, USD-2 look and feel (Chart.js 4), USD-3 trend line, features (share link + picture card, Your Share, Since you were born), USD-4 deploy. Rob's review stops are listed in `docs/requirements.md`.
 
 ## 11. Git rules
