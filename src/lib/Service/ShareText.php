@@ -186,7 +186,7 @@ final class ShareText
         return $shareText . ' ' . $url . "\n\n" . self::emailNote($per);
     }
 
-    /** The site address in the card footer: "usdebt.bengusa.pro". */
+    /** The site address in the card footer: "bengusa.pro/ourusdebt". */
     public static function siteAddress(string $baseUrl): string
     {
         $host = parse_url($baseUrl, PHP_URL_HOST);

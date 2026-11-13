@@ -32,7 +32,8 @@ function same(actual, expected, what) {
     }
 }
 
-const BASE = 'https://usdebt.bengusa.pro';
+const ORIGIN = 'https://bengusa.pro';
+const BASE = ORIGIN + '/ourusdebt'; // the site lives in a sub-folder
 
 // 1. The share link is the canonical link, on the canonical's own origin.
 same(shareUrl(BASE + '/?start_date=2009-01-20&end_date=2017-01-19', true), BASE + '/?start_date=2009-01-20&end_date=2017-01-19', 'range, trend on');
@@ -44,14 +45,14 @@ same(shareUrl(BASE + '/', false), BASE + '/?trend=0', 'home page, trend off');
 same(shareUrl(BASE + '/?compare=727506000,979966800', true), BASE + '/?compare=727506000,979966800', 'compare commas not encoded');
 same(shareUrl('http://localhost:8000/sub/?a=1#x', true), 'http://localhost:8000/sub/?a=1', 'sub-path kept, fragment dropped');
 // Whatever this page's own address is, the link stays on the canonical's origin.
-for (const odd of [BASE + '//evil.example/', BASE + '/\\evil.example/']) {
+for (const odd of [BASE + '//evil.example/', BASE + '/\\evil.example/', ORIGIN + '//evil.example/']) {
     const out = shareUrl(odd, false);
-    if (out === null || new URL(out).origin !== BASE) {
+    if (out === null || new URL(out).origin !== ORIGIN) {
         failures.push('left the canonical origin: ' + odd + ' -> ' + out);
     }
 }
 // Anything but a plain http(s) link is refused (the menu keeps the server's links).
-for (const bad of ['javascript:alert(1)', 'data:text/html,x', '/relative', '', 'https://user:pw@usdebt.bengusa.pro/', 'not a url', null]) {
+for (const bad of ['javascript:alert(1)', 'data:text/html,x', '/relative', '', 'https://user:pw@bengusa.pro/ourusdebt/', 'not a url', null]) {
     same(shareUrl(bad, true), null, 'refused: ' + bad);
 }
 
@@ -59,7 +60,7 @@ for (const bad of ['javascript:alert(1)', 'data:text/html,x', '/relative', '', '
 const url = BASE + '/?start_date=2009-01-20&end_date=2017-01-19&trend=0';
 const text = "U.S. debt grew $9.32 trillion from Jan 20, 2009 to Jan 19, 2017. It's (100%) * #1 & more!";
 const h = shareHrefs(url, text, 'U.S. debt, Jan 20, 2009 to Jan 19, 2017', 'Data: U.S. Treasury, Debt to the Penny.');
-const encUrl = 'https%3A%2F%2Fusdebt.bengusa.pro%2F%3Fstart_date%3D2009-01-20%26end_date%3D2017-01-19%26trend%3D0';
+const encUrl = 'https%3A%2F%2Fbengusa.pro%2Fourusdebt%2F%3Fstart_date%3D2009-01-20%26end_date%3D2017-01-19%26trend%3D0';
 const encText = 'U.S.%20debt%20grew%20%249.32%20trillion%20from%20Jan%2020%2C%202009%20to%20Jan%2019%2C%202017.%20It%27s%20%28100%25%29%20%2A%20%231%20%26%20more%21';
 same(h.x, 'https://x.com/intent/tweet?text=' + encText + '&url=' + encUrl, 'X link');
 same(h.facebook, 'https://www.facebook.com/sharer/sharer.php?u=' + encUrl, 'Facebook link');

@@ -16,15 +16,17 @@ use USDebt\Model\Per;
  */
 final class ShareLinks
 {
-    public const DEFAULT_BASE_URL = 'https://usdebt.bengusa.pro';
+    /** The real address: the site lives under /ourusdebt on bengusa.pro. */
+    public const DEFAULT_BASE_URL = 'https://bengusa.pro/ourusdebt';
     public const ENV_BASE_URL = 'USDEBT_BASE_URL';
     public const CARD_PATH = 'card.php';
 
     private readonly string $baseUrl;
 
-    public function __construct(string $baseUrl = self::DEFAULT_BASE_URL)
+    public function __construct(?string $baseUrl = null)
     {
-        $this->baseUrl = self::normalize($baseUrl) ?? self::DEFAULT_BASE_URL;
+        $normalized = $baseUrl === null ? null : self::normalize($baseUrl);
+        $this->baseUrl = $normalized ?? self::DEFAULT_BASE_URL;
     }
 
     /** From USDEBT_BASE_URL, or the default. A bad value is logged and the default is used. */
@@ -87,16 +89,18 @@ final class ShareLinks
     }
 
     /**
-     * The card link on this site, root-relative ("/card.php?..."), for the
+     * The card link on this site, root-relative ("/ourusdebt/card.php?..."), for the
      * Share menu's preview and "Download picture". A browser only honours the
      * download attribute on a same-site link, so this one has no host. It
-     * starts at the site root (plus the base URL's path, if the site lives in
-     * a sub-folder), so a page address with extra path parts, such as
+     * starts at the site root plus the base URL's path (the effective base
+     * URL, so unset means /ourusdebt), so a page address with extra path parts, such as
      * /index.php/extra, still points at the real card and not at
      * /index.php/card.php.
      */
     public function localCard(string $query): string
     {
+        // One rule: the path always comes from the effective base URL.
+        // Local development at "/" sets USDEBT_BASE_URL=http://localhost:8000.
         $path = (string) parse_url($this->baseUrl, PHP_URL_PATH);
         return $path . '/' . self::CARD_PATH . ($query === '' ? '' : '?' . $query);
     }

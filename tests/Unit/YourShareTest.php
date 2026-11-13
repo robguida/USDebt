@@ -426,10 +426,10 @@ final class YourShareTest extends TestCase
         $html = $app->handle(['start_date' => '2009-01-20', 'end_date' => '2017-01-19', 'per' => 'person', 'trend' => '0'], [])->body;
         $meta = self::meta($html);
 
-        self::assertSame('https://usdebt.bengusa.pro/?start_date=2009-01-20&end_date=2017-01-19&per=person&trend=0', $meta['og:url']);
+        self::assertSame('https://bengusa.pro/ourusdebt/?start_date=2009-01-20&end_date=2017-01-19&per=person&trend=0', $meta['og:url']);
         self::assertStringContainsString('per=person', $meta['og:image']);
         self::assertStringStartsWith('U.S. debt per person, ', $meta['og:title']);
-        self::assertStringContainsString('id="share_url" value="https://usdebt.bengusa.pro/?start_date=2009-01-20&amp;end_date=2017-01-19&amp;per=person&amp;trend=0"', $html);
+        self::assertStringContainsString('id="share_url" value="https://bengusa.pro/ourusdebt/?start_date=2009-01-20&amp;end_date=2017-01-19&amp;per=person&amp;trend=0"', $html);
         self::assertStringContainsString('<input type="hidden" name="per" value="person">', $html, 'the date form keeps it');
 
         $links = self::pageLinks($html);
@@ -489,8 +489,8 @@ final class YourShareTest extends TestCase
         $linked = $app->handle(['compare' => "{$clinton},{$biden}", 'per' => 'household'], []);
         self::assertSame(200, $linked->status);
         $meta = self::meta($linked->body);
-        self::assertSame("https://usdebt.bengusa.pro/?compare={$clinton},{$biden}&per=household", $meta['og:url']);
-        self::assertSame("https://usdebt.bengusa.pro/card.php?compare={$clinton},{$biden}&per=household", $meta['og:image']);
+        self::assertSame("https://bengusa.pro/ourusdebt/?compare={$clinton},{$biden}&per=household", $meta['og:url']);
+        self::assertSame("https://bengusa.pro/ourusdebt/card.php?compare={$clinton},{$biden}&per=household", $meta['og:image']);
         self::assertSame('U.S. debt per household across presidential terms', $meta['og:title']);
         self::assertStringContainsString('The y axis is the change per household, in U.S. dollars.', $linked->body);
         $chart = FrontControllerTest::chartJson($linked->body);
@@ -501,7 +501,7 @@ final class YourShareTest extends TestCase
         self::assertStringContainsString('action="./?per=household#results"', $linked->body);
         $posted = $app->handle(['per' => 'person'], ['submit' => 'Compare', 'compare_pres' => [$clinton, $biden]]);
         self::assertSame(200, $posted->status);
-        self::assertSame("https://usdebt.bengusa.pro/?compare={$clinton},{$biden}&per=person", self::meta($posted->body)['og:url']);
+        self::assertSame("https://bengusa.pro/ourusdebt/?compare={$clinton},{$biden}&per=person", self::meta($posted->body)['og:url']);
         self::assertSame('person', FrontControllerTest::chartJson($posted->body)['per']);
 
         // An error page keeps per in its links too.
