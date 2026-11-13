@@ -97,6 +97,7 @@ final class CompareServiceTest extends TestCase
             new DebtEntry('2005-01-03', 200.0e12),
             new DebtEntry('2006-12-01', 201.0e12),
             new DebtEntry('2006-12-29', 201.5e12),  // term 2's last data day
+            new DebtEntry('2007-01-02', 201.6e12),  // later data: both terms are over
         ], '2026-11-12');
 
         $alpha = (new CompareService(self::TERMS))->buildSeries([100, 300], $dataset)[0];
@@ -105,7 +106,7 @@ final class CompareServiceTest extends TestCase
         self::assertSame([[1, 0.0], [2, 2.0], [3, 2.75], [4, 3.75]], $alpha['data']);
         // Stated total: (102.75 - 100) + (201.5 - 200), not the last chart point (3.75).
         self::assertSame(4.25e12, $alpha['change']);
-        self::assertSame(4, $alpha['months']);
+        self::assertSame(48, $alpha['months'], 'two 2-year terms');
     }
 
     public function testSingleTermHasNoLaterTermStart(): void
@@ -128,5 +129,35 @@ final class CompareServiceTest extends TestCase
 
         self::assertSame(['Bravo'], array_column($series, 'president'));
         self::assertSame([], (new CompareService(self::TERMS))->buildSeries([100], $dataset));
+    }
+
+    public function testMonthsInOfficeAreWholeTermMonths(): void
+    {
+        $terms = PresidentService::getPresidentConfig();
+        $byName = [];
+        foreach ($terms as $key => $t) {
+            $byName[$t['pres']][] = $key;
+        }
+        $entries = [];
+        for ($y = 1993; $y <= 2026; $y++) {
+            foreach (['01-22', '06-15'] as $md) {
+                $entries[] = new DebtEntry("$y-$md", 1.0e12 + $y * 1.0e10);
+            }
+        }
+        $entries[] = new DebtEntry('2026-11-12', 40.0e12);
+        $dataset = new DebtDataset($entries, '2026-11-13');
+        $service = new CompareService($terms);
+        $months = [];
+        foreach ($byName as $name => $keys) {
+            $months[$name] = $service->buildSeries($keys, $dataset)[0]['months'] ?? null;
+        }
+        self::assertSame(96, $months['Bill Clinton']);
+        self::assertSame(96, $months['George W. Bush']);
+        self::assertSame(96, $months['Barack Obama']);
+        self::assertSame(48, $months['Joseph Biden']);
+        // Trump: first term 48 + running term (Jan 20 2025 to Nov 13 2026 = 21).
+        self::assertSame(48 + 21, $months['Donald Trump']);
+        $current = array_key_last(array_filter($terms, fn ($t) => $t['pres'] === 'Donald Trump'));
+        self::assertSame(21, $service->buildSeries([$current], $dataset)[0]['months']);
     }
 }

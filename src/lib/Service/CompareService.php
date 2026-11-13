@@ -94,7 +94,8 @@ final class CompareService
      *   term_starts = x values where a later term begins (empty for one term).
      *   The Compare chart draws a diamond at each one (js/usdebt.js).
      *   change = exact debt change in dollars, first to last data day of each
-     *   picked term, summed. months = months in office with data (the last x).
+     *   picked term, summed. months = whole months in office (a 4-year term is 48), summed
+     *   over the picked terms; a running term counts up to the last data day.
      *   Per person or per household: change is in dollars per person (or
      *   household), and the points are in dollars, not trillions.
      */
@@ -118,6 +119,7 @@ final class CompareService
             $termStarts = [];
             $years = [];
             $x = 0;
+            $months = 0;
             $carried = 0.0; // debt change (dollars) at the end of the previous term(s)
             foreach ($termKeys as $key) {
                 $entries = $this->population->scale($dataset->between($this->start($key), $this->end($key)), $per);
@@ -139,6 +141,7 @@ final class CompareService
                     $points[] = [$x, round(($carried + $entry->totalDebt - $baseline) / $unit, $decimals)];
                 }
                 $carried += end($entries)->totalDebt - $baseline;
+                $months += $this->monthsInOffice($key, $dataset->lastDate());
                 $years[] = $this->start($key)->format('Y') . '-' . $this->end($key)->format('Y');
             }
             if ($points === []) {
@@ -150,7 +153,7 @@ final class CompareService
                 'term_starts' => $termStarts,
                 'data' => $points,
                 'change' => $carried,
-                'months' => $x,
+                'months' => $months,
             ];
         }
         return $series;
@@ -201,6 +204,20 @@ final class CompareService
             }
         }
         return $first;
+    }
+
+    /**
+     * Whole months in office for one term: from the term's first day to the
+     * day after the term's end (or after the data's last day, for a term still running). Jan 20 to
+     * Jan 19 four years later is 48. A running term counts months so far.
+     */
+    private function monthsInOffice(int $key, ?string $lastDataDay): int
+    {
+        $start = $this->start($key);
+        $last = new DateTimeImmutable($lastDataDay ?? $this->terms[$key]['end']);
+        $stop = ($last < $this->end($key) ? $last : $this->end($key))->modify('+1 day');
+        $diff = $start->diff($stop);
+        return max(0, $diff->y * 12 + $diff->m);
     }
 
     private function start(int $key): DateTimeImmutable
