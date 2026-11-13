@@ -54,7 +54,7 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
         - **ii.** The `per` parameter (`?per=person` or `?per=household`; anything else, or missing, is Total and is never written in a link) is read by `RequestModel` into `Model/Per.php`. It rides in every page link, share link, card link and Compare. Trend and curve are fitted on the per-person series; chart values are dollars (Total stays in trillions). Every trend, change and Compare line keeps its "per person" or "per household" words (`ShareText::trendAmount`, `compareLine`, `perWords`), and so does the email's source line. The growth rate is rounded once, when shown, so the chart summary and the Stats tab agree.
     - **n.** Sharing:
         - **i.** `Service/ShareText.php` — every share word (see §5.6.c).
-        - **ii.** `Service/ShareLinks.php` — the share links: absolute page and card links from `USDEBT_BASE_URL`, the card link for the menu (a path built from `USDEBT_BASE_URL`'s path, e.g. `/ourusdebt/card.php`), and the plain links to each social site.
+        - **ii.** `Service/ShareLinks.php` — the share links: absolute page and card links from `USDEBT_BASE_URL`, the card link for the menu (always built from `USDEBT_BASE_URL`'s path, e.g. `/ourusdebt/card.php`), and the plain links to each social site.
         - **iii.** `Service/ShareCardBuilder.php` — builds the `ShareCard` for a date range or a Compare view.
         - **iv.** `Service/CardRenderer.php` — draws the card with PHP gd.
         - **v.** `Service/CardCache.php` — the card files on disk (at most 500, oldest removed first).
@@ -117,8 +117,9 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 
 ## 7. Run locally
 
-1. From the repo root: `php -S localhost:8000 -t src/Public`. This starts on PHP 8.2 (checked 2026-11-12).
-    - **a.** To also draw the share picture card, start it with gd loaded: `php -d extension=gd -S localhost:8000 -t src/Public`. Without gd, `card.php` shows a short plain-text error and everything else works.
+1. From the repo root: `USDEBT_BASE_URL=http://localhost:8000 php -S localhost:8000 -t src/Public`. This starts on PHP 8.2 (checked 2026-11-12).
+    - **a.** Always set `USDEBT_BASE_URL` locally. Without it, every link, including the card link, points under `https://bengusa.pro/ourusdebt` and will not work on localhost.
+    - **b.** To also draw the share picture card, start it with gd loaded: `USDEBT_BASE_URL=http://localhost:8000 php -d extension=gd -S localhost:8000 -t src/Public`. Without gd, `card.php` shows a short plain-text error and everything else works.
 2. Open `http://localhost:8000/`.
 3. Set `USDEBT_DEV=1` to show errors on the page while developing. Without it, errors go to the log only.
 4. `index.php` loads `bootstrap.php` with `__DIR__`, so it does not depend on the working folder. Keep `src/Public` as the document root.
@@ -138,16 +139,20 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 
 ## 10. Deploy
 
-1. Address: `https://bengusa.pro/ourusdebt/` (Rob, 2026-11-13). The bare `/ourusdebt` redirects to `/ourusdebt/`.
-    - **a.** The path lives in one setting: `USDEBT_BASE_URL` (default `https://bengusa.pro/ourusdebt` in `ShareLinks`).
-    - **b.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) is no longer the address.
-2. Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution. Never standard AWS.
+1. Live state, 2026-11-13: USD-4 went live on 2026-11-12 on the shared bengusa.pro server, installed under the internal name `usdebt.bengusa.pro`. No public route reaches it yet: the bengusa.pro distribution does not pass the site name or query strings. So it is installed but not publicly reachable.
+    - **a.** Rob's go for that deploy, 2026-11-12: *"It is up, and it goes to the bengusa.pro server on lightsail."*
+    - **b.** The move to the public address is the TARGET, not live: route ready and security-reviewed, waiting on Rob's review and direct go.
+2. Target address: `https://bengusa.pro/ourusdebt/` (Rob, 2026-11-13). The bare `/ourusdebt` will redirect to `/ourusdebt/`.
+    - **a.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. The page links, share links, preview tags and the card link all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
+    - **b.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) as the public address.
+3. Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution. Never standard AWS.
     - **a.** Why: to keep costs down. Rob, 2026-11-13: *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there."*
-    - **b.** UsDebt has its own nginx + PHP 8.5 pool on that server, capped at 15% of one CPU and 256 MB. The bengusa.pro front door routes `/ourusdebt/` to it.
-    - **c.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
-3. Allow-list deploy: only `./src` ships. Rollback in one step.
-4. Every production deploy waits for Rob's direct go. Rob, 2026-11-12: *"It is up, and it goes to the bengusa.pro server on lightsail."* The bengusa.pro Home links to it in a new tab (`target="_blank"`, `rel="noopener"`).
-5. Plan order: USD-0 repo setup, USD-1 safe backend, USD-2 look and feel (Chart.js 4), USD-3 trend line, features (share link + picture card, Your Share, Since you were born), USD-4 deploy. Rob's review stops are listed in `docs/requirements.md`.
+    - **b.** UsDebt has its own nginx + PHP 8.5 pool on that server, capped at 15% of one CPU and 256 MB (this matches the live USD-4 setup).
+    - **c.** Target, not live yet: the bengusa.pro front door routes `/ourusdebt/` to that pool. In the other site's repo, the bengusa.pro Home gets a link that opens in a new tab (`target="_blank"`, `rel="noopener"`).
+    - **d.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
+4. Allow-list deploy: only `./src` ships. Rollback in one step.
+5. Every production deploy waits for Rob's direct go. The 2026-11-12 go (quoted in 1.a) covered the deploy at the internal name. The move to `/ourusdebt/` waits for Rob's review and a new direct go.
+6. Plan order: USD-0 repo setup, USD-1 safe backend, USD-2 look and feel (Chart.js 4), USD-3 trend line, features (share link + picture card, Your Share, Since you were born), USD-4 deploy (live 2026-11-12 at the internal name), USD-8 move under `/ourusdebt/` (target). Rob's review stops are listed in `docs/requirements.md`.
 
 ## 11. Git rules
 

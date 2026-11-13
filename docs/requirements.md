@@ -18,8 +18,8 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 4. **USD-3** — trend line. Built (straight line and projection). Waiting on Rob's review stop.
     - **a.** **USD-5** — growth curve beside the straight line, each with its own projection. Built.
 5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, waiting on Rob's review stop). **USD-7** Your Share (built, waiting on Rob's review stop). Next: Since you were born.
-6. **USD-4** — deploy to `https://bengusa.pro/ourusdebt/` on the existing bengUSA.pro Lightsail server (changed 2026-11-13, was `usdebt.bengusa.pro`). Going live waits for Rob's direct go.
-    - **a.** **USD-8** — move the app under the `/ourusdebt/` path (branch `USD-8-ourusdebt-subpath`).
+6. **USD-4** — deploy. Went live 2026-11-12 on the shared bengUSA.pro Lightsail server, installed under the internal name `usdebt.bengusa.pro`. No public route reaches it yet, so it is installed but not publicly reachable.
+    - **a.** **USD-8** — move to the target address `https://bengusa.pro/ourusdebt/` (branch `USD-8-ourusdebt-subpath`). The app side is built. The front-door route is ready and security-reviewed. Waiting on Rob's review and direct go.
 
 Rob's review stops, in build order (the build runs all day and stops only here):
 
@@ -57,21 +57,22 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **a.** A "Trend line" button turns the trend line and projection off and on. Status: built.
     - **b.** Default is on. The choice is remembered in the browser and in the URL (`trend=0`), so a shared link opens the same view.
 4. **R4 — Deploy.**
-    - **a.** Address: `https://bengusa.pro/ourusdebt/`. The bare `/ourusdebt` redirects to `/ourusdebt/`. Status: approved 2026-11-13.
-        - **i.** The path lives in one setting: `USDEBT_BASE_URL` (default `https://bengusa.pro/ourusdebt` in `ShareLinks`).
-        - **ii.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12).
-    - **b.** Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, no `usdebt.bengusa.pro` and no separate distribution, to keep costs down. nginx and PHP 8.5.
-        - **i.** UsDebt has its own nginx + PHP pool on that server, capped at 15% of one CPU and 256 MB. The bengusa.pro front door routes `/ourusdebt/` to it.
-        - **ii.** The bengusa.pro Home links to it in a new tab (`target="_blank"`, `rel="noopener"`).
-        - **iii.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
+    - **a.** Target address: `https://bengusa.pro/ourusdebt/`. The bare `/ourusdebt` will redirect to `/ourusdebt/`. Status: address approved 2026-11-13; the route is not live yet (see d).
+        - **i.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. Page links, share links, preview tags and the card link all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
+        - **ii.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) as the public address.
+    - **b.** Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution, to keep costs down. nginx and PHP 8.5.
+        - **i.** UsDebt has its own nginx + PHP pool on that server, capped at 15% of one CPU and 256 MB (matches the live USD-4 setup).
+        - **ii.** Target, not live yet: the bengusa.pro front door routes `/ourusdebt/` to that pool.
+        - **iii.** Target, not live yet: the bengusa.pro Home links to it in a new tab (`target="_blank"`, `rel="noopener"`). That link is a change in the other site's repo.
+        - **iv.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
     - **c.** Deploy ships `./src` only (allow-list). Rollback in one step.
-    - **d.** Going live waits for Rob's direct go. Rob, 2026-11-12: *"It is up, and it goes to the bengusa.pro server on lightsail."*
+    - **d.** Going live waits for Rob's direct go. USD-4 went live 2026-11-12 at the internal name `usdebt.bengusa.pro`, on Rob's go: *"It is up, and it goes to the bengusa.pro server on lightsail."* That go covered that deploy only. The move to `/ourusdebt/` (USD-8 plus the front-door route) waits for Rob's review and a new direct go.
 5. **R5 — More features, built in this order.** Status: approved 2026-11-12.
     - **a.** Share link + picture card. Status: BUILT (USD-6). Review stop reached.
-        - **i.** Share links are plain GET links for every view: `/?start_date=…&end_date=…[&trend=0]` and `/?compare=id,…`. The Compare form POST still works. No cap on the Compare list.
+        - **i.** Share links are plain GET links for every view. The examples below are relative to the site address (for example `https://bengusa.pro/ourusdebt/?start_date=…`): `?start_date=…&end_date=…[&trend=0]` and `?compare=id,…`. The Compare form POST still works. No cap on the Compare list.
         - **ii.** `card.php` draws a 1200×630 PNG picture card (DejaVu Sans font). Cards are cached in the `cards` folder inside the cache folder: at most 500 files, oldest removed first.
         - **iii.** Each page has og and twitter preview tags. Links in them are absolute and built from `USDEBT_BASE_URL`, never from the request's Host header.
-        - **iv.** Share menu: copy link, download picture, plain links to X, Facebook, LinkedIn, Reddit and email, and the phone's own share sheet where available. The menu's picture links are built from the path in `USDEBT_BASE_URL` (for example `/ourusdebt/card.php?…`), so they work under the sub-path. ⚠ PARTLY SUPERSEDED 2026-11-13 (Rob, USD-8): the old "start at the site root (`/card.php`)" wording.
+        - **iv.** Share menu: copy link, download picture, plain links to X, Facebook, LinkedIn, Reddit and email, and the phone's own share sheet where available. The menu's picture links are always built from the path in `USDEBT_BASE_URL` (for example `/ourusdebt/card.php?…`), so they work under the sub-path. For local work, set `USDEBT_BASE_URL=http://localhost:8000`. ⚠ PARTLY SUPERSEDED 2026-11-13 (Rob, USD-8): the old "start at the site root (`/card.php`)" wording.
         - **v.** No third-party scripts. Share wording lives in `ShareText.php`: the card, the preview tags, the share and email text, the menu's labels, the "Link copied" lines and the card's two error lines. Two card errors are not share wording and use the site's own messages: bad input (for example too few Compare picks) and an unexpected failure.
         - **vi.** The server needs PHP gd with FreeType. Without it the card returns a short plain-text error, and the rest of the site works.
         - **vii.** Compare totals on the card and on the Compare page are the same numbers: each term from its first data day to its last data day. Two terms of one president add up both terms' changes. Example, live data on 2026-11-12: Joseph Biden +$8.45 trillion (an earlier build showed +$8.42 trillion, because it stopped at the first day of the term's last month).
@@ -108,4 +109,4 @@ Answered 2026-11-12: Curved trend line is in version 1 (Rob: "Q2, Sure"). User-p
 Decision 2026-11-12: no AI-tool attribution in commits or PR descriptions (no co-author line, no "generated with" line). Rob: "No drop it ... I pay the bill, and I do not pay [the tool maker] to advertise for them."
 Answered 2026-11-12: Compare list stays uncapped. Projection into the future: yes. Address: `usdebt.bengusa.pro`. Treasury calls are cached daily (one full-dataset copy). PHP 8.5, no Docker. Gap-between-terms run is in version 1. Phone support: built and checked.
 ⚠ PARTLY SUPERSEDED 2026-11-13 (Rob): the address `usdebt.bengusa.pro` and the "dedicated server" for PHP 8.5. See R4.
-Decision 2026-11-13 (Rob): *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there. Just make sure it opens in a new tab."* UsDebt is served at `https://bengusa.pro/ourusdebt/` on the existing bengUSA.pro Lightsail server, and the bengusa.pro Home link opens in a new tab. The site name "Our U.S. Debt" is final.
+Decision 2026-11-13 (Rob): *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there. Just make sure it opens in a new tab."* The target is `https://bengusa.pro/ourusdebt/` on the existing bengUSA.pro Lightsail server, with the bengusa.pro Home link opening in a new tab. Not live yet: it waits for Rob's review and direct go (see R4.d). The site name "Our U.S. Debt" is final.
