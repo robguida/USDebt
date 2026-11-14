@@ -301,11 +301,21 @@ final class DownloadTest extends TestCase
         self::assertSame(1, preg_match('/\.icon-link \{([^}]*)\}/', $css, $m));
         self::assertMatchesRegularExpression('/width:\s*44px;/', $m[1]);
         self::assertMatchesRegularExpression('/height:\s*44px;/', $m[1]);
-        self::assertMatchesRegularExpression('/\.icon-link:focus-visible \.icon-tip \{[^}]*clip:\s*auto/', $css, 'the tip shows on keyboard focus');
-        self::assertSame(1, preg_match('/@media \(hover: hover\) \{\s*\.icon-link:hover \.icon-tip \{/', $css), 'hover reveal only where hover exists');
-        self::assertStringNotContainsString('content: attr(', $css);
-        self::assertStringNotContainsString('data-tip', $css);
-        self::assertSame(1, preg_match('/\.icon-tip \{([^}]*)\}/', $css, $t));
-        self::assertStringNotContainsString('pointer-events', $css, 'the pointer may move onto the tip');
+        $start = strpos($css, '/* ---- Table download (CSV) ---- */');
+        self::assertNotFalse($start);
+        $end = strpos($css, '/* ----', $start + 10);
+        $section = substr($css, $start, $end - $start);
+        self::assertMatchesRegularExpression('/\.icon-link:focus-visible \.icon-tip \{[^}]*clip:\s*auto/', $section, 'the tip shows on keyboard focus');
+        self::assertSame(1, preg_match('/\.icon-tip \{([^}]*)\}/', $section, $t));
+        foreach (['position:\s*absolute', 'width:\s*1px', 'height:\s*1px', 'overflow:\s*hidden', 'clip:\s*rect\(0, 0, 0, 0\)'] as $rule) {
+            self::assertMatchesRegularExpression('/' . $rule . ';/', $t[1], 'the tip is clipped at rest: ' . $rule);
+        }
+        self::assertSame(1, substr_count($css, '.icon-link:hover .icon-tip'), 'one hover reveal only');
+        self::assertSame(1, preg_match('/@media \(hover: hover\) \{(?:(?!\r?\n\}).)*\.icon-link:hover \.icon-tip \{([^}]*)\}/s', $section, $h), 'hover reveal only inside the hover media block');
+        self::assertMatchesRegularExpression('/clip:\s*auto;/', $h[1], 'the hover reveal un-hides');
+        self::assertSame(1, preg_match('/@media \(hover: hover\) \{(?:(?!\r?\n\}).)*\.icon-link:hover \{/s', $section), 'the tint is gated too');
+        self::assertStringNotContainsString('content: attr(', $section);
+        self::assertStringNotContainsString('data-tip', $section);
+        self::assertStringNotContainsString('pointer-events', $section, 'the pointer may move onto the tip');
     }
 }

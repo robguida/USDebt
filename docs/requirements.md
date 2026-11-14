@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-14. Owner of decisions: Rob Guida.
 
-Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code. USD-0 to USD-8 are merged into `development` and live at `https://bengusa.pro/ourusdebt/`. USD-9 (PR #43) and USD-10 (PR #44) were merged into `development` on 2026-11-14; neither is live yet. USD-12 (download icon, rights line) is built, not yet merged. **open** = still waiting on an answer. **next** = approved, not started.
+Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code. USD-0 to USD-8 are merged into `development` and live at `https://bengusa.pro/ourusdebt/`. USD-9 (PR #43) and USD-10 (PR #44) were merged into `development` on 2026-11-14; neither is live yet. USD-12 (download icon, rights line): built. **open** = still waiting on an answer. **next** = approved, not started.
 
 ## Purpose
 
