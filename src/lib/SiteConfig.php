@@ -40,7 +40,7 @@ final class SiteConfig
             ? self::COPYRIGHT_FIRST_YEAR . "\u{2013}" . $year
             : (string) self::COPYRIGHT_FIRST_YEAR;
         return "\u{00A9} " . $years . ' ' . self::COPYRIGHT_HOLDER
-            . '. Covers this site and its code, not the public-domain Treasury and Census data.';
+            . '. All rights reserved. This covers the site and its code, not the public-domain Treasury and Census data.';
     }
 
     /** The site's name as a file-name piece (lower case, hyphens): the CSV download's file name starts with it. */
