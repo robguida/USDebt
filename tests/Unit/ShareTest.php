@@ -447,9 +447,9 @@ final class ShareTest extends TestCase
 
         // The Compare page states the very same numbers.
         $html = FrontControllerTest::app($source)->handle(['compare' => implode(',', $keys)], [])->body;
-        self::assertStringContainsString('Bill Clinton (1993-2001): +$1.70 trillion after 2 months in office.', $html);
-        self::assertStringContainsString('George W. Bush (2001-2009): +$4.91 trillion after 2 months in office.', $html);
-        self::assertStringContainsString('Donald Trump (2017-2021, 2025-2029): +$9.76 trillion after 4 months in office.', $html);
+        self::assertStringContainsString('Bill Clinton (1993-2001): +$1.70 trillion after 96 months in office.', $html);
+        self::assertStringContainsString('George W. Bush (2001-2009): +$4.91 trillion after 96 months in office.', $html);
+        self::assertStringContainsString('Donald Trump (2017-2021, 2025-2029): +$9.76 trillion after 69 months in office.', $html);
     }
 
     public function testShareMenuKeepsTheTrendSwitch(): void
