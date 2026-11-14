@@ -149,7 +149,8 @@ final class YourShareTest extends TestCase
         $chart = FrontControllerTest::chartJson($html);
         self::assertSame(['total', 'trillion_usd'], [$chart['per'], $chart['unit']], 'the total is shown, not an error page');
         self::assertStringContainsString('Debt today', $html);
-        self::assertStringNotContainsString('Census', $html);
+        // the footer's copyright line names the Census data in every mode, so it is left out of this check
+        self::assertStringNotContainsString('Census', preg_replace('#<p class="copyright">.*?</p>#s', '', $html));
     }
 
     public function testMissingCensusFileAlsoFallsBackToTheTotal(): void
@@ -214,7 +215,7 @@ final class YourShareTest extends TestCase
         self::assertSame(1, preg_match('#data-share="email" href="(mailto:[^"]*)"#', $html, $m));
         $body = rawurldecode(explode('&body=', html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'))[1]);
         self::assertStringEndsWith(\USDebt\Service\ShareText::emailNote($per), $body);
-        self::assertSame(!$per->isTotal(), str_contains($body, 'Census'), 'the Census line is there in per modes only');
+        self::assertSame(!$per->isTotal(), str_contains((string) preg_replace('#<p class="copyright">.*?</p>#s', '', $body), 'Census'), 'the Census line is there in per modes only');
 
         // The link builder agrees with the page.
         $links = \USDebt\Service\ShareLinks::networks('https://x.test/', 'Text.', 'Subject', $per);
@@ -593,7 +594,7 @@ final class YourShareTest extends TestCase
             . ' Debt: U.S. Treasury, Debt to the Penny.';
         if ($per->isTotal()) {
             self::assertStringNotContainsString('chart-source', $html);
-            self::assertStringNotContainsString('Census', $text);
+            self::assertStringNotContainsString('Census', (string) preg_replace('#<p class="copyright">.*?</p>#s', '', $text)); // the footer copyright names the Census data
         } else {
             self::assertStringContainsString('<p class="footnote chart-source">' . $footnote . '</p>', $text);
         }

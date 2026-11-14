@@ -72,6 +72,15 @@ final class ShareText
     public const MENU_COPIED = 'Link copied';
     public const MENU_COPY_FAILED = "Couldn't copy the link. Select it and copy it by hand.";
 
+    /** Saved tab (opt-in cookie), next to the Chart / Stats / Table switch. */
+    public const TAB_MEMORY_LABEL = 'Remember my tab';
+    public const TAB_MEMORY_NOTE = 'Saves one cookie on this device. It holds only which tab you picked, nothing else. Untick to remove it.';
+    public const TAB_MEMORY_SAVED = "Saved. We'll keep this tab.";
+    public const TAB_MEMORY_REMOVED = 'Cookie removed.';
+    public const TAB_MEMORY_FAILED = "Couldn't save. Cookies seem to be blocked in this browser.";
+    /** The home link for the maker's site, read by screen readers. */
+    public const LOGO_LINK_LABEL = 'bengUSA.pro home';
+
     /** @var array{x: string, facebook: string, linkedin: string, reddit: string, email: string} */
     public const MENU_NETWORKS = [
         'x' => 'Share to X',

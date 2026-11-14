@@ -1,8 +1,8 @@
 # UsDebt — requirements (living document)
 
-Last updated: 2026-11-13. Owner of decisions: Rob Guida.
+Last updated: 2026-11-14. Owner of decisions: Rob Guida.
 
-Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on branch USD-7-your-share (which also carries USD-1 to USD-6); not merged into `development` yet. **open** = still waiting on an answer. **next** = approved, not started.
+Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on the working branch (USD-7-your-share carries USD-1 to USD-7; USD-10-page-updates carries the R8 items); not merged into `development` yet. **open** = still waiting on an answer. **next** = approved, not started.
 
 ## Purpose
 
@@ -99,9 +99,30 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **b.** When a president has a gap between terms and both terms are selected, show the data as one continuous run.
     - **c.** The Compare area is labeled "View by presidential term", with a caption that Congress sets spending and taxes.
 
+8. **R8 — Page updates (USD-10).** Rob, 2026-11-14: *"1. Have the bengUSA.pro logo in the header to the left of "Our U.S. Debt", and have it link to bengusa.pro 2. Add a checkbox somewhere with a cookie warning on the page so the end-user can save which tab in "The debt over time" section. This way, when they click any of the presidents, it stays on the tab they are on. 3. Add a copyright disclaimer to the footer. 4. On the Table tab, provide a download button. 5. Any links that go to another site need to use a new tab. So, "Debt to the Penny" and "GitHub", and any other, need to open in new tabs."* Status: built on branch USD-10-page-updates; waiting on Rob's review. Not live (see the release step in f below).
+    - **a.** Logo. The bengUSA.pro logo sits in the header, left of "Our U.S. Debt", and links to `https://bengusa.pro/` in a new tab. Status: built.
+    - **b.** Saved tab. Status: built.
+        - **i.** An opt-in checkbox, "Remember my tab", under the Chart / Stats / Table switch, with a short cookie notice. Nothing is saved until the visitor ticks it.
+        - **ii.** One first-party cookie, `usdebt_tab`, holding only `chart`, `stats` or `table`. Only the page script writes, reads and clears it. The server never reads it: the CDN does not forward cookies, and a URL parameter would need a CDN change.
+        - **iii.** Path follows the path in `USDEBT_BASE_URL`. Lasts 1 year. `SameSite=Lax`. `Secure` on https. Unticking deletes the cookie.
+        - **iv.** Hidden without JavaScript (all three panels show then, so there is nothing to save). Not on Compare, which has no tabs.
+        - **v.** Example: a visitor on the Table tab ticks the box, then clicks a president. The page reloads and opens on the Table tab again.
+    - **c.** Copyright. Status: built.
+        - **i.** Footer line: "© 2026 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data."
+        - **ii.** The first year is fixed (2026). The end year is the current year (America/New_York), so it reads "2026–2027" next year.
+        - **iii.** The holder is written "bengUSA.pro", without "LLC", so it is right whether or not the LLC exists yet.
+    - **d.** Table download. Status: built.
+        - **i.** A "Download table (CSV)" button on the Table tab: the same rows as the Table (the chosen range, Total or per person or per household, newest first).
+        - **ii.** It is a plain link to `download.php`, so it works without JavaScript. The link carries only `start_date`, `end_date` and `per`.
+        - **iii.** File name: `our-us-debt_<start>_to_<end>[_per-person|_per-household].csv`. Text cells that start with `=`, `+`, `-`, `@`, tab or return get a leading apostrophe, so a spreadsheet cannot run them as formulas.
+        - **iv.** Errors are short plain text, like the card: 400 (bad input, Compare, no data in range), 503 (no Treasury data), 500 (unexpected).
+    - **e.** Off-site links. Every link to another site opens in a new tab (`target="_blank"`, `rel="noopener noreferrer"`) and carries a screen-reader "(opens in a new tab)". Today: the logo, "Debt to the Penny", "GitHub". `mailto:` and same-site links are unchanged. Status: built.
+    - **f.** Release step, NOT done: the host nginx runs only `index.php` and `card.php` today (deploy kit `server/nginx/20-usdebt.conf`; any other `.php` returns 404). `download.php` needs its own location block, and a place in the deploy file lists, before the release that carries USD-10. Production waits for Rob's direct go.
+
 ## Open questions
 
-1. **R1:** any look Rob likes (a site to copy, colors, logo)?
+1. **R8.c:** should the footer also say "All rights reserved", to match bengusa.pro word for word? Yes = the line is longer and copies the other site's wording. No = it stays as built, which already states what is covered. Built as: no.
+2. **R1:** any look Rob likes (a site to copy, colors, logo)?
 2. **R4:** public with no login, or behind a password for now?
 
 Answered 2026-11-12: **Site name is "Our U.S. Debt"** (Rob). It is written in one place only, `SiteConfig::NAME`, and used for the page header, the page title, the share preview, the picture cards and the share text. The old "U.S. Debt Tracker" wording is dropped.

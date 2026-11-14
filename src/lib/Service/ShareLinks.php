@@ -20,6 +20,7 @@ final class ShareLinks
     public const DEFAULT_BASE_URL = 'https://bengusa.pro/ourusdebt';
     public const ENV_BASE_URL = 'USDEBT_BASE_URL';
     public const CARD_PATH = 'card.php';
+    public const DOWNLOAD_PATH = 'download.php';
 
     private readonly string $baseUrl;
 
@@ -103,6 +104,26 @@ final class ShareLinks
         // Local development at "/" sets USDEBT_BASE_URL=http://localhost:8000.
         $path = (string) parse_url($this->baseUrl, PHP_URL_PATH);
         return $path . '/' . self::CARD_PATH . ($query === '' ? '' : '?' . $query);
+    }
+
+    /**
+     * The Table tab's CSV link on this site, root-relative like localCard
+     * ("/ourusdebt/download.php?start_date=...&end_date=...&per=person"), so the
+     * download attribute is honoured. The path comes from the effective base URL.
+     */
+    public function localDownload(string $query): string
+    {
+        $path = (string) parse_url($this->baseUrl, PHP_URL_PATH);
+        return $path . '/' . self::DOWNLOAD_PATH . ($query === '' ? '' : '?' . $query);
+    }
+
+    /**
+     * The folder the site lives in, with both slashes ("/ourusdebt/", or "/"),
+     * from the effective base URL like localCard(). The saved-tab cookie uses it as its Path.
+     */
+    public function cookiePath(): string
+    {
+        return rtrim((string) parse_url($this->baseUrl, PHP_URL_PATH), '/') . '/';
     }
 
     /**

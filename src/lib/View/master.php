@@ -20,6 +20,8 @@
  */
 
 use USDebt\Service\Html;
+use USDebt\Service\ShareText;
+use USDebt\SiteConfig;
 
 /* ?r= busts the browser cache when a file changes */
 $public_dir = dirname(__DIR__, 2) . '/Public/';
@@ -65,7 +67,10 @@ $home_href = './' . ($home_query === '' ? '' : '?' . $home_query);
 <a class="skip-link" href="#results">Skip to the chart</a>
 <header class="topbar">
     <div class="wrap topbar-inner">
-        <a class="brand" href="<?php echo Html::e($home_href); ?>" data-trend-link><?php echo Html::e($site_name); ?></a>
+        <div class="brand-group">
+            <a class="logo-link" href="<?php echo Html::e(SiteConfig::HOME_URL); ?>" target="_blank" rel="noopener noreferrer"><img class="logo" src="<?php echo $asset('images/bengusa-logo.svg'); ?>" width="35" height="32" alt=""><span class="sr-only"><?php echo Html::e(ShareText::LOGO_LINK_LABEL . ShareText::MENU_NEW_TAB); ?></span></a>
+            <a class="brand" href="<?php echo Html::e($home_href); ?>" data-trend-link><?php echo Html::e($site_name); ?></a>
+        </div>
         <nav class="topnav" aria-label="Site">
             <a href="#terms">Compare terms</a>
             <a href="#about">About the data</a>
@@ -100,10 +105,11 @@ $home_href = './' . ($home_query === '' ? '' : '?' . $home_query);
     <div class="wrap">
         <h2>About the data</h2>
         <p>Numbers come from the U.S. Treasury's
-            <a href="<?php echo Html::e($treasury_url); ?>" rel="noopener">Debt to the Penny</a> data,
+            <a href="<?php echo Html::e($treasury_url); ?>" target="_blank" rel="noopener noreferrer">Debt to the Penny<span class="sr-only"><?php echo Html::e(ShareText::MENU_NEW_TAB); ?></span></a> data,
             which is published for every business day. This site saves a fresh copy once a day.
             Because it uses reported figures, it can differ from debt clocks, which show real-time estimates.</p>
-        <p>The code is open source on <a href="https://github.com/robguida/USDebt" rel="noopener">GitHub</a>.</p>
+        <p>The code is open source on <a href="https://github.com/robguida/USDebt" target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only"><?php echo Html::e(ShareText::MENU_NEW_TAB); ?></span></a>.</p>
+        <p class="copyright"><?php echo Html::e(SiteConfig::copyrightLine(new \DateTimeImmutable('now'))); ?></p>
     </div>
 </footer>
 </body>

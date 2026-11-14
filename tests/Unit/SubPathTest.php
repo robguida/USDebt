@@ -133,6 +133,10 @@ final class SubPathTest extends TestCase
             }
             $url = self::resolve($link);
             $host = (string) parse_url($url, PHP_URL_HOST);
+            if ($url === 'https://bengusa.pro/') {
+                // The header logo: the one deliberate link to the maker's own site (opens in a new tab).
+                continue;
+            }
             if ($host !== 'bengusa.pro') {
                 // Another site (Treasury, a social site): fine, and never ours.
                 self::assertMatchesRegularExpression('#^https://#', $url, "external link must be https: {$link}");
