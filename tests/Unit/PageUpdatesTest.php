@@ -76,15 +76,15 @@ final class PageUpdatesTest extends TestCase
     public function testFooterCopyrightLine(): void
     {
         self::assertSame(
-            "\u{00A9} 2026 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data.",
+            "\u{00A9} 2026 bengUSA.pro. All rights reserved. This covers the site and its code, not the public-domain Treasury and Census data.",
             SiteConfig::copyrightLine(new \DateTimeImmutable('2026-12-31 23:59:59', new \DateTimeZone('America/New_York')))
         );
         self::assertSame(
-            "\u{00A9} 2026\u{2013}2027 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data.",
+            "\u{00A9} 2026\u{2013}2027 bengUSA.pro. All rights reserved. This covers the site and its code, not the public-domain Treasury and Census data.",
             SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01 00:00:00', new \DateTimeZone('America/New_York')))
         );
         self::assertSame(
-            "\u{00A9} 2026 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data.",
+            "\u{00A9} 2026 bengUSA.pro. All rights reserved. This covers the site and its code, not the public-domain Treasury and Census data.",
             SiteConfig::copyrightLine(new \DateTimeImmutable('2026-01-01'))
         );
     }
@@ -94,6 +94,9 @@ final class PageUpdatesTest extends TestCase
         $html = self::page();
         $line = htmlspecialchars(SiteConfig::copyrightLine(new \DateTimeImmutable('now')), ENT_QUOTES);
         self::assertMatchesRegularExpression('#GitHub[^<]*<span class="sr-only">[^<]*</span></a>\.</p>\s*<p class="copyright">' . preg_quote($line, '#') . '</p>#u', $html);
+        self::assertStringContainsString('All rights reserved.', $html);
+        self::assertStringContainsString('<p>You can read the code on <a href="https://github.com/robguida/USDebt" target="_blank" rel="noopener noreferrer">GitHub', $html);
+        self::assertDoesNotMatchRegularExpression('/open source/i', $html);
         // The holder and first year live in SiteConfig only.
         self::assertSame('bengUSA.pro', SiteConfig::COPYRIGHT_HOLDER);
         self::assertSame(2026, SiteConfig::COPYRIGHT_FIRST_YEAR);

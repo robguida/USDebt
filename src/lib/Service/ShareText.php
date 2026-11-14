@@ -66,6 +66,8 @@ final class ShareText
     public const MENU_LINK_LABEL = 'Link to this view';
     public const MENU_COPY = 'Copy link';
     public const MENU_DOWNLOAD = 'Download picture';
+    /** The Table tab's download icon: its screen-reader name and its hover/focus tooltip. */
+    public const TABLE_DOWNLOAD = 'Download table as CSV';
     /** Screen-reader note after a link that opens a new tab. */
     public const MENU_NEW_TAB = ' (opens in a new tab)';
     /** Status line after "Copy link" (the page script shows it; the menu hands it over in a data attribute). */
