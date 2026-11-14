@@ -108,7 +108,7 @@ $home_href = './' . ($home_query === '' ? '' : '?' . $home_query);
             <a href="<?php echo Html::e($treasury_url); ?>" target="_blank" rel="noopener noreferrer">Debt to the Penny<span class="sr-only"><?php echo Html::e(ShareText::MENU_NEW_TAB); ?></span></a> data,
             which is published for every business day. This site saves a fresh copy once a day.
             Because it uses reported figures, it can differ from debt clocks, which show real-time estimates.</p>
-        <p>The code is open source on <a href="https://github.com/robguida/USDebt" target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only"><?php echo Html::e(ShareText::MENU_NEW_TAB); ?></span></a>.</p>
+        <p>You can read the code on <a href="https://github.com/robguida/USDebt" target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only"><?php echo Html::e(ShareText::MENU_NEW_TAB); ?></span></a>.</p>
         <p class="copyright"><?php echo Html::e(SiteConfig::copyrightLine(new \DateTimeImmutable('now'))); ?></p>
     </div>
 </footer>

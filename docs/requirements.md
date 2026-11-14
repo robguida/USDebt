@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-14. Owner of decisions: Rob Guida.
 
-Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code. USD-0 to USD-8 are merged into `development` and live at `https://bengusa.pro/ourusdebt/`. USD-9 (Compare months fix) has its PR open. USD-10 (the R8 items) is built on branch USD-10-page-updates and is not merged. **open** = still waiting on an answer. **next** = approved, not started.
+Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code. USD-0 to USD-8 are merged into `development` and live at `https://bengusa.pro/ourusdebt/`. USD-9 (PR #43) and USD-10 (PR #44) were merged into `development` on 2026-11-14; neither is live yet. USD-12 (download icon, rights line): built. **open** = still waiting on an answer. **next** = approved, not started.
 
 ## Purpose
 
@@ -17,7 +17,7 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 3. **USD-2** — look and feel, one chart library (Chart.js 4), neutral term colors. Done.
 4. **USD-3** — trend line. Built (straight line and projection). Waiting on Rob's review stop.
     - **a.** **USD-5** — growth curve beside the straight line, each with its own projection. Built.
-5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, waiting on Rob's review stop). **USD-7** Your Share (built, waiting on Rob's review stop). Next: Since you were born.
+5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, merged and live). **USD-7** Your Share (built, merged and live). Next: Since you were born.
 6. **USD-4** — deploy. Installed 2026-11-12 on the shared bengUSA.pro Lightsail server under the internal name `usdebt.bengusa.pro` (history; that name is no longer the public address).
     - **a.** **USD-8** — move to `https://bengusa.pro/ourusdebt/`. Live since 2026-11-13 01:26 UTC, from master `de55c9b`, on Rob's go.
 
@@ -99,7 +99,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **b.** When a president has a gap between terms and both terms are selected, show the data as one continuous run.
     - **c.** The Compare area is labeled "View by presidential term", with a caption that Congress sets spending and taxes.
 
-8. **R8 — Page updates (USD-10).** Rob, 2026-11-14: *"1. Have the bengUSA.pro logo in the header to the left of "Our U.S. Debt", and have it link to bengusa.pro 2. Add a checkbox somewhere with a cookie warning on the page so the end-user can save which tab in "The debt over time" section. This way, when they click any of the presidents, it stays on the tab they are on. 3. Add a copyright disclaimer to the footer. 4. On the Table tab, provide a download button. 5. Any links that go to another site need to use a new tab. So, "Debt to the Penny" and "GitHub", and any other, need to open in new tabs."* Status: built on branch USD-10-page-updates; waiting on Rob's review. Not live (see the release step in f below).
+8. **R8 — Page updates (USD-10).** Rob, 2026-11-14: *"1. Have the bengUSA.pro logo in the header to the left of "Our U.S. Debt", and have it link to bengusa.pro 2. Add a checkbox somewhere with a cookie warning on the page so the end-user can save which tab in "The debt over time" section. This way, when they click any of the presidents, it stays on the tab they are on. 3. Add a copyright disclaimer to the footer. 4. On the Table tab, provide a download button. 5. Any links that go to another site need to use a new tab. So, "Debt to the Penny" and "GitHub", and any other, need to open in new tabs."* Status: built (merged into `development` 2026-11-14, PR #44). Not live (see the release step in f below).
     - **a.** Logo. The bengUSA.pro logo sits in the header, left of "Our U.S. Debt", and links to `https://bengusa.pro/` in a new tab. Status: built.
     - **b.** Saved tab. Status: built.
         - **i.** An opt-in checkbox, "Remember my tab", next to the Chart / Stats / Table switch (it wraps under the switch on phones), with a short cookie notice. Nothing is saved until the visitor ticks it.
@@ -109,11 +109,11 @@ Rob's review stops, in build order (the build runs all day and stops only here):
         - **v.** Hidden without JavaScript (all three panels show then, so there is nothing to save). Not on Compare, which has no tabs.
         - **vi.** Example: a visitor on the Table tab ticks the box, then clicks a president. The page reloads and opens on the Table tab again.
     - **c.** Copyright. Status: built.
-        - **i.** Footer line: "© 2026 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data."
+        - **i.** Footer lines (USD-12, Rob answered R8.c "Yes "All rights reserved"", 2026-11-14): "You can read the code on GitHub." then "© 2026 bengUSA.pro. All rights reserved. This covers the site and its code, not the public-domain Treasury and Census data." Why: the repo has no open-source license (`composer.json` says "proprietary"), so "open source" was not accurate. The code is public to read, all rights reserved.
         - **ii.** The first year is fixed (2026). The end year is the current year (America/New_York), so it reads "2026–2027" next year.
         - **iii.** The holder is written "bengUSA.pro", without "LLC", so it is right whether or not the LLC exists yet.
     - **d.** Table download. Status: built.
-        - **i.** A "Download table (CSV)" button on the Table tab: the same rows as the Table (the chosen range, Total or per person or per household, newest first). Helper line under it: "Opens in Excel, Numbers or Google Sheets."
+        - **i.** A simple download icon on the Table tab (USD-12; Rob: "I like simple icons vs buttons with instructions. So for Download, can it just be an icon..."). Same rows as the Table (the chosen range, Total or per person or per household, newest first). Its name, and the tooltip shown on hover or keyboard focus, is "Download table as CSV" (from `ShareText`). Tap target at least 44×44 px. The helper line ("Opens in Excel, Numbers or Google Sheets.") is gone.
         - **ii.** It is a plain link to `download.php`, so it works without JavaScript. The link carries only `start_date`, `end_date` and `per`. Its path follows `USDEBT_BASE_URL` (for example `/ourusdebt/download.php`).
         - **iii.** File name: `our-us-debt_<start>_to_<end>[_per-person|_per-household].csv`. Text cells that start with `=`, `+`, `-`, `@`, tab or return get a leading apostrophe, so a spreadsheet cannot run them as formulas.
         - **iv.** Errors are short plain text, like the card: 400 (bad input, Compare, no data in range), 503 (no Treasury data), 500 (unexpected).
@@ -122,7 +122,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
 
 ## Open questions
 
-1. **R8.c:** should the footer also say "All rights reserved", to match bengusa.pro word for word? Yes = the line is longer and copies the other site's wording. No = it stays as built, which already states what is covered. Built as: no.
+1. **R8.c:** ANSWERED (Rob, 2026-11-14): *"Yes "All rights reserved""*. The footer now says "All rights reserved" (see R8.c.i). Built in USD-12.
 2. **R1:** any look Rob likes (a site to copy, colors, logo)?
 3. **R4:** public with no login, or behind a password for now?
 

@@ -16,9 +16,10 @@ use USDebt\Service\CompareService;
 use USDebt\Service\DebtSource;
 use USDebt\Service\PopulationService;
 use USDebt\Service\ShareLinks;
+use USDebt\Service\ShareText;
 use USDebt\Service\TableCsv;
 
-/** The Table tab's CSV download (download.php) and its button. */
+/** The Table tab's CSV download (download.php) and its icon. */
 final class DownloadTest extends TestCase
 {
     private const RANGE = ['start_date' => '2026-09-01', 'end_date' => '2026-10-31'];
@@ -210,7 +211,7 @@ final class DownloadTest extends TestCase
     }
 
     /** @return array<string, array{0: string, 1: array<string, string>, 2: string}> */
-    public static function buttons(): array
+    public static function icons(): array
     {
         $range = 'start_date=2026-09-01&end_date=2026-10-31';
         return [
@@ -222,20 +223,47 @@ final class DownloadTest extends TestCase
         ];
     }
 
-    /** @dataProvider buttons */
-    #[\PHPUnit\Framework\Attributes\DataProvider('buttons')]
-    public function testButtonOnTheTableTab(string $base, array $query, string $href): void
+    /** @dataProvider icons */
+    #[\PHPUnit\Framework\Attributes\DataProvider('icons')]
+    public function testIconOnTheTableTab(string $base, array $query, string $href): void
     {
         $base === '' ? putenv(ShareLinks::ENV_BASE_URL) : putenv(ShareLinks::ENV_BASE_URL . '=' . $base);
         $html = self::page($query);
+        self::assertSame('Download table as CSV', ShareText::TABLE_DOWNLOAD);
         self::assertStringContainsString(
-            '<a class="btn btn-quiet" href="' . htmlspecialchars($href, ENT_QUOTES) . '" download>Download table (CSV)</a>',
+            '<a class="icon-link" href="' . htmlspecialchars($href, ENT_QUOTES) . '" download>'
+            . '<svg viewBox="0 0 24 24"',
             $html,
         );
-        self::assertStringContainsString('Opens in Excel, Numbers or Google Sheets.', $html);
+        self::assertSame(1, preg_match('#<p class="table-download">(.*?)</p>#s', $html, $m));
+        $box = $m[1];
+        // Icon only: the SVG is hidden from screen readers; the one hidden text span is both the name and the tooltip.
+        self::assertStringContainsString('aria-hidden="true" focusable="false"', $box);
+        self::assertStringContainsString('<span class="icon-tip">Download table as CSV</span></a>', $box);
+        self::assertSame(1, substr_count($box, 'Download table as CSV</span>'));
+        self::assertStringNotContainsString('aria-label', $box);
+        self::assertStringNotContainsString('data-tip', $box);
+        // No visible text: nothing but whitespace is left once the svg and the tip span are removed.
+        self::assertSame(1, preg_match('#<a class="icon-link"[^>]*>(.*?)</a>#s', $box, $link));
+        $rest = preg_replace(['#<svg\b.*?</svg>#s', '#<span class="icon-tip">.*?</span>#s'], '', $link[1]);
+        self::assertSame('', trim((string) $rest), 'the link shows only the icon');
+        self::assertStringNotContainsString('title=', $box);
+        // No helper line, and nothing CSP would block.
+        self::assertStringNotContainsString('Opens in Excel', $html);
+        self::assertStringNotContainsString('class="hint"', $box);
+        self::assertStringNotContainsString('btn-quiet', $box);
+        self::assertDoesNotMatchRegularExpression('#\sstyle\s*=|<script|\son[a-z]+\s*=#i', $box);
     }
 
-    public function testNoButtonOnCompare(): void
+    public function testTableDownloadWordsLiveInShareTextOnly(): void
+    {
+        $view = (string) file_get_contents(dirname(__DIR__, 2) . '/src/lib/View/tab_data.php');
+        self::assertStringNotContainsString('Download table', $view);
+        self::assertStringNotContainsString('Opens in Excel', $view);
+        self::assertStringContainsString('ShareText::TABLE_DOWNLOAD', $view);
+    }
+
+    public function testNoIconOnCompare(): void
     {
         $app = new FrontController(new USDebtController(FrontControllerTest::source(), new CompareService(), ShareLinks::fromEnvironment()));
         $r = $app->handle(['compare' => '727506000,979966800'], []);
@@ -264,5 +292,30 @@ final class DownloadTest extends TestCase
         array_shift($lines);
         self::assertSame(self::tableAmounts($page), array_map(static fn (string $l): string => explode(',', $l)[1], $lines));
         self::assertMatchesRegularExpression('/^2026-10-\d\d,\d{13,}\.\d{2}$/', $lines[0], 'Total-sized amounts');
+    }
+
+    /** The icon's size and its tooltip rules (WCAG 2.5.8 target size, 1.4.13 hover and focus). */
+    public function testIconStyles(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Public/css/usdebt.css');
+        self::assertSame(1, preg_match('/\.icon-link \{([^}]*)\}/', $css, $m));
+        self::assertMatchesRegularExpression('/width:\s*44px;/', $m[1]);
+        self::assertMatchesRegularExpression('/height:\s*44px;/', $m[1]);
+        $start = strpos($css, '/* ---- Table download (CSV) ---- */');
+        self::assertNotFalse($start);
+        $end = strpos($css, '/* ----', $start + 10);
+        $section = substr($css, $start, $end - $start);
+        self::assertMatchesRegularExpression('/\.icon-link:focus-visible \.icon-tip \{[^}]*clip:\s*auto/', $section, 'the tip shows on keyboard focus');
+        self::assertSame(1, preg_match('/\.icon-tip \{([^}]*)\}/', $section, $t));
+        foreach (['position:\s*absolute', 'width:\s*1px', 'height:\s*1px', 'overflow:\s*hidden', 'clip:\s*rect\(0, 0, 0, 0\)'] as $rule) {
+            self::assertMatchesRegularExpression('/' . $rule . ';/', $t[1], 'the tip is clipped at rest: ' . $rule);
+        }
+        self::assertSame(1, substr_count($css, '.icon-link:hover .icon-tip'), 'one hover reveal only');
+        self::assertSame(1, preg_match('/@media \(hover: hover\) \{(?:(?!\r?\n\}).)*\.icon-link:hover \.icon-tip \{([^}]*)\}/s', $section, $h), 'hover reveal only inside the hover media block');
+        self::assertMatchesRegularExpression('/clip:\s*auto;/', $h[1], 'the hover reveal un-hides');
+        self::assertSame(1, preg_match('/@media \(hover: hover\) \{(?:(?!\r?\n\}).)*\.icon-link:hover \{/s', $section), 'the tint is gated too');
+        self::assertStringNotContainsString('content: attr(', $section);
+        self::assertStringNotContainsString('data-tip', $section);
+        self::assertStringNotContainsString('pointer-events', $section, 'the pointer may move onto the tip');
     }
 }

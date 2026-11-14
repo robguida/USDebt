@@ -11,6 +11,7 @@
  */
 
 use USDebt\Service\Html;
+use USDebt\Service\ShareText;
 
 $data = '';
 foreach ($datas as $d) {
@@ -20,8 +21,7 @@ foreach ($datas as $d) {
 }
 ?>
 <p class="table-download">
-    <a class="btn btn-quiet" href="<?php echo Html::e($download_href); ?>" download>Download table (CSV)</a>
-    <span class="hint">Opens in Excel, Numbers or Google Sheets.</span>
+    <a class="icon-link" href="<?php echo Html::e($download_href); ?>" download><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v10"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg><span class="icon-tip"><?php echo Html::e(ShareText::TABLE_DOWNLOAD); ?></span></a>
 </p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Daily debt table">
     <table class="data-table num">
