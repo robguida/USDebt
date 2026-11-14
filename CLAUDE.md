@@ -2,7 +2,7 @@
 
 Source of truth for anyone (human or tool) working on this project.
 Owner: Rob Guida (RandBMedia, his own company; not a client project).
-Last updated: 2026-11-13 (matches branch USD-8-ourusdebt-subpath).
+Last updated: 2026-11-14 (matches branch USD-10-page-updates).
 
 ## 1. What it is
 
@@ -31,22 +31,26 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 1. `src/Public/` — the web root (document root).
     - **a.** `index.php` — entry point. Loads `lib/bootstrap.php` with `__DIR__` (not a relative path), then hands the request to `FrontController`.
     - **b.** `card.php` — the share picture card (a 1200×630 PNG). Loads `bootstrap.php` the same way, then hands the request to `CardController`.
+        - **i.** `download.php` — the Table tab's CSV file. Loads `bootstrap.php` with `__DIR__`, then hands the request to `DownloadController`.
     - **c.** `css/usdebt.css` — site styles and colour variables.
-    - **d.** `js/usdebt.js` — the page script (charts, trend button, tabs, Share menu).
+    - **d.** `js/usdebt.js` — the page script (charts, trend button, tabs and the saved-tab cookie, Share menu).
     - **e.** `lib/` — `chart.umd.min.js` and its license file.
-    - **f.** `images/` — president photos. `favicon.svg` — site icon.
+    - **f.** `images/` — president photos and `bengusa-logo.svg` (the header logo, nothing active inside it). `favicon.svg` — site icon.
 2. `src/lib/` — app code, outside the web root.
     - **a.** `bootstrap.php` — error settings, timezone (America/New_York), class autoloader. No session.
         - **i.** `SiteConfig.php` — the site's name (`SiteConfig::NAME` = "Our U.S. Debt", Rob's decision 2026-11-12), in this one place. The header, page title, link preview tags, share words and picture card all read it. Change it only here; a test checks no other file spells it out.
+        - **ii.** Also in `SiteConfig`: `COPYRIGHT_HOLDER` ("bengUSA.pro", no "LLC"), `COPYRIGHT_FIRST_YEAR` (2026), `HOME_URL` (`https://bengusa.pro/`, the header logo's link), `copyrightLine()` (the footer line; the end year is the current year in America/New_York) and `FILE_SLUG` (`our-us-debt`, the start of the CSV file name).
     - **b.** `Controller/FrontController.php` — turns one request into one page. Visitors only see friendly messages.
     - **c.** `Controller/USDebtController.php` — builds the date-range view, compare view and error view, and the share tags and Share menu for each. Loads view files.
     - **d.** `Controller/CardController.php` — the picture card: same input checks as the page, the cached PNG or a fresh one, plain-text errors (400, 503, 500).
+        - **i.** `Controller/DownloadController.php` — the Table's CSV: reads only `start_date`, `end_date` and `per`, same input checks as the page, cut from the one daily Treasury copy. Plain-text errors like the card: 400 (bad input, a Compare request, a range with no data), 503 (no Treasury data at all), 500 (anything unexpected).
     - **e.** `Model/` — `RequestModel.php` (dates, picked terms, trend on/off, per mode), `DebtEntry.php`, `DebtDataset.php`, `ShareCard.php` (everything needed to share one view: words, links, cache key, what the card draws), `Per.php` (Your Share: total, per person or per household, from `?per=`).
     - **f.** `Service/FiscalDataClient.php` — downloads the full Treasury history, page by page.
     - **g.** `Service/DebtSource.php` (the interface) and `Service/DebtRepository.php` — the daily cache.
     - **h.** `Service/LogOnce.php` — logs a lasting problem once per 15 minutes across PHP processes (a marker file in `src/var/log-markers`). Used by the Treasury cache and the card cache.
     - **i.** `Service/TrendService.php` — the straight trend line and its projection, and the growth curve (least squares on ln(value)) and its projection.
     - **j.** `Service/CompareService.php` — checks the picked terms and builds the Compare series, with each line's exact total change.
+        - **i.** `Service/TableCsv.php` — builds the CSV: the same rows as the Table (newest first), amounts as plain 2-decimal numbers, a guard against spreadsheet formulas, and the file name `our-us-debt_<start>_to_<end>[_per-person|_per-household].csv`.
     - **k.** `Service/StatsCalculator.php`, `Service/ChartData.php`, `Service/Html.php` — stats, chart data shaping, safe HTML output.
     - **l.** `Service/PresidentService.php` — fixed list of presidents (term dates, photo, chart colour).
     - **m.** `Service/ValidateDateTime.php` — date checks.
@@ -95,11 +99,21 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
     - **a.** Shares the view's own GET link (the same as og:url), with the trend choice. After a Compare form post it is the `?compare=` link.
     - **b.** Copy link, Download picture (`card.php`, same site; the link is built from the path in `USDEBT_BASE_URL`, so it works under `/ourusdebt/`), a card preview, and plain links to X, Facebook, LinkedIn, Reddit and email. No scripts from social sites. Phones with a system share sheet get "Share with an app" first.
     - **c.** Share words, and where each lives:
-        - **i.** `Service/ShareText.php` holds every share word: the card's words, the link preview tags, the share text and email, alt text, the Share menu's labels, the "Link copied" and "Couldn't copy" lines, and the card's two error lines (no data, cannot draw). `View/share_menu.php` has no words of its own, and `js/usdebt.js` reads the copy lines from the menu's `data-copied` and `data-copy-failed` attributes. A test checks all three.
-        - **ii.** Not in `ShareText`: a card request that fails its input checks gets the page's own message (for example "Please pick at least 2 presidents to compare."), and an unexpected failure gets the site-wide `FrontController::GENERIC_ERROR`.
+        - **i.** `Service/ShareText.php` holds every share word, plus the saved-tab words (`TAB_MEMORY_*`) and the logo link label (`LOGO_LINK_LABEL`): the card's words, the link preview tags, the share text and email, alt text, the Share menu's labels, the "Link copied" and "Couldn't copy" lines, and the card's two error lines (no data, cannot draw). `View/share_menu.php` has no words of its own, and `js/usdebt.js` reads the copy lines from the menu's `data-copied` and `data-copy-failed` attributes. A test checks all three.
+        - **ii.** Not in `ShareText`: a card request that fails its input checks gets the page's own message (for example "Please pick at least 2 presidents to compare."), and an unexpected failure gets the site-wide `FrontController::GENERIC_ERROR`. The CSV download's words are also outside it: the button label ("Download table (CSV)") and helper text live in `View/tab_data.php`, the column titles in `Service/TableCsv.php`, and the Compare error (`NO_COMPARE`) in `Controller/DownloadController.php`. Its no-data error reuses `ShareText::CARD_NO_DATA`.
     - **d.** The share links are built in `Service/ShareLinks.php` and again in `js/usdebt.js` when the trend switch changes (checked by `tests/js/share-url.check.js`).
         - **i.** The page's own links are re-written the same way (`withTrend`): the query is edited as text, so `compare=1,2` keeps its commas.
     - **e.** Compare totals (the page's summary lines and the card's rows) run from each term's first data day to its last data day. Two terms of one president are the sum of the two terms' changes, the same number the joined chart line is built from. The chart itself has one point per month, so its last point can be up to a month short of the stated total.
+7. Header logo: `images/bengusa-logo.svg` sits left of the site name and links to `SiteConfig::HOME_URL` (`https://bengusa.pro/`) in a new tab. The picture has empty alt text; the link has a screen-reader label ("bengUSA.pro home (opens in a new tab)").
+8. Links to another site open in a new tab: `target="_blank"` and `rel="noopener noreferrer"`, plus a screen-reader-only "(opens in a new tab)" (`ShareText::MENU_NEW_TAB`). Today: the logo, "Debt to the Penny" and "GitHub". Any new off-site link follows the same rule. Not changed: `mailto:` links, same-site links, and the card and CSV downloads.
+9. Saved tab ("Remember my tab", next to the Chart / Stats / Table switch; it wraps under the switch on phones): an opt-in checkbox with a short cookie notice. Rob, 2026-11-14: so that clicking a president stays on the tab the visitor is on.
+    - **a.** One first-party cookie, `usdebt_tab`, holding only `chart`, `stats` or `table`. Written, read and cleared only by the page script (the `tabMemory` block in `js/usdebt.js`). The server never reads it: the CDN in front of the site does not forward cookies, and a URL parameter would need a CDN change.
+    - **b.** Path comes from the path in `USDEBT_BASE_URL` (`ShareLinks::cookiePath()`, passed to the script in `data-path`). Lasts 1 year. `SameSite=Lax`. `Secure` on https. The cookie lasts 1 year from the last visit that loads a saved tab or changes it, because it is saved again then (not 1 year from the first tick).
+    - **c.** Ticking saves the tab now shown and says "Saved. We'll keep this tab." Every later tab change saves again while the box is ticked. Unticking deletes the cookie and says "Cookie removed." A saved tab opens first when the page loads, with the box ticked, and loading it renews the 1 year. If the browser blocks cookies, the box unticks and says "Couldn't save. Cookies seem to be blocked in this browser."
+    - **d.** The checkbox is hidden until the page script runs, because without JavaScript all three panels show and there is no tab to save. It is not on Compare, which has no tabs.
+    - **e.** Its words live in `ShareText` (`TAB_MEMORY_*`) and reach the script through `data-` attributes (a test checks the script has none of its own).
+10. Table download: the Table tab has a "Download table (CSV)" button, a plain link to `download.php`, so it works without JavaScript. It carries only `start_date`, `end_date` and `per`. Same rows as the Table (the chosen range, Total or per person or per household, newest first). Under the button, the helper line: "Opens in Excel, Numbers or Google Sheets." The file is `our-us-debt_<start>_to_<end>[_per-person|_per-household].csv`. Text cells starting with `=`, `+`, `-`, `@`, tab or return get a leading apostrophe so a spreadsheet cannot run them as a formula. Compare has no Table, so there is no button there.
+11. Footer copyright, under the GitHub line: "© 2026 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data." The first year is fixed; the end year is the current year (America/New_York), so it reads "2026–2027" after New Year 2027. Words come from `SiteConfig::copyrightLine()`.
 
 ## 6. Trend line and projection
 
@@ -128,7 +142,8 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 
 1. Install: `php composer.phar install`. Run: `php vendor/bin/phpunit`.
 2. Tests live in `tests/` (outside `./src`): trend, cache, compare, client, front controller, views, stats and dates, presidents, share links and picture card, and the docs check (the §3 file map). Run with gd loaded (`php -d extension=gd vendor/bin/phpunit`) so the card tests run instead of skipping.
-    - **a.** `tests/js/*.check.js` (for example `with-trend.check.js`, `trend-lines.check.js`, `per-format.check.js` for the dollar formatting) check the page script in Node. The view tests run it when Node is installed, and skip that part when it is not.
+    - **a.** `tests/js/*.check.js` (for example `with-trend.check.js`, `trend-lines.check.js`, `per-format.check.js` for the dollar formatting, `tab-memory.check.js` for the saved-tab cookie, `tab-switch.check.js` for the checkbox wiring, which also counts the cookie writes) check the page script in Node. The view tests run it when Node is installed, and skip that part when it is not.
+    - **b.** USD-10 tests: `tests/Unit/DownloadTest.php` (the CSV: rows match the Table, per modes, formula guard, quoting, file names, the 400 / 503 / 500 answers, the button) and `tests/Unit/PageUpdatesTest.php` (logo link, footer copyright, every off-site link in a new tab, the saved-tab checkbox and cookie path, and a Node run of the cookie code).
 3. New or changed behaviour needs tests.
 
 ## 9. Errors
@@ -139,20 +154,25 @@ Every PHP file under `src/lib` and `src/Public` must be named here. A test (`tes
 
 ## 10. Deploy
 
-1. Live state, 2026-11-13: USD-4 went live on 2026-11-12 on the shared bengusa.pro server, installed under the internal name `usdebt.bengusa.pro`. No public route reaches it yet: the bengusa.pro distribution does not pass the site name or query strings. So it is installed but not publicly reachable.
-    - **a.** Rob's go for that deploy, 2026-11-12: *"It is up, and it goes to the bengusa.pro server on lightsail."*
-    - **b.** The move to the public address is the TARGET, not live: route ready and security-reviewed, waiting on Rob's review and direct go.
-2. Target address: `https://bengusa.pro/ourusdebt/` (Rob, 2026-11-13). The bare `/ourusdebt` will redirect to `/ourusdebt/`.
-    - **a.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. The page links, share links, preview tags and the card link all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
+1. Live state, 2026-11-14: `https://bengusa.pro/ourusdebt/` has been live since 2026-11-13 01:26 UTC, served from master `de55c9b` (USD-7 Your Share plus USD-8). The old internal name `usdebt.bengusa.pro` is no longer the public address. History: USD-4 was installed 2026-11-12 under that internal name, with no public route yet.
+    - **a.** Rob's go for the 2026-11-12 deploy: *"It is up, and it goes to the bengusa.pro server on lightsail."*
+    - **b.** Rob's go for the move to `/ourusdebt/`, 2026-11-13: *"Just deploy the code. THis is taking way too long."*
+2. Public address: `https://bengusa.pro/ourusdebt/` (Rob, 2026-11-13). The bare `/ourusdebt` redirects to `/ourusdebt/`.
+    - **a.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. The page links, share links, preview tags, the card link, the CSV download link and the saved-tab cookie path all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
     - **b.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) as the public address.
 3. Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution. Never standard AWS.
     - **a.** Why: to keep costs down. Rob, 2026-11-13: *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there."*
     - **b.** UsDebt has its own nginx + PHP 8.5 pool on that server, capped at 15% of one CPU and 256 MB (this matches the live USD-4 setup).
-    - **c.** Target, not live yet: the bengusa.pro front door routes `/ourusdebt/` to that pool. In the other site's repo, the bengusa.pro Home gets a link that opens in a new tab (`target="_blank"`, `rel="noopener"`).
+    - **c.** Live since 2026-11-13: the bengusa.pro front door routes `/ourusdebt/` to that pool. The bengusa.pro Home link that opens in a new tab (`target="_blank"`, `rel="noopener"`) is a change in the other site's repo.
     - **d.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
 4. Allow-list deploy: only `./src` ships. Rollback in one step.
-5. Every production deploy waits for Rob's direct go. The 2026-11-12 go (quoted in 1.a) covered the deploy at the internal name. The move to `/ourusdebt/` waits for Rob's review and a new direct go.
-6. Plan order: USD-0 repo setup, USD-1 safe backend, USD-2 look and feel (Chart.js 4), USD-3 trend line, features (share link + picture card, Your Share, Since you were born), USD-4 deploy (live 2026-11-12 at the internal name), USD-8 move under `/ourusdebt/` (target). Rob's review stops are listed in `docs/requirements.md`.
+    - **a.** ⚠ Release step for USD-10, NOT done yet: the host nginx today runs only `index.php` and `card.php` (every other `.php` returns 404). Without the steps below the Table's download button gets a 404. These kit files live outside the repo (named by file name only). Production waits for Rob's direct go (rule 5). Checklist:
+        - **i.** Host `20-usdebt.conf`, before `location ~ \.php(/|$)`: add a `location = /download.php` block with `limit_except GET { deny all; }`, `limit_req zone=usdebt_dl_ip burst=5 nodelay;`, `limit_req zone=usdebt_page_all burst=10;`, `include /etc/nginx/usdebt/php.conf;`, `fastcgi_param SCRIPT_FILENAME $realpath_root/download.php;` and `fastcgi_param SCRIPT_NAME /download.php;`.
+        - **ii.** Host `10-usdebt-zones.conf`: add `limit_req_zone $usdebt_client zone=usdebt_dl_ip:5m rate=1r/s;` and two `$usdebt_cc` map lines: `"~^\|200\|/download\.php$" "public, max-age=300";` and `"~^\|[0-9]+\|/download\.php$" "no-store";`.
+        - **iii.** Deploy lists: add `src/Public/download.php` to the file-presence checks in `deploy-shared.sh` and `usdebt-release.sh`, plus a smoke check for a 200 with `text/csv`.
+        - **iv.** The CDN keeps forwarding no cookies. Otherwise the cache splits per visitor.
+5. Every production deploy waits for Rob's direct go. The 2026-11-12 go (1.a) covered the deploy at the internal name. The 2026-11-13 go (1.b) covered the move to `/ourusdebt/`. Every later release, USD-10 included, needs its own direct go.
+6. Plan order: USD-0 repo setup, USD-1 safe backend, USD-2 look and feel (Chart.js 4), USD-3 trend line, features (share link + picture card, Your Share, Since you were born), USD-4 deploy (installed 2026-11-12 at the internal name), USD-8 move under `/ourusdebt/` (live 2026-11-13). Rob's review stops are listed in `docs/requirements.md`.
 
 ## 11. Git rules
 

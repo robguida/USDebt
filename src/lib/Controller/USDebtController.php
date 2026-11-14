@@ -118,6 +118,7 @@ class USDebtController
             }
             $hasTrend = in_array('trend', array_column($chart['series'], 'key'), true);
             $results = $this->loadFile('tabs.php', [
+                'cookie_path' => $this->shareLinks->cookiePath(),
                 'graph' => $this->loadFile('chart_daily.php', [
                     'chart' => $chart,
                     'first' => $first,
@@ -134,6 +135,11 @@ class USDebtController
                 'data' => $this->loadFile('tab_data.php', [
                     'datas' => array_reverse($entries),
                     'header' => ShareText::summarySubject($per),
+                    'download_href' => $this->shareLinks->localDownload(implode('&', array_filter([
+                        'start_date=' . $requestModel->getStartDate()->format('Y-m-d'),
+                        'end_date=' . $requestModel->getEndDate()->format('Y-m-d'),
+                        $per->query(),
+                    ]))),
                 ]),
             ]);
         }

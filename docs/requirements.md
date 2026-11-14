@@ -1,8 +1,8 @@
 # UsDebt — requirements (living document)
 
-Last updated: 2026-11-13. Owner of decisions: Rob Guida.
+Last updated: 2026-11-14. Owner of decisions: Rob Guida.
 
-Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code on branch USD-7-your-share (which also carries USD-1 to USD-6); not merged into `development` yet. **open** = still waiting on an answer. **next** = approved, not started.
+Status words: **approved 2026-11-12** = Rob said yes. **built** = in the code. USD-0 to USD-8 are merged into `development` and live at `https://bengusa.pro/ourusdebt/`. USD-9 (Compare months fix) has its PR open. USD-10 (the R8 items) is built on branch USD-10-page-updates and is not merged. **open** = still waiting on an answer. **next** = approved, not started.
 
 ## Purpose
 
@@ -18,8 +18,8 @@ Put UsDebt on bengUSA.pro as a public demo. End-users can play with it while the
 4. **USD-3** — trend line. Built (straight line and projection). Waiting on Rob's review stop.
     - **a.** **USD-5** — growth curve beside the straight line, each with its own projection. Built.
 5. **Features, in Rob's order:** share link + picture card (**USD-6**, built, waiting on Rob's review stop). **USD-7** Your Share (built, waiting on Rob's review stop). Next: Since you were born.
-6. **USD-4** — deploy. Went live 2026-11-12 on the shared bengUSA.pro Lightsail server, installed under the internal name `usdebt.bengusa.pro`. No public route reaches it yet, so it is installed but not publicly reachable.
-    - **a.** **USD-8** — move to the target address `https://bengusa.pro/ourusdebt/` (branch `USD-8-ourusdebt-subpath`). The app side is built. The front-door route is ready and security-reviewed. Waiting on Rob's review and direct go.
+6. **USD-4** — deploy. Installed 2026-11-12 on the shared bengUSA.pro Lightsail server under the internal name `usdebt.bengusa.pro` (history; that name is no longer the public address).
+    - **a.** **USD-8** — move to `https://bengusa.pro/ourusdebt/`. Live since 2026-11-13 01:26 UTC, from master `de55c9b`, on Rob's go.
 
 Rob's review stops, in build order (the build runs all day and stops only here):
 
@@ -57,16 +57,16 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **a.** A "Trend line" button turns the trend line and projection off and on. Status: built.
     - **b.** Default is on. The choice is remembered in the browser and in the URL (`trend=0`), so a shared link opens the same view.
 4. **R4 — Deploy.**
-    - **a.** Target address: `https://bengusa.pro/ourusdebt/`. The bare `/ourusdebt` will redirect to `/ourusdebt/`. Status: address approved 2026-11-13; the route is not live yet (see d).
-        - **i.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. Page links, share links, preview tags and the card link all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
+    - **a.** Public address: `https://bengusa.pro/ourusdebt/`. The bare `/ourusdebt` redirects to `/ourusdebt/`. Status: LIVE since 2026-11-13 01:26 UTC (see d).
+        - **i.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. Page links, share links, preview tags, the card link, the Table's CSV download link and the saved-tab cookie path all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
         - **ii.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) as the public address.
     - **b.** Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution, to keep costs down. nginx and PHP 8.5.
         - **i.** UsDebt has its own nginx + PHP pool on that server, capped at 15% of one CPU and 256 MB (matches the live USD-4 setup).
-        - **ii.** Target, not live yet: the bengusa.pro front door routes `/ourusdebt/` to that pool.
-        - **iii.** Target, not live yet: the bengusa.pro Home links to it in a new tab (`target="_blank"`, `rel="noopener"`). That link is a change in the other site's repo.
+        - **ii.** Live since 2026-11-13: the bengusa.pro front door routes `/ourusdebt/` to that pool.
+        - **iii.** The bengusa.pro Home links to it in a new tab (`target="_blank"`, `rel="noopener"`). That link is a change in the other site's repo.
         - **iv.** ⚠ SUPERSEDED 2026-11-13 (Rob): "its own small AWS Lightsail server (about $5 a month)".
     - **c.** Deploy ships `./src` only (allow-list). Rollback in one step.
-    - **d.** Going live waits for Rob's direct go. USD-4 went live 2026-11-12 at the internal name `usdebt.bengusa.pro`, on Rob's go: *"It is up, and it goes to the bengusa.pro server on lightsail."* That go covered that deploy only. The move to `/ourusdebt/` (USD-8 plus the front-door route) waits for Rob's review and a new direct go.
+    - **d.** Every release waits for Rob's direct go. USD-4 was installed 2026-11-12 at the internal name `usdebt.bengusa.pro`, on Rob's go: *"It is up, and it goes to the bengusa.pro server on lightsail."* The move to `/ourusdebt/` (USD-7 plus USD-8) went live 2026-11-13 01:26 UTC from master `de55c9b`, on Rob's go: *"Just deploy the code. THis is taking way too long."* Each go covered that deploy only; USD-10 and later need their own.
 5. **R5 — More features, built in this order.** Status: approved 2026-11-12.
     - **a.** Share link + picture card. Status: BUILT (USD-6). Review stop reached.
         - **i.** Share links are plain GET links for every view. The examples below are relative to the site address (for example `https://bengusa.pro/ourusdebt/?start_date=…`): `?start_date=…&end_date=…[&trend=0]` and `?compare=id,…`. The Compare form POST still works. No cap on the Compare list.
@@ -99,14 +99,36 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **b.** When a president has a gap between terms and both terms are selected, show the data as one continuous run.
     - **c.** The Compare area is labeled "View by presidential term", with a caption that Congress sets spending and taxes.
 
+8. **R8 — Page updates (USD-10).** Rob, 2026-11-14: *"1. Have the bengUSA.pro logo in the header to the left of "Our U.S. Debt", and have it link to bengusa.pro 2. Add a checkbox somewhere with a cookie warning on the page so the end-user can save which tab in "The debt over time" section. This way, when they click any of the presidents, it stays on the tab they are on. 3. Add a copyright disclaimer to the footer. 4. On the Table tab, provide a download button. 5. Any links that go to another site need to use a new tab. So, "Debt to the Penny" and "GitHub", and any other, need to open in new tabs."* Status: built on branch USD-10-page-updates; waiting on Rob's review. Not live (see the release step in f below).
+    - **a.** Logo. The bengUSA.pro logo sits in the header, left of "Our U.S. Debt", and links to `https://bengusa.pro/` in a new tab. Status: built.
+    - **b.** Saved tab. Status: built.
+        - **i.** An opt-in checkbox, "Remember my tab", next to the Chart / Stats / Table switch (it wraps under the switch on phones), with a short cookie notice. Nothing is saved until the visitor ticks it.
+        - **ii.** One first-party cookie, `usdebt_tab`, holding only `chart`, `stats` or `table`. Only the page script writes, reads and clears it. The server never reads it: the CDN does not forward cookies, and a URL parameter would need a CDN change.
+        - **iii.** Path follows the path in `USDEBT_BASE_URL`. Lasts 1 year from the last visit that loads a saved tab or changes it (the cookie is saved again then). `SameSite=Lax`. `Secure` on https.
+        - **iv.** Ticking saves the tab now shown and says "Saved. We'll keep this tab." Every later tab change saves again while the box is ticked. Unticking deletes the cookie and says "Cookie removed." If the browser blocks cookies, the box unticks and says "Couldn't save. Cookies seem to be blocked in this browser." A saved tab opens first when the page loads, with the box ticked, and loading it renews the 1 year.
+        - **v.** Hidden without JavaScript (all three panels show then, so there is nothing to save). Not on Compare, which has no tabs.
+        - **vi.** Example: a visitor on the Table tab ticks the box, then clicks a president. The page reloads and opens on the Table tab again.
+    - **c.** Copyright. Status: built.
+        - **i.** Footer line: "© 2026 bengUSA.pro. Covers this site and its code, not the public-domain Treasury and Census data."
+        - **ii.** The first year is fixed (2026). The end year is the current year (America/New_York), so it reads "2026–2027" next year.
+        - **iii.** The holder is written "bengUSA.pro", without "LLC", so it is right whether or not the LLC exists yet.
+    - **d.** Table download. Status: built.
+        - **i.** A "Download table (CSV)" button on the Table tab: the same rows as the Table (the chosen range, Total or per person or per household, newest first). Helper line under it: "Opens in Excel, Numbers or Google Sheets."
+        - **ii.** It is a plain link to `download.php`, so it works without JavaScript. The link carries only `start_date`, `end_date` and `per`. Its path follows `USDEBT_BASE_URL` (for example `/ourusdebt/download.php`).
+        - **iii.** File name: `our-us-debt_<start>_to_<end>[_per-person|_per-household].csv`. Text cells that start with `=`, `+`, `-`, `@`, tab or return get a leading apostrophe, so a spreadsheet cannot run them as formulas.
+        - **iv.** Errors are short plain text, like the card: 400 (bad input, Compare, no data in range), 503 (no Treasury data), 500 (unexpected).
+    - **e.** Off-site links. Every link to another site opens in a new tab (`target="_blank"`, `rel="noopener noreferrer"`) and carries a screen-reader "(opens in a new tab)". Today: the logo, "Debt to the Penny", "GitHub". `mailto:` and same-site links are unchanged. Status: built.
+    - **f.** Release step, NOT done: the host nginx runs only `index.php` and `card.php` today (any other `.php` returns 404). `download.php` needs its own location block, rate limits, cache rules and a place in the deploy file lists before the release that carries USD-10. The full checklist is in CLAUDE.md §10.4.a. Production waits for Rob's direct go.
+
 ## Open questions
 
-1. **R1:** any look Rob likes (a site to copy, colors, logo)?
-2. **R4:** public with no login, or behind a password for now?
+1. **R8.c:** should the footer also say "All rights reserved", to match bengusa.pro word for word? Yes = the line is longer and copies the other site's wording. No = it stays as built, which already states what is covered. Built as: no.
+2. **R1:** any look Rob likes (a site to copy, colors, logo)?
+3. **R4:** public with no login, or behind a password for now?
 
 Answered 2026-11-12: **Site name is "Our U.S. Debt"** (Rob). It is written in one place only, `SiteConfig::NAME`, and used for the page header, the page title, the share preview, the picture cards and the share text. The old "U.S. Debt Tracker" wording is dropped.
 Answered 2026-11-12: Curved trend line is in version 1 (Rob: "Q2, Sure"). User-picked chart colors wait for version 2 (Rob: "Q3, Wait").
 Decision 2026-11-12: no AI-tool attribution in commits or PR descriptions (no co-author line, no "generated with" line). Rob: "No drop it ... I pay the bill, and I do not pay [the tool maker] to advertise for them."
 Answered 2026-11-12: Compare list stays uncapped. Projection into the future: yes. Address: `usdebt.bengusa.pro`. Treasury calls are cached daily (one full-dataset copy). PHP 8.5, no Docker. Gap-between-terms run is in version 1. Phone support: built and checked.
 ⚠ PARTLY SUPERSEDED 2026-11-13 (Rob): the address `usdebt.bengusa.pro` and the "dedicated server" for PHP 8.5. See R4.
-Decision 2026-11-13 (Rob): *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there. Just make sure it opens in a new tab."* The target is `https://bengusa.pro/ourusdebt/` on the existing bengUSA.pro Lightsail server, with the bengusa.pro Home link opening in a new tab. Not live yet: it waits for Rob's review and direct go (see R4.d). The site name "Our U.S. Debt" is final.
+Decision 2026-11-13 (Rob): *"In order to keep the costs down, rather than usdebt.com, let's add a page, bengusa.pro/ourusdebt, and have a page for it there. Just make sure it opens in a new tab."* The address is `https://bengusa.pro/ourusdebt/` on the existing bengUSA.pro Lightsail server, with the bengusa.pro Home link opening in a new tab. Live since 2026-11-13 (see R4.d). The site name "Our U.S. Debt" is final.

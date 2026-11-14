@@ -838,6 +838,56 @@
         }
     }
 
+    /* ---------- Saved tab (opt-in cookie) ---------- */
+
+    /* tab-memory:start (tests/js/tab-memory.check.js runs this block on its own) */
+    /*
+     * One first-party cookie, written, read and cleared only here. The server
+     * never reads it. It holds only which tab was picked. Every read and write
+     * is wrapped, so the page works when cookies are blocked.
+     */
+    var TAB_COOKIE = 'usdebt_tab';
+    var TAB_VALUES = ['chart', 'stats', 'table'];
+
+    function tabMemory(doc, loc, path) {
+        var cookiePath = /^\/[A-Za-z0-9._~\/-]*$/.test(path || '') ? path : '/';
+        function attrs(maxAge) {
+            return '; Path=' + cookiePath + '; Max-Age=' + maxAge + '; SameSite=Lax' + (loc.protocol === 'https:' ? '; Secure' : '');
+        }
+        function read() {
+            try {
+                var parts = String(doc.cookie || '').split(';');
+                for (var i = 0; i < parts.length; i++) {
+                    var kv = parts[i].replace(/^\s+/, '');
+                    if (kv.indexOf(TAB_COOKIE + '=') === 0) {
+                        var v = kv.slice(TAB_COOKIE.length + 1);
+                        return TAB_VALUES.indexOf(v) !== -1 ? v : null;
+                    }
+                }
+            } catch (e) { /* cookies blocked: no saved tab */ }
+            return null;
+        }
+        return {
+            read: read,
+            /* true when the browser kept it */
+            save: function (value) {
+                if (TAB_VALUES.indexOf(value) === -1) {
+                    return false;
+                }
+                try {
+                    doc.cookie = TAB_COOKIE + '=' + value + attrs(31536000);
+                } catch (e) { return false; }
+                return read() === value;
+            },
+            clear: function () {
+                try {
+                    doc.cookie = TAB_COOKIE + '=' + attrs(0);
+                } catch (e) { /* nothing to remove */ }
+            }
+        };
+    }
+    /* tab-memory:end */
+
     /* ---------- Chart / Stats / Table switch ---------- */
 
     function initSwitch() {
@@ -846,6 +896,15 @@
             return;
         }
         var tabs = Array.prototype.slice.call(list.querySelectorAll('[role="tab"]'));
+        var wrap = document.getElementById('tab_memory');
+        var box = document.getElementById('tab_memory_box');
+        var statusLine = document.getElementById('tab_memory_status');
+        var memory = wrap ? tabMemory(document, window.location, wrap.getAttribute('data-path') || '/') : null;
+
+        function keyOf(tab) { return tab.id.replace(/^tab_/, ''); }
+        function say(attr) {
+            if (statusLine && wrap) { statusLine.textContent = wrap.getAttribute(attr) || ''; }
+        }
 
         function select(tab, focus) {
             tabs.forEach(function (t) {
@@ -862,6 +921,10 @@
             }
             if (chart && tab.getAttribute('aria-controls') === 'graph_tab') {
                 chart.resize();
+            }
+            /* while the box is ticked, every tab change updates the cookie */
+            if (memory && box && box.checked) {
+                memory.save(keyOf(tab));
             }
         }
 
@@ -881,6 +944,31 @@
         });
 
         var current = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || tabs[0];
+        if (memory && box) {
+            wrap.hidden = false;
+            /* a saved tab opens before the switch is seen; no focus move */
+            var saved = memory.read();
+            var savedTab = saved === null ? null : tabs.filter(function (t) { return keyOf(t) === saved; })[0];
+            if (savedTab) {
+                current = savedTab;
+            }
+            /* set explicitly: a browser that restores form state must not tick the box by itself */
+            box.checked = !!savedTab;
+            box.addEventListener('change', function () {
+                var shown = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || current;
+                if (box.checked) {
+                    if (memory.save(keyOf(shown))) {
+                        say('data-saved');
+                    } else {
+                        box.checked = false;
+                        say('data-failed');
+                    }
+                } else {
+                    memory.clear();
+                    say('data-removed');
+                }
+            });
+        }
         select(current, false);
     }
 

@@ -76,4 +76,4 @@ if (failures.length) {
     console.error(failures.join('\n'));
     process.exit(1);
 }
-console.log('withTrend: all links stay same-origin');
+console.log('withTrend: all checks passed (links stay same-origin)');
