@@ -190,7 +190,18 @@ final class PageUpdatesTest extends TestCase
         }
     }
 
-    public function testTabMemoryCookieLogicInNode(): void
+    /** @return array<string, array{string}> every Node check in tests/js, so a new one cannot be forgotten */
+    public static function nodeChecks(): array
+    {
+        $out = [];
+        foreach ((array) glob(dirname(__DIR__) . '/js/*.check.js') as $file) {
+            $out[basename($file)] = [$file];
+        }
+        return $out;
+    }
+
+    #[DataProvider('nodeChecks')]
+    public function testNodeCheck(string $file): void
     {
         $finder = DIRECTORY_SEPARATOR === '\\' ? 'where node 2>NUL' : 'command -v node 2>/dev/null';
         $found = trim((string) shell_exec($finder));
@@ -198,7 +209,16 @@ final class PageUpdatesTest extends TestCase
         if ($node === '' || !is_file($node)) {
             self::markTestSkipped('Node is not installed.');
         }
-        exec(escapeshellarg($node) . ' ' . escapeshellarg(dirname(__DIR__) . '/js/tab-memory.check.js') . ' 2>&1', $output, $code);
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>&1', $output, $code);
         self::assertSame(0, $code, implode("\n", $output));
+        self::assertStringContainsString('all checks passed', implode("\n", $output));
+    }
+
+    /** The footer year is the New York year, whatever zone the caller's time is in. */
+    public function testCopyrightYearUsesNewYorkTime(): void
+    {
+        $utc = new \DateTimeZone('UTC');
+        self::assertStringStartsWith("\u{00A9} 2026 ", SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01T03:00:00Z', $utc)));
+        self::assertStringStartsWith("\u{00A9} 2026\u{2013}2027 ", SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01T05:00:00Z', $utc)));
     }
 }

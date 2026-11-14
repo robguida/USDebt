@@ -58,7 +58,7 @@ Rob's review stops, in build order (the build runs all day and stops only here):
     - **b.** Default is on. The choice is remembered in the browser and in the URL (`trend=0`), so a shared link opens the same view.
 4. **R4 — Deploy.**
     - **a.** Public address: `https://bengusa.pro/ourusdebt/`. The bare `/ourusdebt` redirects to `/ourusdebt/`. Status: LIVE since 2026-11-13 01:26 UTC (see d).
-        - **i.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. Page links, share links, preview tags and the card link all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
+        - **i.** The base-path rule is ONE setting for every output: `USDEBT_BASE_URL`. Page links, share links, preview tags, the card link, the Table's CSV download link and the saved-tab cookie path all follow it. When it is unset or invalid, the default `https://bengusa.pro/ourusdebt` (in `ShareLinks`) applies to all of them. Production sets it.
         - **ii.** ⚠ SUPERSEDED 2026-11-13 (Rob): `usdebt.bengusa.pro` (approved 2026-11-12) as the public address.
     - **b.** Host: the existing bengUSA.pro AWS Lightsail server, shared with the bengusa.pro site and pay.bengusa.pro. Not its own box, and no separate distribution, to keep costs down. nginx and PHP 8.5.
         - **i.** UsDebt has its own nginx + PHP pool on that server, capped at 15% of one CPU and 256 MB (matches the live USD-4 setup).

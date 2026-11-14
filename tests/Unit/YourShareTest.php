@@ -215,7 +215,7 @@ final class YourShareTest extends TestCase
         self::assertSame(1, preg_match('#data-share="email" href="(mailto:[^"]*)"#', $html, $m));
         $body = rawurldecode(explode('&body=', html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'))[1]);
         self::assertStringEndsWith(\USDebt\Service\ShareText::emailNote($per), $body);
-        self::assertSame(!$per->isTotal(), str_contains(str_replace(\USDebt\SiteConfig::copyrightLine(new \DateTimeImmutable('now')), '', $body), 'Census'), 'the Census line is there in per modes only');
+        self::assertSame(!$per->isTotal(), str_contains($body, 'Census'), 'the Census line is there in per modes only');
 
         // The link builder agrees with the page.
         $links = \USDebt\Service\ShareLinks::networks('https://x.test/', 'Text.', 'Subject', $per);

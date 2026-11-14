@@ -101,4 +101,4 @@ if (failures.length) {
     console.error(failures.join('\n'));
     process.exit(1);
 }
-console.log('share links: canonical, same-origin, encoded' + (expectedFile ? ', match the server' : ''));
+console.log('share links: all checks passed (canonical, same-origin, encoded' + (expectedFile ? ', match the server' : '') + ')');

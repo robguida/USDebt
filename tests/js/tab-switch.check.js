@@ -1,5 +1,5 @@
 // Checks initSwitch (tabs + the "Remember my tab" checkbox) from src/Public/js/usdebt.js in Node, with a fake page.
-// Counts every cookie write. Run by hand: node tests/js/tab-switch.check.js  (also run by PageUpdatesTest when Node is installed)
+// Counts every cookie write. Run by hand: node tests/js/tab-switch.check.js  (also run by PageUpdatesTest::testNodeCheck when Node is installed)
 'use strict';
 const fs = require('fs');
 const path = require('path');

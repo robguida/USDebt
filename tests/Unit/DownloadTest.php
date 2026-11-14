@@ -244,15 +244,7 @@ final class DownloadTest extends TestCase
         self::assertStringNotContainsString('Download table', $r->body);
     }
 
-    /** The footer year is the New York year, whatever zone the caller's time is in. */
-    public function testCopyrightYearUsesNewYorkTime(): void
-    {
-        $utc = new \DateTimeZone('UTC');
-        self::assertStringStartsWith("\u{00A9} 2026 ", \USDebt\SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01T03:00:00Z', $utc)));
-        self::assertStringStartsWith("\u{00A9} 2026\u{2013}2027 ", \USDebt\SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01T05:00:00Z', $utc)));
-    }
-
-    /** Without usable Census data,per=person gives the Total CSV, the same as the page. */
+    /** Without usable Census data, per=person gives the Total CSV, the same as the page. */
     public function testPerFallsBackToTotalWithoutCensusData(): void
     {
         $prev = ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
