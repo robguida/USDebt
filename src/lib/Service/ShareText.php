@@ -79,7 +79,7 @@ final class ShareText
     public const TAB_MEMORY_REMOVED = 'Cookie removed.';
     public const TAB_MEMORY_FAILED = "Couldn't save. Cookies seem to be blocked in this browser.";
     /** The home link for the maker's site, read by screen readers. */
-    public const LOGO_LINK_LABEL = 'bengUSA.pro home';
+    public const LOGO_LINK_LABEL = SiteConfig::COPYRIGHT_HOLDER . ' home';
 
     /** @var array{x: string, facebook: string, linkedin: string, reddit: string, email: string} */
     public const MENU_NETWORKS = [

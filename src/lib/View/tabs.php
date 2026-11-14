@@ -29,7 +29,7 @@ use USDebt\Service\ShareText;
      data-saved="<?php echo Html::e(ShareText::TAB_MEMORY_SAVED); ?>"
      data-removed="<?php echo Html::e(ShareText::TAB_MEMORY_REMOVED); ?>"
      data-failed="<?php echo Html::e(ShareText::TAB_MEMORY_FAILED); ?>">
-    <label class="tab-memory-label"><input type="checkbox" id="tab_memory_box" aria-describedby="tab_memory_note"> <?php echo Html::e(ShareText::TAB_MEMORY_LABEL); ?></label>
+    <label class="tab-memory-label"><input type="checkbox" id="tab_memory_box" autocomplete="off" aria-describedby="tab_memory_note"> <?php echo Html::e(ShareText::TAB_MEMORY_LABEL); ?></label>
     <p class="tab-memory-note" id="tab_memory_note"><?php echo Html::e(ShareText::TAB_MEMORY_NOTE); ?></p>
     <p class="share-status" id="tab_memory_status" role="status"></p>
 </div>

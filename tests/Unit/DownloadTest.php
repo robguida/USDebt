@@ -14,6 +14,7 @@ use USDebt\Model\DebtEntry;
 use USDebt\Model\Per;
 use USDebt\Service\CompareService;
 use USDebt\Service\DebtSource;
+use USDebt\Service\PopulationService;
 use USDebt\Service\ShareLinks;
 use USDebt\Service\TableCsv;
 
@@ -45,6 +46,15 @@ final class DownloadTest extends TestCase
         $table = substr($html, (int) strpos($html, 'data-table'));
         preg_match_all('#<td class="date">([^<]+)</td>#', $table, $m);
         return array_map(static fn (string $d): string => date('Y-m-d', strtotime($d)), $m[1]);
+    }
+
+    /** @return list<string> the Table's amounts as plain numbers ("$1,234.50" becomes "1234.50"), in order */
+    private static function tableAmounts(string $html): array
+    {
+        $table = substr($html, (int) strpos($html, 'data-table'));
+        preg_match_all('#<td class="currency">([^<]+)</td>#', $table, $m);
+        self::assertNotEmpty($m[1]);
+        return array_map(static fn (string $c): string => str_replace(['$', ','], '', $c), $m[1]);
     }
 
     private static function page(array $query): string
@@ -89,7 +99,10 @@ final class DownloadTest extends TestCase
             $lines = self::lines(self::controller()->handle($query)->body);
             array_shift($lines);
             $dates = array_map(static fn (string $l): string => explode(',', $l)[0], $lines);
-            self::assertSame(self::tableDates(self::page($query)), $dates, "per=$per");
+            $html = self::page($query);
+            self::assertSame(self::tableDates($html), $dates, "per=$per");
+            $amounts = array_map(static fn (string $l): string => explode(',', $l)[1], $lines);
+            self::assertSame(self::tableAmounts($html), $amounts, "per=$per amounts, to the cent");
             self::assertSame($dates, array_reverse(array_values(array_unique(array_reverse($dates)))), 'unique');
             self::assertGreaterThan($dates[1], $dates[0], 'newest first');
         }
@@ -224,6 +237,40 @@ final class DownloadTest extends TestCase
 
     public function testNoButtonOnCompare(): void
     {
-        self::assertStringNotContainsString('Download table', self::page(['compare' => '1,2']));
+        $app = new FrontController(new USDebtController(FrontControllerTest::source(), new CompareService(), ShareLinks::fromEnvironment()));
+        $r = $app->handle(['compare' => '727506000,979966800'], []);
+        self::assertSame(200, $r->status, 'the Compare view itself rendered');
+        self::assertStringContainsString('View by presidential term', $r->body);
+        self::assertStringNotContainsString('Download table', $r->body);
+    }
+
+    /** The footer year is the New York year, whatever zone the caller's time is in. */
+    public function testCopyrightYearUsesNewYorkTime(): void
+    {
+        $utc = new \DateTimeZone('UTC');
+        self::assertStringStartsWith("\u{00A9} 2026 ", \USDebt\SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01T03:00:00Z', $utc)));
+        self::assertStringStartsWith("\u{00A9} 2026\u{2013}2027 ", \USDebt\SiteConfig::copyrightLine(new \DateTimeImmutable('2027-01-01T05:00:00Z', $utc)));
+    }
+
+    /** Without usable Census data,per=person gives the Total CSV, the same as the page. */
+    public function testPerFallsBackToTotalWithoutCensusData(): void
+    {
+        $prev = ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
+        try {
+            $compare = new CompareService(null, PopulationService::fromYears([2003 => 0], [2003 => 1]));
+            self::assertFalse($compare->population()->available());
+            $csv = (new DownloadController(FrontControllerTest::source(), $compare))->handle(self::RANGE + ['per' => 'person']);
+            $page = (new FrontController(new USDebtController(FrontControllerTest::source(), $compare, ShareLinks::fromEnvironment())))
+                ->handle(self::RANGE + ['per' => 'person'], [])->body;
+        } finally {
+            ini_set('error_log', (string) $prev);
+        }
+        self::assertSame(200, $csv->status);
+        self::assertSame('Date,"Total debt (USD)"', self::lines($csv->body)[0]);
+        self::assertSame('attachment; filename="our-us-debt_2026-09-01_to_2026-10-31.csv"', $csv->headers['Content-Disposition']);
+        $lines = self::lines($csv->body);
+        array_shift($lines);
+        self::assertSame(self::tableAmounts($page), array_map(static fn (string $l): string => explode(',', $l)[1], $lines));
+        self::assertMatchesRegularExpression('/^2026-10-\d\d,\d{13,}\.\d{2}$/', $lines[0], 'Total-sized amounts');
     }
 }

@@ -18,6 +18,7 @@
     --on-accent: #ffffff;
     --topbar-bg: #13254f;
     --topbar-text: #ffffff;
+    --logo-chip: #ffffff;       /* light chip behind the logo mark (dark mode keeps it light) */
     --focus: #2f6fdb;
     --notice-bg: #fff7e6;
     --notice-border: #f0c36d;
@@ -56,6 +57,7 @@
         --on-accent: #0b1220;
         --topbar-bg: #0e1830;
         --topbar-text: #e6ebf3;
+        --logo-chip: #ffffff;
         --focus: #8fb0ff;
         --notice-bg: #2b2412;
         --notice-border: #7a5f1c;
@@ -160,7 +162,7 @@ img { max-width: 100%; }
 .logo-link {
     display: inline-flex;
     flex: none;
-    background: #ffffff;
+    background: var(--logo-chip);
     border-radius: 8px;
     padding: 3px 4px;
     line-height: 0;

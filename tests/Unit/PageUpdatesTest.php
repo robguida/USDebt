@@ -39,9 +39,18 @@ final class PageUpdatesTest extends TestCase
         return [
             'default' => [[], []],
             'per person' => [['per' => 'person'], []],
-            'compare' => [[], ['submit' => 'Compare', 'compare_pres' => ['44', '45']]],
+            'compare' => [[], ['submit' => 'Compare', 'compare_pres' => ['727506000', '979966800']]],
             'bad date' => [['start_date' => '2026-02-30'], []],
         ];
+    }
+
+    #[DataProvider('pages')]
+    public function testEachPageCaseRendersTheViewItNames(array $query, array $post): void
+    {
+        $response = FrontControllerTest::app(FrontControllerTest::source())->handle($query, $post);
+        $isCompare = isset($post['compare_pres']);
+        self::assertSame(isset($query['start_date']) ? 400 : 200, $response->status);
+        self::assertSame($isCompare, str_contains($response->body, 'Line chart comparing the change in'));
     }
 
     public function testLogoLinksToTheMakersSiteInANewTabLeftOfTheBrand(): void
@@ -61,7 +70,7 @@ final class PageUpdatesTest extends TestCase
         $svg = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Public/images/bengusa-logo.svg');
         self::assertStringStartsWith('<?xml', $svg);
         self::assertLessThan(20000, strlen($svg));
-        self::assertDoesNotMatchRegularExpression('#<script|foreignObject|@import|\son\w+\s*=|href\s*=|xlink:|url\(\s*[\'"]?https?:|<image#i', $svg);
+        self::assertDoesNotMatchRegularExpression('#<script|foreignObject|@import|\son\w+\s*=|href\s*=|xlink:|url\(\s*[\'"]?(?:https?:|data:|//)|<image|<use|<animate|<set|<!DOCTYPE|<!ENTITY#i', $svg);
     }
 
     public function testFooterCopyrightLine(): void
@@ -148,7 +157,9 @@ final class PageUpdatesTest extends TestCase
         self::assertStringContainsString('data-path="/ourusdebt/"', $html);
         self::assertStringContainsString('data-saved="Saved. We&apos;ll keep this tab."', $html);
         self::assertStringContainsString('data-removed="Cookie removed."', $html);
-        self::assertMatchesRegularExpression('#<input type="checkbox" id="tab_memory_box"(?![^>]*\bchecked)[^>]*> Remember my tab</label>#', $html);
+        self::assertStringContainsString('data-failed="', $html);
+        self::assertStringContainsString('id="tab_memory_box" autocomplete="off"', $html);
+        self::assertMatchesRegularExpression('#<input type="checkbox" id="tab_memory_box" autocomplete="off"(?![^>]*\bchecked)[^>]*> Remember my tab</label>#', $html);
         self::assertStringContainsString(
             '<p class="tab-memory-note" id="tab_memory_note">Saves one cookie on this device. It holds only which tab you picked, nothing else. Untick to remove it.</p>',
             $html
@@ -158,8 +169,10 @@ final class PageUpdatesTest extends TestCase
 
     public function testSavedTabCheckboxIsNotOnTheCompareView(): void
     {
-        $html = self::page([], ['submit' => 'Compare', 'compare_pres' => ['44', '45']]);
-        self::assertStringNotContainsString('tab_memory', $html);
+        $response = FrontControllerTest::app(FrontControllerTest::source())->handle([], ['submit' => 'Compare', 'compare_pres' => ['727506000', '979966800']]);
+        self::assertSame(200, $response->status);
+        self::assertStringContainsString('Line chart comparing the change in', $response->body);
+        self::assertStringNotContainsString('tab_memory', $response->body);
     }
 
     public function testCookiePathFollowsTheBaseUrl(): void
@@ -172,7 +185,7 @@ final class PageUpdatesTest extends TestCase
     public function testTheScriptHoldsNoWordsForTheSavedTab(): void
     {
         $js = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Public/js/usdebt.js');
-        foreach ([ShareText::TAB_MEMORY_LABEL, ShareText::TAB_MEMORY_NOTE, ShareText::TAB_MEMORY_SAVED, ShareText::TAB_MEMORY_REMOVED] as $words) {
+        foreach ([ShareText::TAB_MEMORY_LABEL, ShareText::TAB_MEMORY_NOTE, ShareText::TAB_MEMORY_SAVED, ShareText::TAB_MEMORY_REMOVED, ShareText::TAB_MEMORY_FAILED] as $words) {
             self::assertStringNotContainsString($words, $js);
         }
     }

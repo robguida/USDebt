@@ -951,8 +951,9 @@
             var savedTab = saved === null ? null : tabs.filter(function (t) { return keyOf(t) === saved; })[0];
             if (savedTab) {
                 current = savedTab;
-                box.checked = true;
             }
+            /* set explicitly: a browser that restores form state must not tick the box by itself */
+            box.checked = !!savedTab;
             box.addEventListener('change', function () {
                 var shown = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || current;
                 if (box.checked) {

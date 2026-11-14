@@ -32,7 +32,10 @@ final class SiteConfig
      */
     public static function copyrightLine(\DateTimeInterface $now): string
     {
-        $year = (int) $now->format('Y');
+        // Always the New York calendar year, whatever zone the caller's time carries.
+        $year = (int) \DateTimeImmutable::createFromInterface($now)
+            ->setTimezone(new \DateTimeZone('America/New_York'))
+            ->format('Y');
         $years = $year > self::COPYRIGHT_FIRST_YEAR
             ? self::COPYRIGHT_FIRST_YEAR . "\u{2013}" . $year
             : (string) self::COPYRIGHT_FIRST_YEAR;
